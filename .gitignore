@@ -1,0 +1,37 @@
+# Backend (Maven / Spring Boot)
+backend/target/
+backend/uploads/
+*.class
+*.jar
+*.war
+hs_err_pid*
+
+# Frontend (Vite / React)
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Logs & temp
+*.log
+*.tmp
+*.swp
+
+# IDE / éditeur
+.idea/
+.vscode/
+*.iml
+.cursor/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Tests / couverture
+coverage/
+.nyc_output/
