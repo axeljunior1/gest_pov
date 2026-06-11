@@ -4,6 +4,7 @@
   "scripts": {
     "dev": "powershell -ExecutionPolicy Bypass -File ./dev.ps1",
     "stop": "powershell -ExecutionPolicy Bypass -File ./dev.ps1 -StopOnly",
+    "commit": "powershell -ExecutionPolicy Bypass -File ./commit-feature.ps1",
     "backend": "cd backend && mvn -q -DskipTests spring-boot:run",
     "frontend": "cd frontend && npm run dev"
   }
