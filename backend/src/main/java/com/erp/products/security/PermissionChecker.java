@@ -20,6 +20,18 @@ public class PermissionChecker {
                         || matchesWildcard(auth, permission));
     }
 
+    public boolean hasAny(Authentication authentication, String... permissions) {
+        if (permissions == null) {
+            return false;
+        }
+        for (String permission : permissions) {
+            if (has(authentication, permission)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private boolean matchesWildcard(String authority, String permission) {
         if (!authority.endsWith(".*")) {
             return false;

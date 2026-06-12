@@ -40,11 +40,13 @@ const modules = [
     status: 'En place',
     tone: 'success',
     route: '/stock',
-    pages: ['Stock', 'Entrées stock', 'Sorties stock'],
+    pages: ['Stock', 'Entrées stock', 'Sorties stock', 'Mouvements', 'Inventaires'],
     features: [
       'Entrepôts et emplacements (WH-MAIN / DEFAULT créés au démarrage)',
       'Entrées de stock multi-lignes (brouillon → validation) après achat externe',
       'Sorties de stock multi-lignes (vente, casse, perte, consommation…) avec motif et validation',
+      'Historique global des mouvements (immuable, filtres combinés, export CSV)',
+      'Inventaires physiques : comptage, écarts, correction stock via mouvement INVENTORY',
       'Conversion conditionnement → unité de base à la saisie',
       'Lots et dates de péremption à la validation',
       'Stock par produit, variante, entrepôt, emplacement et lot',
@@ -52,7 +54,6 @@ const modules = [
       'Mouvements : entrée, sortie, ajustement, transfert, réservation, inventaire…',
       'Ledger centralisé avec verrou pessimiste (pas de stock négatif par défaut)',
       'Réservations et transferts inter-entrepôts',
-      'Inventaires physiques avec écarts et validation',
       'Synchronisation du stock produit depuis les StockItem',
       'Lots avec dates de péremption et fabrication',
     ],
@@ -61,10 +62,11 @@ const modules = [
       'GET /api/stock/items',
       'GET /api/stock/available',
       'POST /api/stock/receipt | issue | adjust',
-      'GET /api/stock/movements',
+      'GET /api/stock/movements (+ /{id}, /export)',
       'GET/POST /api/stock/reservations',
       'GET/POST /api/stock/transfers',
       'GET/POST /api/stock/inventories',
+      'POST /api/stock/inventories/{id}/start | validate | cancel',
       'GET/POST /api/stock/entries',
       'POST /api/stock/entries/{id}/validate | cancel',
       'GET/POST /api/stock/exits',
@@ -109,11 +111,11 @@ const modules = [
       'Authentification JWT (Bearer token, expiration 24 h)',
       'Compte admin initial : admin@erp.local / ErpAdmin2026!',
       '5 rôles système : SUPER_ADMIN, ADMIN, MANAGER, OPERATOR, VIEWER',
-      '26 permissions granulaires (produits, stock, entrées, sorties, alertes, utilisateurs, rôles)',
+      '33 permissions granulaires (produits, stock, mouvements, inventaires, entrées, sorties, alertes, utilisateurs, rôles)',
       'Protection @PreAuthorize sur toutes les routes métier',
       'Acteur d’audit et mouvements : email JWT côté serveur (champ client ignoré si authentifié)',
       'Permissions rechargées depuis la base à chaque requête (effet immédiat sans reconnexion)',
-      'Routes frontend protégées par permission (Utilisateurs, Rôles, Alertes, Sorties stock) + message 403 explicite',
+      'Routes frontend protégées par permission (Utilisateurs, Rôles, Alertes, Sorties stock, Mouvements) + message 403 explicite',
       'Pages Utilisateurs : création, modification, activation/désactivation, assignation de rôles',
       'Page Rôles : consultation et édition des permissions par rôle (sauf SUPER_ADMIN)',
     ],
@@ -174,7 +176,7 @@ export default function DocumentationPage() {
           Backend sur le port <strong>8080</strong>, frontend sur le port <strong>5173</strong>.
           Base PostgreSQL via Docker (<code className="text-xs bg-white px-1.5 py-0.5 rounded">.\db.ps1</code> ou{' '}
           <code className="text-xs bg-white px-1.5 py-0.5 rounded">.\dev.ps1</code>).
-          31 tests backend automatisés (JUnit + MockMvc).
+          47 tests backend automatisés (JUnit + MockMvc).
         </p>
       </Card>
 

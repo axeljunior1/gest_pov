@@ -29,6 +29,7 @@ public class AlertMapper {
                 .firstTriggeredAt(alert.getFirstTriggeredAt())
                 .lastTriggeredAt(alert.getLastTriggeredAt())
                 .triggerCount(alert.getTriggerCount())
+                .createdAt(alert.getCreatedAt())
                 .resolvedAt(alert.getResolvedAt())
                 .resolvedBy(alert.getResolvedBy())
                 .build();

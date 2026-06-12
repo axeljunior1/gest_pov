@@ -8,6 +8,7 @@ import com.erp.products.exception.BusinessException;
 import com.erp.products.exception.ResourceNotFoundException;
 import com.erp.products.repository.AlertRepository;
 import com.erp.products.repository.AlertRuleRepository;
+import com.erp.products.specification.AlertSpecification;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -43,6 +44,14 @@ public class AlertService {
     @Transactional(readOnly = true)
     public List<Alert> findAll() {
         return alertRepository.findAllByOrderByLastTriggeredAtDesc();
+    }
+
+    @Transactional(readOnly = true)
+    public List<Alert> findFiltered(AlertType type, AlertStatus status, Long productId, Long warehouseId) {
+        if (type == null && status == null && productId == null && warehouseId == null) {
+            return findAll();
+        }
+        return alertRepository.findAll(AlertSpecification.withFilters(type, status, productId, warehouseId));
     }
 
     @Transactional(readOnly = true)

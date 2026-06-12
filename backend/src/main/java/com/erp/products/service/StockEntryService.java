@@ -42,6 +42,7 @@ public class StockEntryService {
     private final StockMapper mapper;
     private final AuditService auditService;
     private final CurrentUserService currentUserService;
+    private final SettingsService settingsService;
 
     @Transactional
     public StockEntryResponse create(StockEntryRequest request) {
@@ -227,7 +228,7 @@ public class StockEntryService {
         List<StockEntryLine> lines = new ArrayList<>();
         for (StockEntryRequest.Line req : lineReqs) {
             Product product = loadProduct(req.getProductId());
-            ProductVariant variant = loadVariant(req.getProductId(), req.getVariantId());
+            ProductVariant variant = resolveVariant(req.getProductId(), req.getVariantId());
             ProductPackaging packaging = loadPackagingOptional(req.getProductId(), req.getPackagingId());
             BigDecimal baseQty = resolveLineBaseQuantity(req);
 
@@ -291,7 +292,8 @@ public class StockEntryService {
     }
 
     private String generateEntryNumber() {
-        String prefix = "SE-" + LocalDate.now().format(DateTimeFormatter.BASIC_ISO_DATE) + "-";
+        String prefix = settingsService.getNumberingConfig().getEntryPrefix()
+                + "-" + LocalDate.now().format(DateTimeFormatter.BASIC_ISO_DATE) + "-";
         long seq = entryRepository.countByEntryNumberStartingWith(prefix) + 1;
         return prefix + String.format("%04d", seq);
     }
@@ -314,6 +316,17 @@ public class StockEntryService {
     private Product loadProduct(Long id) {
         return productRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Produit non trouvé: " + id));
+    }
+
+    private ProductVariant resolveVariant(Long productId, Long variantId) {
+        if (variantId != null) {
+            return loadVariant(productId, variantId);
+        }
+        List<ProductVariant> variants = variantRepository.findByProductId(productId);
+        if (variants.size() == 1) {
+            return variants.get(0);
+        }
+        return null;
     }
 
     private ProductVariant loadVariant(Long productId, Long variantId) {

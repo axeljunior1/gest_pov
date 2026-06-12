@@ -1,7 +1,6 @@
 package com.erp.products.dto;
 
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
@@ -12,11 +11,11 @@ import java.util.List;
 
 @Data
 public class InventoryCountRequest {
-    @NotBlank
-    private String reference;
     @NotNull
     private Long warehouseId;
-    private String utilisateur = "system";
+    private Long locationId;
+    private String notes;
+    private String createdBy;
     @NotEmpty
     @Valid
     private List<Line> lignes;
@@ -26,11 +25,12 @@ public class InventoryCountRequest {
         @NotNull
         private Long productId;
         private Long variantId;
-        @NotNull
         private Long locationId;
         private Long lotId;
+        private Long packagingId;
         @NotNull
         @Positive
-        private BigDecimal quantityCounted;
+        private BigDecimal quantityInput;
+        private String notes;
     }
 }

@@ -150,6 +150,10 @@ class StockExitControllerTest extends com.erp.products.AbstractIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.quantityOnHand").value(70));
 
+        mockMvc.perform(get("/api/products/" + productId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.stockTotal", is(70)));
+
         mockMvc.perform(get("/api/stock/movements").param("productId", productId.toString()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[?(@.movementType=='OUT')]", hasSize(greaterThanOrEqualTo(1))));

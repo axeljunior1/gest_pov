@@ -38,12 +38,22 @@ public class InventoryCountLine {
     @JoinColumn(name = "lot_id")
     private Lot lot;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "packaging_id")
+    private ProductPackaging packaging;
+
     @Column(name = "quantity_system", nullable = false, precision = 19, scale = 6)
     private BigDecimal quantitySystem;
+
+    @Column(name = "quantity_input", precision = 19, scale = 6)
+    private BigDecimal quantityInput;
 
     @Column(name = "quantity_counted", nullable = false, precision = 19, scale = 6)
     private BigDecimal quantityCounted;
 
     @Column(nullable = false, precision = 19, scale = 6)
     private BigDecimal ecart;
+
+    @Column(length = 500)
+    private String notes;
 }

@@ -2,7 +2,9 @@ package com.erp.products.service.alert;
 
 import com.erp.products.domain.entity.AlertSetting;
 import com.erp.products.domain.enums.AlertSettingScope;
+import com.erp.products.dto.AlertConfigResponse;
 import com.erp.products.repository.AlertSettingRepository;
+import com.erp.products.service.SettingsService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -13,12 +15,11 @@ import java.math.BigDecimal;
 @RequiredArgsConstructor
 public class AlertSettingResolver {
 
-    private static final BigDecimal DEFAULT_MIN = BigDecimal.TEN;
     private static final BigDecimal DEFAULT_MAX = new BigDecimal("1000");
-    private static final int DEFAULT_EXPIRY_DAYS = 30;
     private static final int DEFAULT_DORMANT_DAYS = 90;
 
     private final AlertSettingRepository settingRepository;
+    private final SettingsService settingsService;
 
     @Transactional(readOnly = true)
     public EffectiveAlertSettings resolve(Long productId, Long warehouseId) {
@@ -40,7 +41,7 @@ public class AlertSettingResolver {
                     .ifPresent(s -> apply(settings, s));
         }
 
-        return settings.toEffective();
+        return settings.toEffective(settingsService.getAlertConfig());
     }
 
     private void apply(MutableSettings settings, AlertSetting s) {
@@ -70,11 +71,11 @@ public class AlertSettingResolver {
         Integer expiryAlertDays;
         Integer dormantDays;
 
-        EffectiveAlertSettings toEffective() {
+        EffectiveAlertSettings toEffective(AlertConfigResponse defaults) {
             return new EffectiveAlertSettings(
-                    minStockLevel != null ? minStockLevel : DEFAULT_MIN,
+                    minStockLevel != null ? minStockLevel : defaults.getMinStockLevelDefault(),
                     maxStockLevel != null ? maxStockLevel : DEFAULT_MAX,
-                    expiryAlertDays != null ? expiryAlertDays : DEFAULT_EXPIRY_DAYS,
+                    expiryAlertDays != null ? expiryAlertDays : defaults.getExpiryAlertDaysDefault(),
                     dormantDays != null ? dormantDays : DEFAULT_DORMANT_DAYS);
         }
     }

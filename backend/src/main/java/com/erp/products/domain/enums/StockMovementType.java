@@ -10,5 +10,6 @@ public enum StockMovementType {
     RELEASE,
     RETURN_IN,
     RETURN_OUT,
-    INVENTORY
+    INVENTORY,
+    INITIAL_STOCK
 }

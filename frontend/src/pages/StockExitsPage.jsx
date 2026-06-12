@@ -92,9 +92,18 @@ export default function StockExitsPage() {
   }
 
   const onProductChange = async (idx, productId) => {
+    let defaultVariantId = ''
+    if (productId) {
+      try {
+        const detail = await productsApi.getById(productId)
+        if (detail.variantes?.length === 1) {
+          defaultVariantId = String(detail.variantes[0].id)
+        }
+      } catch { /* ignore */ }
+    }
     setForm((f) => {
       const lignes = [...f.lignes]
-      lignes[idx] = { ...lignes[idx], productId, variantId: '', packagingId: '' }
+      lignes[idx] = { ...lignes[idx], productId, variantId: defaultVariantId, packagingId: '' }
       return { ...f, lignes }
     })
     if (productId && !packagings[productId]) {

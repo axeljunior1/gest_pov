@@ -53,10 +53,40 @@ public interface StockItemRepository extends JpaRepository<StockItem, Long> {
     @Query("SELECT COALESCE(SUM(s.quantityOnHand), 0) FROM StockItem s WHERE s.variant.id = :variantId")
     BigDecimal sumQuantityOnHandByVariantId(@Param("variantId") Long variantId);
 
+    @Query("SELECT COALESCE(SUM(s.quantityOnHand), 0) FROM StockItem s WHERE s.product.id = :productId")
+    BigDecimal sumQuantityOnHandByProductId(@Param("productId") Long productId);
+
     @Query("""
             SELECT COALESCE(SUM(s.quantityOnHand - s.quantityReserved), 0) FROM StockItem s
             WHERE s.product.id = :productId
               AND ((:variantId IS NULL AND s.variant IS NULL) OR s.variant.id = :variantId)
             """)
     BigDecimal sumAvailableByProductAndVariant(@Param("productId") Long productId, @Param("variantId") Long variantId);
+
+    @Query("SELECT COALESCE(SUM(s.quantityOnHand), 0) FROM StockItem s")
+    BigDecimal sumTotalQuantityOnHand();
+
+    @Query("""
+            SELECT COALESCE(SUM(s.quantityOnHand * COALESCE(s.product.prixAchat, 0)), 0)
+            FROM StockItem s
+            """)
+    BigDecimal sumStockValue();
+
+    @Query("""
+            SELECT p.id, COALESCE(SUM(s.quantityOnHand - s.quantityReserved), 0)
+            FROM Product p
+            LEFT JOIN StockItem s ON s.product.id = p.id
+            GROUP BY p.id
+            """)
+    List<Object[]> sumAvailableStockPerProduct();
+
+    @Query("""
+            SELECT s.warehouse.id, s.warehouse.code, s.warehouse.nom,
+                   COALESCE(SUM(s.quantityOnHand), 0),
+                   COALESCE(SUM(s.quantityOnHand * COALESCE(s.product.prixAchat, 0)), 0)
+            FROM StockItem s
+            GROUP BY s.warehouse.id, s.warehouse.code, s.warehouse.nom
+            ORDER BY s.warehouse.nom
+            """)
+    List<Object[]> summarizeByWarehouse();
 }

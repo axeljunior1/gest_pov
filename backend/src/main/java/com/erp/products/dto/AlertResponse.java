@@ -30,6 +30,7 @@ public class AlertResponse {
     private Instant firstTriggeredAt;
     private Instant lastTriggeredAt;
     private Integer triggerCount;
+    private Instant createdAt;
     private Instant resolvedAt;
     private String resolvedBy;
 }

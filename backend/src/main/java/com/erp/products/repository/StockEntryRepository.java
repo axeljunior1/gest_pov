@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.List;
 import java.util.Optional;
 
 public interface StockEntryRepository extends JpaRepository<StockEntry, Long>, JpaSpecificationExecutor<StockEntry> {
@@ -22,4 +23,6 @@ public interface StockEntryRepository extends JpaRepository<StockEntry, Long>, J
     Optional<StockEntry> findByIdForUpdate(@Param("id") Long id);
 
     long countByStatus(StockEntryStatus status);
+
+    List<StockEntry> findTop10ByStatusOrderByValidatedAtDescCreatedAtDesc(StockEntryStatus status);
 }

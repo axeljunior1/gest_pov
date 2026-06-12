@@ -99,6 +99,33 @@ public class StockService {
         return mapper.toMovementResponse(movement);
     }
 
+    @Transactional
+    public StockMovementResponse applyInitialStock(StockOperationRequest request, String importReference) {
+        if (request.getQuantityBase() == null || request.getQuantityBase().compareTo(BigDecimal.ZERO) <= 0) {
+            throw new BusinessException("La quantite de stock initial doit etre positive");
+        }
+        String actor = currentUserService.resolveActor(request.getUtilisateur());
+        request.setReferenceType("INITIAL_STOCK");
+        request.setReference(importReference != null ? importReference : "IMPORT");
+        StockMovement movement = ledger.applyOnHandChange(
+                request.getProductId(),
+                request.getVariantId(),
+                request.getWarehouseId(),
+                request.getLocationId(),
+                request.getLotId(),
+                request.getQuantityBase(),
+                new StockLedgerService.MovementMeta(
+                        StockMovementType.INITIAL_STOCK,
+                        "INITIAL_STOCK",
+                        request.getReference(),
+                        "Stock initial importe",
+                        actor,
+                        null, null, null, null, null));
+        auditService.log("Stock", request.getProductId(), com.erp.products.domain.enums.AuditAction.MODIFICATION,
+                "Stock initial importe: +" + request.getQuantityBase().stripTrailingZeros().toPlainString(), actor);
+        return mapper.toMovementResponse(movement);
+    }
+
     @Transactional(readOnly = true)
     public StockAvailableResponse getAvailable(Long productId, Long variantId, Long warehouseId) {
         var product = productRepository.findById(productId)

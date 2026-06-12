@@ -28,6 +28,9 @@ public class AlertRuleEngine {
             Long locationId,
             Long lotId) {
         stockAlertChecker.checkAfterMovement(productId, variantId, warehouseId, locationId, lotId);
+        if (lotId != null) {
+            expiryAlertChecker.checkLot(lotId, warehouseId, locationId);
+        }
     }
 
     @Transactional

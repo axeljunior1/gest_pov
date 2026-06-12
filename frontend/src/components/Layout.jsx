@@ -1,7 +1,10 @@
 import { NavLink, Outlet } from 'react-router-dom'
+import { useEffect, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
+import { settingsApi } from '../api'
 
 const navItems = [
+  { to: '/dashboard', label: 'Tableau de bord', permission: 'dashboard.read' },
   { to: '/', label: 'Produits', end: true },
   { to: '/categories', label: 'Catégories' },
   { to: '/suppliers', label: 'Fournisseurs' },
@@ -9,15 +12,26 @@ const navItems = [
   { to: '/stock', label: 'Stock' },
   { to: '/stock/entries', label: 'Entrées stock' },
   { to: '/stock/exits', label: 'Sorties stock', permission: 'stock_exit.read' },
+  { to: '/stock/movements', label: 'Mouvements', permission: 'stock_movement.read' },
+  { to: '/stock/inventories', label: 'Inventaires', permission: 'inventory.read' },
   { to: '/alerts', label: 'Alertes', permission: 'alerts.read' },
   { to: '/attributes', label: 'Attributs' },
   { to: '/users', label: 'Utilisateurs', permission: 'users.read' },
   { to: '/roles', label: 'Rôles', permission: 'roles.read' },
+  { to: '/import-export', label: 'Import / Export', permission: 'import.read' },
+  { to: '/settings', label: 'Paramètres', permission: 'settings.read' },
   { to: '/documentation', label: 'Documentation' },
 ]
 
 export default function Layout() {
   const { user, logout, hasPermission } = useAuth()
+  const [companyName, setCompanyName] = useState('ERP Produits')
+
+  useEffect(() => {
+    settingsApi.getPublic()
+      .then((s) => { if (s.companyName) setCompanyName(s.companyName) })
+      .catch(() => {})
+  }, [])
 
   const visibleNavItems = navItems.filter(
     (item) => !item.permission || hasPermission(item.permission),
@@ -27,7 +41,7 @@ export default function Layout() {
     <div className="min-h-screen flex">
       <aside className="w-56 bg-white border-r border-gray-200 flex flex-col">
         <div className="px-5 py-6 border-b border-gray-100">
-          <h1 className="text-lg font-semibold tracking-tight">ERP Produits</h1>
+          <h1 className="text-lg font-semibold tracking-tight">{companyName}</h1>
           <p className="text-xs text-gray-500 mt-0.5">Modules 1, 2, 3 & auth</p>
         </div>
         <nav className="flex-1 p-3 space-y-0.5">

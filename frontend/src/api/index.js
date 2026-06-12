@@ -95,6 +95,27 @@ export const stockApi = {
   getReservations: () => api.get('/stock/reservations').then(r => r.data),
 }
 
+export const stockMovementsApi = {
+  list: (params) => api.get('/stock/movements', { params }).then(r => r.data),
+  getById: (id) => api.get(`/stock/movements/${id}`).then(r => r.data),
+  export: (params) => api.get('/stock/movements/export', {
+    params,
+    responseType: 'blob',
+  }).then(r => r.data),
+}
+
+export const inventoryCountsApi = {
+  list: (params) => api.get('/stock/inventories', { params }).then(r => r.data),
+  getById: (id) => api.get(`/stock/inventories/${id}`).then(r => r.data),
+  create: (data) => api.post('/stock/inventories', data).then(r => r.data),
+  update: (id, data) => api.put(`/stock/inventories/${id}`, data).then(r => r.data),
+  start: (id) => api.post(`/stock/inventories/${id}/start`, {}).then(r => r.data),
+  validate: (id) => api.post(`/stock/inventories/${id}/validate`, {}).then(r => r.data),
+  cancel: (id) => api.post(`/stock/inventories/${id}/cancel`, {}).then(r => r.data),
+  deleteLine: (inventoryId, lineId) => api.delete(`/stock/inventories/${inventoryId}/lines/${lineId}`),
+  delete: (id) => api.delete(`/stock/inventories/${id}`),
+}
+
 export const stockEntriesApi = {
   list: (params) => api.get('/stock/entries', { params }).then(r => r.data),
   getById: (id) => api.get(`/stock/entries/${id}`).then(r => r.data),
@@ -119,6 +140,16 @@ export const stockExitsApi = {
     api.post(`/stock/exits/${id}/cancel`, {}).then(r => r.data),
   deleteLine: (exitId, lineId) => api.delete(`/stock/exits/${exitId}/lines/${lineId}`),
   delete: (id) => api.delete(`/stock/exits/${id}`),
+}
+
+export const dashboardApi = {
+  summary: () => api.get('/dashboard/summary').then(r => r.data),
+  alerts: () => api.get('/dashboard/alerts').then(r => r.data),
+  recentMovements: (params) => api.get('/dashboard/movements/recent', { params }).then(r => r.data),
+  recentEntries: (params) => api.get('/dashboard/entries/recent', { params }).then(r => r.data),
+  recentExits: (params) => api.get('/dashboard/exits/recent', { params }).then(r => r.data),
+  topMovedProducts: (params) => api.get('/dashboard/products/top-moved', { params }).then(r => r.data),
+  warehouses: () => api.get('/dashboard/warehouses').then(r => r.data),
 }
 
 export const alertsApi = {
@@ -153,4 +184,82 @@ export const rolesApi = {
   listPermissions: () => api.get('/roles/permissions').then(r => r.data),
   updatePermissions: (id, permissions) =>
     api.put(`/roles/${id}/permissions`, { permissions }).then(r => r.data),
+}
+
+function downloadBlob(data, filename, mime) {
+  const blob = data instanceof Blob ? data : new Blob([data], { type: mime })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+export const exportApi = {
+  products: (format = 'CSV') =>
+    api.get('/export/products', { params: { format }, responseType: 'blob' })
+      .then(r => { downloadBlob(r.data, `products.${format === 'XLSX' ? 'xlsx' : 'csv'}`, r.headers['content-type']); return r.data }),
+  stock: (format = 'CSV', params = {}) =>
+    api.get('/export/stock', { params: { format, ...params }, responseType: 'blob' })
+      .then(r => { downloadBlob(r.data, `stock.${format === 'XLSX' ? 'xlsx' : 'csv'}`, r.headers['content-type']); return r.data }),
+  movements: (format = 'CSV', params = {}) =>
+    api.get('/export/movements', { params: { format, ...params }, responseType: 'blob' })
+      .then(r => { downloadBlob(r.data, `movements.${format === 'XLSX' ? 'xlsx' : 'csv'}`, r.headers['content-type']); return r.data }),
+  entries: (format = 'CSV', params = {}) =>
+    api.get('/export/entries', { params: { format, ...params }, responseType: 'blob' })
+      .then(r => { downloadBlob(r.data, `entries.${format === 'XLSX' ? 'xlsx' : 'csv'}`, r.headers['content-type']); return r.data }),
+  exits: (format = 'CSV', params = {}) =>
+    api.get('/export/exits', { params: { format, ...params }, responseType: 'blob' })
+      .then(r => { downloadBlob(r.data, `exits.${format === 'XLSX' ? 'xlsx' : 'csv'}`, r.headers['content-type']); return r.data }),
+  alerts: (format = 'CSV', params = {}) =>
+    api.get('/export/alerts', { params: { format, ...params }, responseType: 'blob' })
+      .then(r => { downloadBlob(r.data, `alerts.${format === 'XLSX' ? 'xlsx' : 'csv'}`, r.headers['content-type']); return r.data }),
+  inventories: (format = 'CSV', params = {}) =>
+    api.get('/export/inventories', { params: { format, ...params }, responseType: 'blob' })
+      .then(r => { downloadBlob(r.data, `inventories.${format === 'XLSX' ? 'xlsx' : 'csv'}`, r.headers['content-type']); return r.data }),
+}
+
+export const importApi = {
+  downloadTemplate: (type, format = 'CSV') =>
+    api.get(`/import/templates/${type}`, { params: { format }, responseType: 'blob' })
+      .then(r => { downloadBlob(r.data, `template-${type}.${format === 'XLSX' ? 'xlsx' : 'csv'}`, r.headers['content-type']); return r.data }),
+  previewProducts: (file, duplicateMode = 'REJECT') => {
+    const form = new FormData()
+    form.append('file', file)
+    return api.post(`/import/products/preview?duplicateMode=${duplicateMode}`, form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }).then(r => r.data)
+  },
+  validateProducts: (file, duplicateMode = 'REJECT') => {
+    const form = new FormData()
+    form.append('file', file)
+    return api.post(`/import/products/validate?duplicateMode=${duplicateMode}`, form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }).then(r => r.data)
+  },
+  previewInitialStock: (file) => {
+    const form = new FormData()
+    form.append('file', file)
+    return api.post('/import/initial-stock/preview', form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }).then(r => r.data)
+  },
+  validateInitialStock: (file) => {
+    const form = new FormData()
+    form.append('file', file)
+    return api.post('/import/initial-stock/validate', form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }).then(r => r.data)
+  },
+  history: () => api.get('/import/history').then(r => r.data),
+}
+
+export const settingsApi = {
+  getPublic: () => api.get('/settings/public').then(r => r.data),
+  getAll: () => api.get('/settings').then(r => r.data),
+  update: (key, value) =>
+    api.put(`/settings/${encodeURIComponent(key)}`, { value }).then(r => r.data),
+  updateBulk: (settings) =>
+    api.put('/settings', { settings }).then(r => r.data),
 }

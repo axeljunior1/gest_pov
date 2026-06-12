@@ -1,6 +1,5 @@
 package com.erp.products.controller;
 
-import com.erp.products.domain.enums.StockMovementType;
 import com.erp.products.dto.*;
 import com.erp.products.service.*;
 import jakarta.validation.Valid;
@@ -17,10 +16,8 @@ import java.util.List;
 public class StockController {
 
     private final StockService stockService;
-    private final StockMovementService movementService;
     private final StockReservationService reservationService;
     private final StockTransferService transferService;
-    private final InventoryService inventoryService;
 
     @GetMapping("/items")
     @PreAuthorize("@permissionChecker.has(authentication, 'stock.read')")
@@ -58,24 +55,6 @@ public class StockController {
     @PreAuthorize("@permissionChecker.has(authentication, 'stock.adjust')")
     public StockMovementResponse adjust(@Valid @RequestBody StockOperationRequest request) {
         return stockService.adjust(request);
-    }
-
-    @GetMapping("/movements")
-    @PreAuthorize("@permissionChecker.has(authentication, 'stock.read')")
-    public List<StockMovementResponse> movements(
-            @RequestParam(required = false) Long productId,
-            @RequestParam(required = false) Long warehouseId,
-            @RequestParam(required = false) StockMovementType type) {
-        if (productId != null) {
-            return movementService.findByProduct(productId);
-        }
-        if (warehouseId != null) {
-            return movementService.findByWarehouse(warehouseId);
-        }
-        if (type != null) {
-            return movementService.findByType(type);
-        }
-        return movementService.findRecent();
     }
 
     @PostMapping("/reservations")
@@ -132,24 +111,5 @@ public class StockController {
     @PreAuthorize("@permissionChecker.has(authentication, 'stock.adjust')")
     public StockTransferResponse receiveTransfer(@PathVariable Long id) {
         return transferService.receive(id);
-    }
-
-    @PostMapping("/inventory-counts")
-    @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("@permissionChecker.has(authentication, 'stock.adjust')")
-    public InventoryCountResponse createInventory(@Valid @RequestBody InventoryCountRequest request) {
-        return inventoryService.create(request);
-    }
-
-    @GetMapping("/inventory-counts")
-    @PreAuthorize("@permissionChecker.has(authentication, 'stock.read')")
-    public List<InventoryCountResponse> listInventories() {
-        return inventoryService.findAll();
-    }
-
-    @PostMapping("/inventory-counts/{id}/validate")
-    @PreAuthorize("@permissionChecker.has(authentication, 'stock.adjust')")
-    public InventoryCountResponse validateInventory(@PathVariable Long id) {
-        return inventoryService.validate(id);
     }
 }

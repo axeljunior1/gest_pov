@@ -1,11 +1,16 @@
 package com.erp.products.service;
 
-import com.erp.products.config.StockProperties;
 import com.erp.products.domain.entity.*;
 import com.erp.products.domain.enums.StockMovementType;
+import com.erp.products.dto.StockMovementCreateCommand;
 import com.erp.products.exception.BusinessException;
 import com.erp.products.exception.ResourceNotFoundException;
-import com.erp.products.repository.*;
+import com.erp.products.repository.LotRepository;
+import com.erp.products.repository.ProductRepository;
+import com.erp.products.repository.ProductVariantRepository;
+import com.erp.products.repository.StockItemRepository;
+import com.erp.products.repository.WarehouseRepository;
+import com.erp.products.repository.LocationRepository;
 import com.erp.products.service.alert.AlertRuleEngine;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -14,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
+import java.util.List;
 
 /**
  * Moteur interne : toute modification de stock passe par ici + enregistrement d'un mouvement.
@@ -23,13 +29,13 @@ import java.time.Instant;
 class StockLedgerService {
 
     private final StockItemRepository stockItemRepository;
-    private final StockMovementRepository stockMovementRepository;
+    private final StockMovementService stockMovementService;
     private final ProductRepository productRepository;
     private final ProductVariantRepository variantRepository;
     private final WarehouseRepository warehouseRepository;
     private final LocationRepository locationRepository;
     private final LotRepository lotRepository;
-    private final StockProperties stockProperties;
+    private final SettingsService settingsService;
     private final AlertRuleEngine alertRuleEngine;
 
     record MovementMeta(
@@ -42,8 +48,27 @@ class StockLedgerService {
             Long stockReservationId,
             Long inventoryCountId,
             Long stockEntryId,
-            Long stockExitId
-    ) {}
+            Long stockExitId,
+            Long packagingId,
+            Long referenceId,
+            String notes) {
+
+        MovementMeta(
+                StockMovementType type,
+                String referenceType,
+                String reference,
+                String reason,
+                String utilisateur,
+                Long stockTransferId,
+                Long stockReservationId,
+                Long inventoryCountId,
+                Long stockEntryId,
+                Long stockExitId) {
+            this(type, referenceType, reference, reason, utilisateur,
+                    stockTransferId, stockReservationId, inventoryCountId,
+                    stockEntryId, stockExitId, null, null, null);
+        }
+    }
 
     @Transactional
     public StockMovement applyOnHandChange(
@@ -65,7 +90,7 @@ class StockLedgerService {
         BigDecimal beforeReserved = item.getQuantityReserved();
         BigDecimal afterOnHand = beforeOnHand.add(delta);
 
-        if (!stockProperties.isAllowNegativeStock() && afterOnHand.compareTo(BigDecimal.ZERO) < 0) {
+        if (!settingsService.getStockConfig().isAllowNegativeStock() && afterOnHand.compareTo(BigDecimal.ZERO) < 0) {
             throw new BusinessException("Stock insuffisant — stock physique ne peut pas devenir négatif");
         }
 
@@ -76,7 +101,7 @@ class StockLedgerService {
                 delta.abs(), beforeOnHand, item.getQuantityOnHand(),
                 beforeReserved, item.getQuantityReserved());
 
-        syncVariantStock(pos.variant());
+        syncProductStock(pos.product());
         alertRuleEngine.afterStockMovement(
                 productId,
                 variantId,
@@ -175,40 +200,56 @@ class StockLedgerService {
             BigDecimal reservedBefore,
             BigDecimal reservedAfter) {
 
-        StockMovement movement = StockMovement.builder()
-                .movementType(meta.type())
-                .product(pos.product())
-                .variant(pos.variant())
-                .warehouse(pos.warehouse())
-                .location(pos.location())
-                .lot(pos.lot())
-                .unit(pos.product().getUnit())
-                .quantity(quantityAbs.setScale(6, RoundingMode.HALF_UP))
-                .quantityOnHandBefore(onHandBefore)
-                .quantityOnHandAfter(onHandAfter)
-                .quantityReservedBefore(reservedBefore)
-                .quantityReservedAfter(reservedAfter)
-                .referenceType(meta.referenceType())
-                .reference(meta.reference())
-                .reason(meta.reason())
-                .utilisateur(meta.utilisateur() != null ? meta.utilisateur() : "system")
-                .movementDate(Instant.now())
-                .stockTransferId(meta.stockTransferId())
-                .stockReservationId(meta.stockReservationId())
-                .inventoryCountId(meta.inventoryCountId())
-                .stockEntryId(meta.stockEntryId())
-                .stockExitId(meta.stockExitId())
-                .build();
-        return stockMovementRepository.save(movement);
+        StockMovement movement = stockMovementService.createMovement(
+                StockMovementCreateCommand.builder()
+                        .movementType(meta.type())
+                        .product(pos.product())
+                        .variant(pos.variant())
+                        .warehouse(pos.warehouse())
+                        .location(pos.location())
+                        .lot(pos.lot())
+                        .unit(pos.product().getUnit())
+                        .quantity(quantityAbs.setScale(6, RoundingMode.HALF_UP))
+                        .quantityOnHandBefore(onHandBefore)
+                        .quantityOnHandAfter(onHandAfter)
+                        .quantityReservedBefore(reservedBefore)
+                        .quantityReservedAfter(reservedAfter)
+                        .referenceType(meta.referenceType())
+                        .reference(meta.reference())
+                        .referenceId(meta.referenceId())
+                        .reason(meta.reason())
+                        .notes(meta.notes())
+                        .createdBy(meta.utilisateur())
+                        .packagingId(meta.packagingId())
+                        .stockTransferId(meta.stockTransferId())
+                        .stockReservationId(meta.stockReservationId())
+                        .inventoryCountId(meta.inventoryCountId())
+                        .stockEntryId(meta.stockEntryId())
+                        .stockExitId(meta.stockExitId())
+                        .build());
+        return movement;
     }
 
-    private void syncVariantStock(ProductVariant variant) {
-        if (variant == null) {
+    private void syncProductStock(Product product) {
+        if (product == null) {
             return;
         }
-        BigDecimal total = stockItemRepository.sumQuantityOnHandByVariantId(variant.getId());
-        variant.setStock(total.setScale(0, RoundingMode.HALF_UP).intValue());
-        variantRepository.save(variant);
+        List<ProductVariant> variants = variantRepository.findByProductId(product.getId());
+        if (variants.isEmpty()) {
+            return;
+        }
+        if (variants.size() == 1) {
+            BigDecimal total = stockItemRepository.sumQuantityOnHandByProductId(product.getId());
+            ProductVariant only = variants.get(0);
+            only.setStock(total.setScale(0, RoundingMode.HALF_UP).intValue());
+            variantRepository.save(only);
+            return;
+        }
+        for (ProductVariant variant : variants) {
+            BigDecimal total = stockItemRepository.sumQuantityOnHandByVariantId(variant.getId());
+            variant.setStock(total.setScale(0, RoundingMode.HALF_UP).intValue());
+            variantRepository.save(variant);
+        }
     }
 
     private ResolvedPosition resolvePosition(

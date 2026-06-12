@@ -132,10 +132,41 @@ class StockEntryControllerTest extends com.erp.products.AbstractIntegrationTest 
                 .andExpect(jsonPath("$", hasSize(greaterThanOrEqualTo(1))))
                 .andExpect(jsonPath("$[0].movementType", is("IN")));
 
+        mockMvc.perform(get("/api/products/" + productId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.stockTotal", is(50)));
+
         mockMvc.perform(post("/api/stock/entries/" + entryId + "/validate")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of("user", "Test"))))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void shouldSyncProductStockTotalWhenEntryHasNoVariantId() throws Exception {
+        MvcResult createResult = mockMvc.perform(post("/api/stock/entries")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "warehouseId", warehouseId,
+                                "locationId", locationId,
+                                "lignes", List.of(Map.of(
+                                        "productId", productId,
+                                        "quantityInput", 25
+                                ))
+                        ))))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        Long entryId = objectMapper.readTree(createResult.getResponse().getContentAsString()).get("id").asLong();
+
+        mockMvc.perform(post("/api/stock/entries/" + entryId + "/validate")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/products/" + productId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.stockTotal", is(25)));
     }
 
     @Test

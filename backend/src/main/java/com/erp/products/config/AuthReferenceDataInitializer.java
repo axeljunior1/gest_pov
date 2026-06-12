@@ -91,7 +91,7 @@ public class AuthReferenceDataInitializer implements ApplicationRunner {
 
         saveRole("Administrateur", "ADMIN",
                 "Administration generale", true, filter(all,
-                "products.", "stock.", "stock_entry.", "stock_exit.", "alerts.",
+                "products.", "stock.", "stock_entry.", "stock_exit.", "stock_movement.", "inventory.", "alerts.", "dashboard.", "import.", "export.", "settings.",
                 "users.read", "users.create", "users.update",
                 "roles.read", "roles.update"));
 
@@ -99,46 +99,56 @@ public class AuthReferenceDataInitializer implements ApplicationRunner {
                 "Gestion stock et entrees", true, filter(all,
                 "products.read", "products.update",
                 "stock.read", "stock.adjust",
+                "stock_movement.read", "stock_movement.export",
+                "inventory.read", "inventory.create", "inventory.update", "inventory.validate", "inventory.cancel",
                 "stock_entry.read", "stock_entry.create", "stock_entry.update",
                 "stock_entry.validate", "stock_entry.cancel",
                 "stock_exit.read", "stock_exit.create", "stock_exit.update",
                 "stock_exit.validate", "stock_exit.cancel",
-                "alerts.read", "alerts.manage"));
+                "alerts.read", "alerts.manage", "dashboard.read", "import.read", "import.create", "export.read"));
 
         saveRole("Operateur", "OPERATOR",
                 "Operations quotidiennes", true, filter(all,
                 "products.read", "stock.read", "stock.adjust",
+                "stock_movement.read",
+                "inventory.read",
                 "stock_entry.read", "stock_entry.create", "stock_entry.update",
                 "stock_exit.read", "stock_exit.create", "stock_exit.update",
-                "alerts.read"));
+                "alerts.read", "dashboard.read", "import.read", "export.read"));
 
         saveRole("Consultation", "VIEWER",
                 "Lecture seule", true, filter(all,
-                "products.read", "stock.read", "stock_entry.read", "stock_exit.read", "alerts.read"));
+                "products.read", "stock.read", "stock_entry.read", "stock_exit.read",
+                "stock_movement.read", "inventory.read", "alerts.read", "dashboard.read", "import.read", "export.read"));
     }
 
     private void syncExistingRolePermissions() {
         Map<String, Permission> all = loadAllPermissions();
         grantRolePermissions("SUPER_ADMIN", all.values());
         grantRolePermissions("ADMIN", filter(all,
-                "products.", "stock.", "stock_entry.", "stock_exit.", "alerts.",
+                "products.", "stock.", "stock_entry.", "stock_exit.", "stock_movement.", "inventory.", "alerts.", "dashboard.", "import.", "export.", "settings.",
                 "users.read", "users.create", "users.update",
                 "roles.read", "roles.update"));
         grantRolePermissions("MANAGER", filter(all,
                 "products.read", "products.update",
                 "stock.read", "stock.adjust",
+                "stock_movement.read", "stock_movement.export",
+                "inventory.read", "inventory.create", "inventory.update", "inventory.validate", "inventory.cancel",
                 "stock_entry.read", "stock_entry.create", "stock_entry.update",
                 "stock_entry.validate", "stock_entry.cancel",
                 "stock_exit.read", "stock_exit.create", "stock_exit.update",
                 "stock_exit.validate", "stock_exit.cancel",
-                "alerts.read", "alerts.manage"));
+                "alerts.read", "alerts.manage", "dashboard.read", "import.read", "import.create", "export.read"));
         grantRolePermissions("OPERATOR", filter(all,
                 "products.read", "stock.read", "stock.adjust",
+                "stock_movement.read",
+                "inventory.read",
                 "stock_entry.read", "stock_entry.create", "stock_entry.update",
                 "stock_exit.read", "stock_exit.create", "stock_exit.update",
-                "alerts.read"));
+                "alerts.read", "dashboard.read", "import.read", "export.read"));
         grantRolePermissions("VIEWER", filter(all,
-                "products.read", "stock.read", "stock_entry.read", "stock_exit.read", "alerts.read"));
+                "products.read", "stock.read", "stock_entry.read", "stock_exit.read",
+                "stock_movement.read", "inventory.read", "alerts.read", "dashboard.read", "import.read", "export.read"));
     }
 
     private void grantRolePermissions(String roleCode, Collection<Permission> expected) {
@@ -211,6 +221,13 @@ public class AuthReferenceDataInitializer implements ApplicationRunner {
                 p("products.delete", "Supprimer des produits", "MODULE_PRODUCTS"),
                 p("stock.read", "Consulter le stock", "MODULE_STOCK"),
                 p("stock.adjust", "Ajuster le stock", "MODULE_STOCK"),
+                p("stock_movement.read", "Consulter l historique des mouvements", "MODULE_STOCK"),
+                p("stock_movement.export", "Exporter les mouvements de stock", "MODULE_STOCK"),
+                p("inventory.read", "Consulter les inventaires", "MODULE_STOCK"),
+                p("inventory.create", "Creer des inventaires", "MODULE_STOCK"),
+                p("inventory.update", "Modifier des inventaires", "MODULE_STOCK"),
+                p("inventory.validate", "Valider des inventaires", "MODULE_STOCK"),
+                p("inventory.cancel", "Annuler des inventaires", "MODULE_STOCK"),
                 p("stock_entry.read", "Lire les entrees stock", "MODULE_STOCK"),
                 p("stock_entry.create", "Creer des entrees stock", "MODULE_STOCK"),
                 p("stock_entry.update", "Modifier des entrees brouillon", "MODULE_STOCK"),
@@ -223,6 +240,12 @@ public class AuthReferenceDataInitializer implements ApplicationRunner {
                 p("stock_exit.cancel", "Annuler des sorties stock", "MODULE_STOCK"),
                 p("alerts.read", "Consulter les alertes", "MODULE_ALERTS"),
                 p("alerts.manage", "Traiter les alertes", "MODULE_ALERTS"),
+                p("dashboard.read", "Consulter le tableau de bord", "MODULE_DASHBOARD"),
+                p("import.read", "Consulter les imports et templates", "MODULE_IMPORT"),
+                p("import.create", "Executer des imports", "MODULE_IMPORT"),
+                p("export.read", "Exporter les donnees", "MODULE_EXPORT"),
+                p("settings.read", "Consulter les parametres", "MODULE_SETTINGS"),
+                p("settings.update", "Modifier les parametres", "MODULE_SETTINGS"),
                 p("users.read", "Lire les utilisateurs", "MODULE_USERS"),
                 p("users.create", "Creer des utilisateurs", "MODULE_USERS"),
                 p("users.update", "Modifier des utilisateurs", "MODULE_USERS"),

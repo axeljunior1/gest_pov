@@ -11,4 +11,6 @@ public interface ProductPackagingRepository extends JpaRepository<ProductPackagi
     List<ProductPackaging> findByProductIdOrderByNomAsc(Long productId);
 
     Optional<ProductPackaging> findByIdAndProductId(Long id, Long productId);
+
+    Optional<ProductPackaging> findFirstByProductIdAndNomIgnoreCase(Long productId, String nom);
 }

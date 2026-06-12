@@ -2,16 +2,24 @@ package com.erp.products.mapper;
 
 import com.erp.products.domain.entity.*;
 import com.erp.products.dto.*;
+import com.erp.products.repository.ProductVariantRepository;
+import com.erp.products.repository.StockItemRepository;
 import com.erp.products.service.BarcodeService;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+import java.math.RoundingMode;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
 @Component
+@RequiredArgsConstructor
 public class ProductMapper {
+
+    private final StockItemRepository stockItemRepository;
+    private final ProductVariantRepository variantRepository;
 
     public CategoryResponse toCategoryResponse(Category category, boolean withChildren) {
         CategoryResponse.CategoryResponseBuilder builder = CategoryResponse.builder()
@@ -93,7 +101,7 @@ public class ProductMapper {
                 .taille(variant.getTaille())
                 .sku(variant.getSku())
                 .prix(variant.getPrix())
-                .stock(variant.getStock())
+                .stock(resolveVariantStock(variant))
                 .codeBarre(variant.getCodeBarre())
                 .barcodeType(variant.getBarcodeType())
                 .createdAt(variant.getCreatedAt())
@@ -144,9 +152,9 @@ public class ProductMapper {
     }
 
     public ProductResponse toProductResponse(Product product, BarcodeService barcodeService, boolean full) {
-        int stockTotal = product.getVariantes().stream()
-                .mapToInt(v -> v.getStock() != null ? v.getStock() : 0)
-                .sum();
+        int stockTotal = stockItemRepository.sumQuantityOnHandByProductId(product.getId())
+                .setScale(0, RoundingMode.HALF_UP)
+                .intValue();
 
         ProductResponse.ProductResponseBuilder builder = ProductResponse.builder()
                 .id(product.getId())
@@ -252,5 +260,17 @@ public class ProductMapper {
             current = current.getParent();
         }
         return path.toString();
+    }
+
+    private int resolveVariantStock(ProductVariant variant) {
+        long variantCount = variantRepository.findByProductId(variant.getProduct().getId()).size();
+        if (variantCount <= 1) {
+            return stockItemRepository.sumQuantityOnHandByProductId(variant.getProduct().getId())
+                    .setScale(0, RoundingMode.HALF_UP)
+                    .intValue();
+        }
+        return stockItemRepository.sumQuantityOnHandByVariantId(variant.getId())
+                .setScale(0, RoundingMode.HALF_UP)
+                .intValue();
     }
 }

@@ -38,9 +38,7 @@ public class AlertReferenceDataInitializer implements ApplicationRunner {
             log.info("Initialisation des parametres d'alerte globaux...");
             settingRepository.save(AlertSetting.builder()
                     .scope(AlertSettingScope.GLOBAL)
-                    .minStockLevel(BigDecimal.TEN)
                     .maxStockLevel(new BigDecimal("1000"))
-                    .expiryAlertDays(30)
                     .dormantDays(90)
                     .actif(true)
                     .build());

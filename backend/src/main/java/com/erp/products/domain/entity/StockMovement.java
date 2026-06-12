@@ -51,6 +51,10 @@ public class StockMovement {
     @JoinColumn(name = "unit_id", nullable = false)
     private UnitOfMeasure unit;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "packaging_id")
+    private ProductPackaging packaging;
+
     /** Quantité en unité de base (toujours positive). */
     @Column(nullable = false, precision = 19, scale = 6)
     private BigDecimal quantity;
@@ -70,12 +74,19 @@ public class StockMovement {
     @Column(name = "reference_type", length = 50)
     private String referenceType;
 
+    @Column(name = "reference_id")
+    private Long referenceId;
+
     @Column(length = 100)
     private String reference;
 
     @Column(length = 500)
     private String reason;
 
+    @Column(length = 1000)
+    private String notes;
+
+    /** Acteur ayant déclenché le mouvement (audit). */
     @Column(nullable = false)
     private String utilisateur;
 

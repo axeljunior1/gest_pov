@@ -1,11 +1,14 @@
 package com.erp.products.controller;
 
+import com.erp.products.config.TestAuthReferenceDataInitializer;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MvcResult;
 
+import java.time.LocalDate;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -172,5 +175,181 @@ class AlertControllerTest extends com.erp.products.AbstractIntegrationTest {
                         .content(objectMapper.writeValueAsString(Map.of("user", "Admin"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status", is("RESOLVED")));
+    }
+
+    @Test
+    void shouldAutoResolveLowStockWhenRestocked() throws Exception {
+        seedStock(15);
+        issueStock(6);
+
+        mockMvc.perform(get("/api/alerts").param("status", "OPEN").param("type", "LOW_STOCK"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(1)));
+
+        mockMvc.perform(post("/api/stock/receipt")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "productId", productId,
+                                "variantId", variantId,
+                                "warehouseId", warehouseId,
+                                "locationId", locationId,
+                                "quantityBase", 20,
+                                "utilisateur", "Test"
+                        ))))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(get("/api/alerts").param("status", "OPEN").param("type", "LOW_STOCK"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(0)));
+
+        mockMvc.perform(get("/api/alerts").param("status", "RESOLVED").param("type", "LOW_STOCK"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].resolvedAt", notNullValue()));
+    }
+
+    @Test
+    void shouldNotDuplicateOpenAlertsOnRepeatedTriggers() throws Exception {
+        seedStock(15);
+        issueStock(6);
+        issueStock(1);
+
+        mockMvc.perform(get("/api/alerts").param("status", "OPEN").param("type", "LOW_STOCK"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].triggerCount", greaterThanOrEqualTo(2)));
+    }
+
+    @Test
+    void shouldTriggerExpirySoonAfterEntryValidation() throws Exception {
+        LocalDate soon = LocalDate.now().plusDays(7);
+        MvcResult createResult = mockMvc.perform(post("/api/stock/entries")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "warehouseId", warehouseId,
+                                "locationId", locationId,
+                                "lignes", List.of(Map.of(
+                                        "productId", productId,
+                                        "variantId", variantId,
+                                        "quantityInput", 10,
+                                        "lotNumber", "LOT-EXP-SOON",
+                                        "expiryDate", soon.toString()
+                                ))
+                        ))))
+                .andExpect(status().isCreated())
+                .andReturn();
+        Long entryId = objectMapper.readTree(createResult.getResponse().getContentAsString()).get("id").asLong();
+
+        mockMvc.perform(post("/api/stock/entries/" + entryId + "/validate")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("user", "Test"))))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/alerts").param("status", "OPEN").param("type", "EXPIRY_SOON"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].lotNumero", is("LOT-EXP-SOON")))
+                .andExpect(jsonPath("$[0].severity", is("WARNING")));
+    }
+
+    @Test
+    void shouldTriggerExpiredAfterEntryValidation() throws Exception {
+        LocalDate expired = LocalDate.now().minusDays(1);
+        MvcResult createResult = mockMvc.perform(post("/api/stock/entries")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "warehouseId", warehouseId,
+                                "locationId", locationId,
+                                "lignes", List.of(Map.of(
+                                        "productId", productId,
+                                        "variantId", variantId,
+                                        "quantityInput", 5,
+                                        "lotNumber", "LOT-EXP-PAST",
+                                        "expiryDate", expired.toString()
+                                ))
+                        ))))
+                .andExpect(status().isCreated())
+                .andReturn();
+        Long entryId = objectMapper.readTree(createResult.getResponse().getContentAsString()).get("id").asLong();
+
+        mockMvc.perform(post("/api/stock/entries/" + entryId + "/validate")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("user", "Test"))))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/alerts").param("status", "OPEN").param("type", "EXPIRED"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].severity", is("CRITICAL")));
+    }
+
+    @Test
+    void shouldFilterAlertsByProductAndReturnDetail() throws Exception {
+        seedStock(5);
+
+        MvcResult alerts = mockMvc.perform(get("/api/alerts")
+                        .param("status", "OPEN")
+                        .param("productId", productId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andReturn();
+        Long alertId = objectMapper.readTree(alerts.getResponse().getContentAsString()).get(0).get("id").asLong();
+
+        mockMvc.perform(get("/api/alerts/" + alertId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id", is(alertId.intValue())))
+                .andExpect(jsonPath("$.productId", is(productId.intValue())))
+                .andExpect(jsonPath("$.triggeredValue", notNullValue()))
+                .andExpect(jsonPath("$.createdAt", notNullValue()));
+    }
+
+    @Test
+    void shouldDenyAlertsReadForViewerWithoutPermission() throws Exception {
+        String token = loginToken(
+                TestAuthReferenceDataInitializer.VIEWER_EMAIL,
+                TestAuthReferenceDataInitializer.VIEWER_PASSWORD);
+
+        mockMvc.perform(get("/api/alerts")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isForbidden());
+    }
+
+    private void seedStock(int quantity) throws Exception {
+        mockMvc.perform(post("/api/stock/receipt")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "productId", productId,
+                                "variantId", variantId,
+                                "warehouseId", warehouseId,
+                                "locationId", locationId,
+                                "quantityBase", quantity,
+                                "utilisateur", "Test"
+                        ))))
+                .andExpect(status().isCreated());
+    }
+
+    private void issueStock(int quantity) throws Exception {
+        mockMvc.perform(post("/api/stock/issue")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "productId", productId,
+                                "variantId", variantId,
+                                "warehouseId", warehouseId,
+                                "locationId", locationId,
+                                "quantityBase", quantity,
+                                "utilisateur", "Test"
+                        ))))
+                .andExpect(status().isCreated());
+    }
+
+    private String loginToken(String email, String password) throws Exception {
+        MvcResult login = mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "email", email,
+                                "password", password))))
+                .andExpect(status().isOk())
+                .andReturn();
+        return objectMapper.readTree(login.getResponse().getContentAsString()).get("token").asText();
     }
 }
