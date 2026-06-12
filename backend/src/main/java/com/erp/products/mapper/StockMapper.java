@@ -190,4 +190,37 @@ public class StockMapper {
                         .build()).collect(Collectors.toList()))
                 .build();
     }
+
+    public StockExitResponse toExitResponse(StockExit e) {
+        return StockExitResponse.builder()
+                .id(e.getId())
+                .exitNumber(e.getExitNumber())
+                .warehouseId(e.getWarehouse().getId())
+                .warehouseCode(e.getWarehouse().getCode())
+                .locationId(e.getLocation().getId())
+                .locationCode(e.getLocation().getCode())
+                .exitDate(e.getExitDate())
+                .reason(e.getReason())
+                .notes(e.getNotes())
+                .status(e.getStatus())
+                .createdBy(e.getCreatedBy())
+                .createdAt(e.getCreatedAt())
+                .validatedBy(e.getValidatedBy())
+                .validatedAt(e.getValidatedAt())
+                .cancelledBy(e.getCancelledBy())
+                .cancelledAt(e.getCancelledAt())
+                .lignes(e.getLignes().stream().map(l -> StockExitResponse.Line.builder()
+                        .id(l.getId())
+                        .productId(l.getProduct().getId())
+                        .productNom(l.getProduct().getNom())
+                        .variantId(l.getVariant() != null ? l.getVariant().getId() : null)
+                        .packagingId(l.getPackaging() != null ? l.getPackaging().getId() : null)
+                        .packagingNom(l.getPackaging() != null ? l.getPackaging().getNom() : null)
+                        .quantityInput(l.getQuantityInput())
+                        .quantityInBaseUnit(l.getQuantityInBaseUnit())
+                        .unitSymbole(l.getProduct().getUnit() != null ? l.getProduct().getUnit().getSymbole() : null)
+                        .notes(l.getNotes())
+                        .build()).collect(Collectors.toList()))
+                .build();
+    }
 }

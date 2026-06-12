@@ -94,6 +94,9 @@ public class StockMovement {
     @Column(name = "stock_entry_id")
     private Long stockEntryId;
 
+    @Column(name = "stock_exit_id")
+    private Long stockExitId;
+
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
 

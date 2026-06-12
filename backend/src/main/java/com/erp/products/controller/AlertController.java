@@ -22,7 +22,7 @@ public class AlertController {
     private final CurrentUserService currentUserService;
 
     @GetMapping
-    @PreAuthorize("@permissionChecker.has(authentication, 'stock.read')")
+    @PreAuthorize("@permissionChecker.has(authentication, 'alerts.read')")
     public List<AlertResponse> list(@RequestParam(required = false) AlertStatus status) {
         var alerts = status == AlertStatus.OPEN
                 ? alertService.findOpen()
@@ -35,43 +35,36 @@ public class AlertController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("@permissionChecker.has(authentication, 'stock.read')")
+    @PreAuthorize("@permissionChecker.has(authentication, 'alerts.read')")
     public AlertResponse getById(@PathVariable Long id) {
         return alertMapper.toAlertResponse(alertService.getById(id));
     }
 
     @PostMapping("/{id}/acknowledge")
-    @PreAuthorize("@permissionChecker.has(authentication, 'stock.adjust')")
+    @PreAuthorize("@permissionChecker.has(authentication, 'alerts.manage')")
     public AlertResponse acknowledge(
             @PathVariable Long id,
             @RequestBody(required = false) Map<String, String> body) {
-        String user = resolveActor(body != null ? body.get("user") : null);
+        String user = currentUserService.resolveActor(body != null ? body.get("user") : null);
         return alertMapper.toAlertResponse(alertService.acknowledge(id, user));
     }
 
     @PostMapping("/{id}/resolve")
-    @PreAuthorize("@permissionChecker.has(authentication, 'stock.adjust')")
+    @PreAuthorize("@permissionChecker.has(authentication, 'alerts.manage')")
     public AlertResponse resolve(
             @PathVariable Long id,
             @RequestBody(required = false) Map<String, String> body) {
-        String user = resolveActor(body != null ? body.get("user") : null);
+        String user = currentUserService.resolveActor(body != null ? body.get("user") : null);
         return alertMapper.toAlertResponse(alertService.resolve(id, user));
     }
 
     @PostMapping("/{id}/ignore")
-    @PreAuthorize("@permissionChecker.has(authentication, 'stock.adjust')")
+    @PreAuthorize("@permissionChecker.has(authentication, 'alerts.manage')")
     public AlertResponse ignore(
             @PathVariable Long id,
             @RequestBody(required = false) Map<String, String> body) {
-        String user = resolveActor(body != null ? body.get("user") : null);
+        String user = currentUserService.resolveActor(body != null ? body.get("user") : null);
         return alertMapper.toAlertResponse(alertService.ignore(id, user));
-    }
-
-    private String resolveActor(String fallback) {
-        if (currentUserService.isAuthenticated()) {
-            return currentUserService.getCurrentUserEmailOrDefault();
-        }
-        return fallback != null && !fallback.isBlank() ? fallback : "system";
     }
 }
 

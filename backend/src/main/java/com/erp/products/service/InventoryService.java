@@ -10,6 +10,7 @@ import com.erp.products.exception.BusinessException;
 import com.erp.products.exception.ResourceNotFoundException;
 import com.erp.products.mapper.StockMapper;
 import com.erp.products.repository.*;
+import com.erp.products.security.CurrentUserService;
 import com.erp.products.service.alert.AlertRuleEngine;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -35,6 +36,7 @@ public class InventoryService {
     private final StockLedgerService ledger;
     private final StockMapper mapper;
     private final AlertRuleEngine alertRuleEngine;
+    private final CurrentUserService currentUserService;
 
     @Transactional
     public InventoryCountResponse create(InventoryCountRequest request) {
@@ -44,11 +46,12 @@ public class InventoryService {
         Warehouse warehouse = warehouseRepository.findById(request.getWarehouseId())
                 .orElseThrow(() -> new ResourceNotFoundException("Entrepot non trouve"));
 
+        String actor = currentUserService.resolveActor(request.getUtilisateur());
         InventoryCount count = InventoryCount.builder()
                 .reference(request.getReference())
                 .warehouse(warehouse)
                 .status(InventoryCountStatus.IN_PROGRESS)
-                .utilisateur(request.getUtilisateur())
+                .utilisateur(actor)
                 .lignes(new ArrayList<>())
                 .build();
 
@@ -110,7 +113,7 @@ public class InventoryService {
             op.setReferenceType("INVENTORY");
             op.setReference(count.getReference());
             op.setReason("Ecart inventaire");
-            op.setUtilisateur(count.getUtilisateur());
+            op.setUtilisateur(currentUserService.resolveActor(count.getUtilisateur()));
 
             alertRuleEngine.onInventoryDiscrepancy(line, count.getReference());
 

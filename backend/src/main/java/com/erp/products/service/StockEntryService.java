@@ -209,7 +209,7 @@ public class StockEntryService {
                 op.getLocationId(),
                 op.getLotId(),
                 delta,
-                StockService.meta(type, op, null, null, null, entry.getId()));
+                StockService.meta(type, op, null, null, null, entry.getId(), null));
     }
 
     private void ensureAvailableForCancel(StockEntry entry, StockEntryLine line) {
@@ -303,10 +303,7 @@ public class StockEntryService {
     }
 
     private String resolveActor(String fallback) {
-        if (currentUserService.isAuthenticated()) {
-            return currentUserService.getCurrentUserEmailOrDefault();
-        }
-        return fallback != null && !fallback.isBlank() ? fallback : "system";
+        return currentUserService.resolveActor(fallback);
     }
 
     private StockEntry findEntry(Long id) {

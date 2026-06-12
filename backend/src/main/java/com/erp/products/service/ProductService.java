@@ -7,6 +7,7 @@ import com.erp.products.exception.BusinessException;
 import com.erp.products.exception.ResourceNotFoundException;
 import com.erp.products.mapper.ProductMapper;
 import com.erp.products.repository.*;
+import com.erp.products.security.CurrentUserService;
 import com.erp.products.specification.ProductSpecification;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -38,6 +39,7 @@ public class ProductService {
     private final SupplierService supplierService;
     private final ProductMapper mapper;
     private final AuditService auditService;
+    private final CurrentUserService currentUserService;
     private final BarcodeService barcodeService;
     private final FileStorageService fileStorageService;
 
@@ -91,7 +93,7 @@ public class ProductService {
         Product saved = productRepository.save(product);
 
         if (request.getVariantes() != null) {
-            request.getVariantes().forEach(v -> addVariantInternal(saved, v, request.getUtilisateur()));
+            request.getVariantes().forEach(v -> addVariantInternal(saved, v, currentUserService.resolveActor(request.getUtilisateur())));
         }
 
         if (request.getFournisseurs() != null) {
@@ -194,7 +196,8 @@ public class ProductService {
         setPrice(product, request.getType(), request.getNouveauPrix());
         Product saved = productRepository.save(product);
 
-        savePriceHistory(saved, null, request.getType(), oldPrice, request.getNouveauPrix(), request.getUtilisateur());
+        savePriceHistory(saved, null, request.getType(), oldPrice, request.getNouveauPrix(),
+                currentUserService.resolveActor(request.getUtilisateur()));
         auditService.log("Product", saved.getId(), AuditAction.CHANGEMENT_PRIX,
                 request.getType() + ": " + oldPrice + " -> " + request.getNouveauPrix(), request.getUtilisateur());
 
@@ -384,7 +387,7 @@ public class ProductService {
         ProductVariant saved = variantRepository.save(variant);
         product.getVariantes().add(saved);
         auditService.log("Product", product.getId(), AuditAction.AJOUT_VARIANTE,
-                "Variante ajoutée: " + saved.getSku(), utilisateur);
+                "Variante ajoutée: " + saved.getSku(), currentUserService.resolveActor(utilisateur));
         return saved;
     }
 
@@ -463,7 +466,7 @@ public class ProductService {
                 .type(type)
                 .ancienPrix(oldPrice)
                 .nouveauPrix(newPrice)
-                .utilisateur(utilisateur != null ? utilisateur : "system")
+                .utilisateur(currentUserService.resolveActor(utilisateur))
                 .build();
         priceHistoryRepository.save(history);
     }

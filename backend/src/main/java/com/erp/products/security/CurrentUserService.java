@@ -30,4 +30,12 @@ public class CurrentUserService {
     public boolean isAuthenticated() {
         return getCurrentUserEmail() != null;
     }
+
+    /** Priorise l'utilisateur JWT ; le fallback client n'est accepte qu'en profil test / non authentifie. */
+    public String resolveActor(String clientProvided) {
+        if (isAuthenticated()) {
+            return getCurrentUserEmailOrDefault();
+        }
+        return clientProvided != null && !clientProvided.isBlank() ? clientProvided : SYSTEM;
+    }
 }

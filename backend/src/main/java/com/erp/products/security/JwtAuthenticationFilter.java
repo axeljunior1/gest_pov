@@ -1,5 +1,7 @@
 package com.erp.products.security;
 
+import com.erp.products.domain.entity.User;
+import com.erp.products.repository.UserRepository;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -14,13 +16,15 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
-import java.util.stream.Collectors;
+import java.util.ArrayList;
 
 @Component
 @RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
+    private final UserRepository userRepository;
+    private final UserAuthorityService userAuthorityService;
 
     @Override
     protected void doFilterInternal(
@@ -38,14 +42,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         if (SecurityContextHolder.getContext().getAuthentication() == null) {
             try {
                 if (jwtService.isValid(token)) {
-                    String email = jwtService.extractEmail(token);
-                    var authorities = jwtService.extractPermissions(token).stream()
-                            .map(SimpleGrantedAuthority::new)
-                            .collect(Collectors.toList());
+                    String email = jwtService.extractEmail(token).toLowerCase();
+                    User user = userRepository.findByEmailWithRolesAndPermissions(email).orElse(null);
 
-                    var authToken = new UsernamePasswordAuthenticationToken(email, null, authorities);
-                    authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                    SecurityContextHolder.getContext().setAuthentication(authToken);
+                    if (user != null && Boolean.TRUE.equals(user.getIsActive())) {
+                        var authorities = new ArrayList<>(userAuthorityService.buildAuthorities(user));
+                        var authToken = new UsernamePasswordAuthenticationToken(
+                                email, null, authorities);
+                        authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                        SecurityContextHolder.getContext().setAuthentication(authToken);
+                    }
                 }
             } catch (Exception ignored) {
                 // Token invalide — laisser Security renvoyer 401 si route protegee

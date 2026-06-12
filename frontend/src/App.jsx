@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
 import { NotificationProvider } from './context/NotificationContext'
 import ProtectedRoute from './components/ProtectedRoute'
+import PermissionRoute from './components/PermissionRoute'
 import Layout from './components/Layout'
 import LoginPage from './pages/LoginPage'
 import ProductsPage from './pages/ProductsPage'
@@ -12,7 +13,10 @@ import UnitsPage from './pages/UnitsPage'
 import AttributesPage from './pages/AttributesPage'
 import StockPage from './pages/StockPage'
 import StockEntriesPage from './pages/StockEntriesPage'
+import StockExitsPage from './pages/StockExitsPage'
 import AlertsPage from './pages/AlertsPage'
+import UsersPage from './pages/UsersPage'
+import RolesPage from './pages/RolesPage'
 import DocumentationPage from './pages/DocumentationPage'
 
 export default function App() {
@@ -32,7 +36,18 @@ export default function App() {
                 <Route path="attributes" element={<AttributesPage />} />
                 <Route path="stock" element={<StockPage />} />
                 <Route path="stock/entries" element={<StockEntriesPage />} />
-                <Route path="alerts" element={<AlertsPage />} />
+                <Route element={<PermissionRoute permission="stock_exit.read" />}>
+                  <Route path="stock/exits" element={<StockExitsPage />} />
+                </Route>
+                <Route element={<PermissionRoute permission="alerts.read" />}>
+                  <Route path="alerts" element={<AlertsPage />} />
+                </Route>
+                <Route element={<PermissionRoute permission="users.read" />}>
+                  <Route path="users" element={<UsersPage />} />
+                </Route>
+                <Route element={<PermissionRoute permission="roles.read" />}>
+                  <Route path="roles" element={<RolesPage />} />
+                </Route>
                 <Route path="documentation" element={<DocumentationPage />} />
               </Route>
             </Route>

@@ -37,11 +37,17 @@ public class AuthReferenceDataInitializer implements ApplicationRunner {
         if (permissionRepository.count() == 0) {
             log.info("Initialisation des permissions systeme...");
             seedPermissions();
+        } else {
+            ensureMissingPermissions();
         }
+
         if (roleRepository.count() == 0) {
             log.info("Initialisation des roles systeme...");
             seedRoles();
+        } else {
+            syncExistingRolePermissions();
         }
+
         if (userRepository.count() == 0) {
             log.info("Creation compte administrateur {}...", ADMIN_EMAIL);
             seedAdminUser();
@@ -49,28 +55,7 @@ public class AuthReferenceDataInitializer implements ApplicationRunner {
     }
 
     private void seedPermissions() {
-        List<PermissionDef> defs = List.of(
-                p("products.read", "Lire les produits", "MODULE_PRODUCTS"),
-                p("products.create", "Creer des produits", "MODULE_PRODUCTS"),
-                p("products.update", "Modifier des produits", "MODULE_PRODUCTS"),
-                p("products.delete", "Supprimer des produits", "MODULE_PRODUCTS"),
-                p("stock.read", "Consulter le stock", "MODULE_STOCK"),
-                p("stock.adjust", "Ajuster le stock", "MODULE_STOCK"),
-                p("stock_entry.read", "Lire les entrees stock", "MODULE_STOCK"),
-                p("stock_entry.create", "Creer des entrees stock", "MODULE_STOCK"),
-                p("stock_entry.update", "Modifier des entrees brouillon", "MODULE_STOCK"),
-                p("stock_entry.validate", "Valider des entrees stock", "MODULE_STOCK"),
-                p("stock_entry.cancel", "Annuler des entrees stock", "MODULE_STOCK"),
-                p("users.read", "Lire les utilisateurs", "MODULE_USERS"),
-                p("users.create", "Creer des utilisateurs", "MODULE_USERS"),
-                p("users.update", "Modifier des utilisateurs", "MODULE_USERS"),
-                p("users.delete", "Supprimer des utilisateurs", "MODULE_USERS"),
-                p("roles.read", "Lire les roles", "MODULE_ROLES"),
-                p("roles.create", "Creer des roles", "MODULE_ROLES"),
-                p("roles.update", "Modifier les roles", "MODULE_ROLES"),
-                p("roles.delete", "Supprimer les roles", "MODULE_ROLES")
-        );
-        defs.forEach(d -> permissionRepository.save(Permission.builder()
+        allPermissionDefs().forEach(d -> permissionRepository.save(Permission.builder()
                 .code(d.code)
                 .name(d.name)
                 .description(d.description)
@@ -78,35 +63,104 @@ public class AuthReferenceDataInitializer implements ApplicationRunner {
                 .build()));
     }
 
-    private void seedRoles() {
-        Map<String, Permission> all = new HashMap<>();
-        permissionRepository.findAll().forEach(p -> all.put(p.getCode(), p));
+    private void ensureMissingPermissions() {
+        Map<String, PermissionDef> defs = new LinkedHashMap<>();
+        allPermissionDefs().forEach(d -> defs.put(d.code, d));
+        int added = 0;
+        for (PermissionDef def : defs.values()) {
+            if (permissionRepository.findByCode(def.code).isEmpty()) {
+                permissionRepository.save(Permission.builder()
+                        .code(def.code)
+                        .name(def.name)
+                        .description(def.description)
+                        .module(def.module)
+                        .build());
+                added++;
+            }
+        }
+        if (added > 0) {
+            log.info("Ajout de {} permission(s) manquante(s)", added);
+        }
+    }
 
-        Role superAdmin = saveRole("Super administrateur", "SUPER_ADMIN",
+    private void seedRoles() {
+        Map<String, Permission> all = loadAllPermissions();
+
+        saveRole("Super administrateur", "SUPER_ADMIN",
                 "Acces complet au systeme", true, all.values());
 
-        Role admin = saveRole("Administrateur", "ADMIN",
+        saveRole("Administrateur", "ADMIN",
                 "Administration generale", true, filter(all,
-                "products.", "stock.", "stock_entry.", "users.read", "users.create", "users.update",
+                "products.", "stock.", "stock_entry.", "stock_exit.", "alerts.",
+                "users.read", "users.create", "users.update",
                 "roles.read", "roles.update"));
 
-        Role manager = saveRole("Manager", "MANAGER",
+        saveRole("Manager", "MANAGER",
                 "Gestion stock et entrees", true, filter(all,
                 "products.read", "products.update",
                 "stock.read", "stock.adjust",
                 "stock_entry.read", "stock_entry.create", "stock_entry.update",
-                "stock_entry.validate", "stock_entry.cancel"));
+                "stock_entry.validate", "stock_entry.cancel",
+                "stock_exit.read", "stock_exit.create", "stock_exit.update",
+                "stock_exit.validate", "stock_exit.cancel",
+                "alerts.read", "alerts.manage"));
 
-        Role operator = saveRole("Operateur", "OPERATOR",
+        saveRole("Operateur", "OPERATOR",
                 "Operations quotidiennes", true, filter(all,
                 "products.read", "stock.read", "stock.adjust",
-                "stock_entry.read", "stock_entry.create", "stock_entry.update"));
+                "stock_entry.read", "stock_entry.create", "stock_entry.update",
+                "stock_exit.read", "stock_exit.create", "stock_exit.update",
+                "alerts.read"));
 
-        Role viewer = saveRole("Consultation", "VIEWER",
+        saveRole("Consultation", "VIEWER",
                 "Lecture seule", true, filter(all,
-                "products.read", "stock.read", "stock_entry.read"));
+                "products.read", "stock.read", "stock_entry.read", "stock_exit.read", "alerts.read"));
+    }
 
-        roleRepository.saveAll(List.of(superAdmin, admin, manager, operator, viewer));
+    private void syncExistingRolePermissions() {
+        Map<String, Permission> all = loadAllPermissions();
+        grantRolePermissions("SUPER_ADMIN", all.values());
+        grantRolePermissions("ADMIN", filter(all,
+                "products.", "stock.", "stock_entry.", "stock_exit.", "alerts.",
+                "users.read", "users.create", "users.update",
+                "roles.read", "roles.update"));
+        grantRolePermissions("MANAGER", filter(all,
+                "products.read", "products.update",
+                "stock.read", "stock.adjust",
+                "stock_entry.read", "stock_entry.create", "stock_entry.update",
+                "stock_entry.validate", "stock_entry.cancel",
+                "stock_exit.read", "stock_exit.create", "stock_exit.update",
+                "stock_exit.validate", "stock_exit.cancel",
+                "alerts.read", "alerts.manage"));
+        grantRolePermissions("OPERATOR", filter(all,
+                "products.read", "stock.read", "stock.adjust",
+                "stock_entry.read", "stock_entry.create", "stock_entry.update",
+                "stock_exit.read", "stock_exit.create", "stock_exit.update",
+                "alerts.read"));
+        grantRolePermissions("VIEWER", filter(all,
+                "products.read", "stock.read", "stock_entry.read", "stock_exit.read", "alerts.read"));
+    }
+
+    private void grantRolePermissions(String roleCode, Collection<Permission> expected) {
+        Role role = roleRepository.findByCode(roleCode).orElse(null);
+        if (role == null) {
+            return;
+        }
+        role = roleRepository.findByIdWithPermissions(role.getId()).orElse(role);
+        Set<Permission> merged = new HashSet<>(role.getPermissions());
+        int before = merged.size();
+        merged.addAll(expected);
+        if (merged.size() > before) {
+            role.setPermissions(merged);
+            roleRepository.save(role);
+            log.info("Permissions synchronisees pour le role {}", roleCode);
+        }
+    }
+
+    private Map<String, Permission> loadAllPermissions() {
+        Map<String, Permission> all = new HashMap<>();
+        permissionRepository.findAll().forEach(p -> all.put(p.getCode(), p));
+        return all;
     }
 
     private void seedAdminUser() {
@@ -142,13 +196,42 @@ public class AuthReferenceDataInitializer implements ApplicationRunner {
                         .filter(k -> k.startsWith(pattern))
                         .map(all::get)
                         .forEach(result::add);
-            } else {
-                if (all.containsKey(pattern)) {
-                    result.add(all.get(pattern));
-                }
+            } else if (all.containsKey(pattern)) {
+                result.add(all.get(pattern));
             }
         }
         return result;
+    }
+
+    private List<PermissionDef> allPermissionDefs() {
+        return List.of(
+                p("products.read", "Lire les produits", "MODULE_PRODUCTS"),
+                p("products.create", "Creer des produits", "MODULE_PRODUCTS"),
+                p("products.update", "Modifier des produits", "MODULE_PRODUCTS"),
+                p("products.delete", "Supprimer des produits", "MODULE_PRODUCTS"),
+                p("stock.read", "Consulter le stock", "MODULE_STOCK"),
+                p("stock.adjust", "Ajuster le stock", "MODULE_STOCK"),
+                p("stock_entry.read", "Lire les entrees stock", "MODULE_STOCK"),
+                p("stock_entry.create", "Creer des entrees stock", "MODULE_STOCK"),
+                p("stock_entry.update", "Modifier des entrees brouillon", "MODULE_STOCK"),
+                p("stock_entry.validate", "Valider des entrees stock", "MODULE_STOCK"),
+                p("stock_entry.cancel", "Annuler des entrees stock", "MODULE_STOCK"),
+                p("stock_exit.read", "Lire les sorties stock", "MODULE_STOCK"),
+                p("stock_exit.create", "Creer des sorties stock", "MODULE_STOCK"),
+                p("stock_exit.update", "Modifier des sorties brouillon", "MODULE_STOCK"),
+                p("stock_exit.validate", "Valider des sorties stock", "MODULE_STOCK"),
+                p("stock_exit.cancel", "Annuler des sorties stock", "MODULE_STOCK"),
+                p("alerts.read", "Consulter les alertes", "MODULE_ALERTS"),
+                p("alerts.manage", "Traiter les alertes", "MODULE_ALERTS"),
+                p("users.read", "Lire les utilisateurs", "MODULE_USERS"),
+                p("users.create", "Creer des utilisateurs", "MODULE_USERS"),
+                p("users.update", "Modifier des utilisateurs", "MODULE_USERS"),
+                p("users.delete", "Supprimer des utilisateurs", "MODULE_USERS"),
+                p("roles.read", "Lire les roles", "MODULE_ROLES"),
+                p("roles.create", "Creer des roles", "MODULE_ROLES"),
+                p("roles.update", "Modifier les roles", "MODULE_ROLES"),
+                p("roles.delete", "Supprimer les roles", "MODULE_ROLES")
+        );
     }
 
     private PermissionDef p(String code, String name, String module) {

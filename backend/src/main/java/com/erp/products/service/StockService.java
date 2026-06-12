@@ -41,7 +41,7 @@ public class StockService {
         if (qty.compareTo(BigDecimal.ZERO) <= 0) {
             throw new BusinessException("La quantite de reception doit etre positive");
         }
-        String actor = resolveActor(request.getUtilisateur());
+        String actor = currentUserService.resolveActor(request.getUtilisateur());
         StockMovement movement = ledger.applyOnHandChange(
                 request.getProductId(),
                 request.getVariantId(),
@@ -49,7 +49,7 @@ public class StockService {
                 request.getLocationId(),
                 request.getLotId(),
                 qty,
-                meta(StockMovementType.IN, request, null, null, null, null, actor));
+                meta(StockMovementType.IN, request, null, null, null, null, null, actor));
         auditService.log("Stock", request.getProductId(), com.erp.products.domain.enums.AuditAction.MODIFICATION,
                 "Réception stock: +" + qty.stripTrailingZeros().toPlainString(), actor);
         return mapper.toMovementResponse(movement);
@@ -62,7 +62,7 @@ public class StockService {
             throw new BusinessException("La quantite de sortie doit etre positive");
         }
         ensureAvailable(request, qty);
-        String actor = resolveActor(request.getUtilisateur());
+        String actor = currentUserService.resolveActor(request.getUtilisateur());
         StockMovement movement = ledger.applyOnHandChange(
                 request.getProductId(),
                 request.getVariantId(),
@@ -70,7 +70,7 @@ public class StockService {
                 request.getLocationId(),
                 request.getLotId(),
                 qty.negate(),
-                meta(StockMovementType.OUT, request, null, null, null, null, actor));
+                meta(StockMovementType.OUT, request, null, null, null, null, null, actor));
         auditService.log("Stock", request.getProductId(), com.erp.products.domain.enums.AuditAction.MODIFICATION,
                 "Sortie stock: -" + qty.stripTrailingZeros().toPlainString(), actor);
         return mapper.toMovementResponse(movement);
@@ -85,7 +85,7 @@ public class StockService {
         if (delta.compareTo(BigDecimal.ZERO) < 0) {
             ensureAvailable(request, delta.abs());
         }
-        String actor = resolveActor(request.getUtilisateur());
+        String actor = currentUserService.resolveActor(request.getUtilisateur());
         StockMovement movement = ledger.applyOnHandChange(
                 request.getProductId(),
                 request.getVariantId(),
@@ -93,7 +93,7 @@ public class StockService {
                 request.getLocationId(),
                 request.getLotId(),
                 delta,
-                meta(StockMovementType.ADJUSTMENT, request, null, null, null, null, actor));
+                meta(StockMovementType.ADJUSTMENT, request, null, null, null, null, null, actor));
         auditService.log("Stock", request.getProductId(), com.erp.products.domain.enums.AuditAction.MODIFICATION,
                 "Ajustement stock: " + delta.stripTrailingZeros().toPlainString(), actor);
         return mapper.toMovementResponse(movement);
@@ -174,7 +174,7 @@ public class StockService {
             Long transferId,
             Long reservationId,
             Long inventoryId) {
-        return meta(type, req, transferId, reservationId, inventoryId, null, req.getUtilisateur());
+        return meta(type, req, transferId, reservationId, inventoryId, null, null, req.getUtilisateur());
     }
 
     static StockLedgerService.MovementMeta meta(
@@ -184,7 +184,7 @@ public class StockService {
             Long reservationId,
             Long inventoryId,
             Long stockEntryId) {
-        return meta(type, req, transferId, reservationId, inventoryId, stockEntryId, req.getUtilisateur());
+        return meta(type, req, transferId, reservationId, inventoryId, stockEntryId, null, req.getUtilisateur());
     }
 
     static StockLedgerService.MovementMeta meta(
@@ -194,6 +194,18 @@ public class StockService {
             Long reservationId,
             Long inventoryId,
             Long stockEntryId,
+            Long stockExitId) {
+        return meta(type, req, transferId, reservationId, inventoryId, stockEntryId, stockExitId, req.getUtilisateur());
+    }
+
+    static StockLedgerService.MovementMeta meta(
+            StockMovementType type,
+            StockOperationRequest req,
+            Long transferId,
+            Long reservationId,
+            Long inventoryId,
+            Long stockEntryId,
+            Long stockExitId,
             String utilisateur) {
         return new StockLedgerService.MovementMeta(
                 type,
@@ -204,13 +216,7 @@ public class StockService {
                 transferId,
                 reservationId,
                 inventoryId,
-                stockEntryId);
-    }
-
-    private String resolveActor(String fallback) {
-        if (currentUserService.isAuthenticated()) {
-            return currentUserService.getCurrentUserEmailOrDefault();
-        }
-        return fallback != null && !fallback.isBlank() ? fallback : "system";
+                stockEntryId,
+                stockExitId);
     }
 }

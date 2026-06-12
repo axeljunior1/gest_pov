@@ -24,9 +24,7 @@ public class AuditService {
 
     @Transactional
     public void log(String entityType, Long entityId, AuditAction action, String details, String utilisateur) {
-        String actor = utilisateur != null && !utilisateur.isBlank()
-                ? utilisateur
-                : currentUserService.getCurrentUserEmailOrDefault();
+        String actor = currentUserService.resolveActor(utilisateur);
         AuditLog log = AuditLog.builder()
                 .entityType(entityType)
                 .entityId(entityId)

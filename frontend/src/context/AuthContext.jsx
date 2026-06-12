@@ -45,6 +45,15 @@ export function AuthProvider({ children }) {
     return data
   }, [persistSession])
 
+  const refreshUser = useCallback(async () => {
+    if (!localStorage.getItem(TOKEN_KEY)) {
+      return null
+    }
+    const { data } = await api.get('/auth/me')
+    persistSession(localStorage.getItem(TOKEN_KEY), data)
+    return data
+  }, [persistSession])
+
   useEffect(() => {
     if (!token) {
       setLoading(false)
@@ -67,15 +76,25 @@ export function AuthProvider({ children }) {
     return () => { cancelled = true }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const value = useMemo(() => ({
-    token,
-    user,
-    loading,
-    isAuthenticated: !!token && !!user,
-    login,
-    logout,
-    userEmail: user?.email ?? null,
-  }), [token, user, loading, login, logout])
+  const value = useMemo(() => {
+    const permissions = user?.permissions ?? []
+    const hasPermission = (code) => permissions.includes(code)
+    const hasAnyPermission = (...codes) => codes.some(hasPermission)
+
+    return {
+      token,
+      user,
+      loading,
+      isAuthenticated: !!token && !!user,
+      login,
+      logout,
+      refreshUser,
+      userEmail: user?.email ?? null,
+      permissions,
+      hasPermission,
+      hasAnyPermission,
+    }
+  }, [token, user, loading, login, logout, refreshUser])
 
   return (
     <AuthContext.Provider value={value}>

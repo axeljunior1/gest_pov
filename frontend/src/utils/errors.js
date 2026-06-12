@@ -33,6 +33,7 @@ export function getErrorMessage(error) {
     return 'Données invalides. Vérifiez le formulaire.'
   }
   if (status === 404) return 'Élément introuvable.'
+  if (status === 403) return data?.message || 'Accès refusé — permission insuffisante.'
   if (status === 409) return 'Conflit : cette ressource existe déjà.'
   if (status >= 500) return 'Erreur serveur. Réessayez plus tard.'
 

@@ -40,10 +40,11 @@ const modules = [
     status: 'En place',
     tone: 'success',
     route: '/stock',
-    pages: ['Stock', 'Entrées stock'],
+    pages: ['Stock', 'Entrées stock', 'Sorties stock'],
     features: [
       'Entrepôts et emplacements (WH-MAIN / DEFAULT créés au démarrage)',
       'Entrées de stock multi-lignes (brouillon → validation) après achat externe',
+      'Sorties de stock multi-lignes (vente, casse, perte, consommation…) avec motif et validation',
       'Conversion conditionnement → unité de base à la saisie',
       'Lots et dates de péremption à la validation',
       'Stock par produit, variante, entrepôt, emplacement et lot',
@@ -66,6 +67,8 @@ const modules = [
       'GET/POST /api/stock/inventories',
       'GET/POST /api/stock/entries',
       'POST /api/stock/entries/{id}/validate | cancel',
+      'GET/POST /api/stock/exits',
+      'POST /api/stock/exits/{id}/validate | cancel',
     ],
   },
   {
@@ -85,6 +88,7 @@ const modules = [
       'Préférences de notification utilisateur (canaux : IN_APP, EMAIL, SMS, PUSH, SLACK, WHATSAPP)',
       'Historique complet des alertes (OPEN, ACKNOWLEDGED, RESOLVED, IGNORED)',
       'Notifications IN_APP opérationnelles ; autres canaux en mode stub (logs)',
+      'Permissions dédiées : alerts.read (consultation) et alerts.manage (traitement)',
     ],
     api: [
       'GET /api/alerts',
@@ -100,16 +104,18 @@ const modules = [
     status: 'En place',
     tone: 'success',
     route: '/login',
-    pages: ['Connexion'],
+    pages: ['Connexion', 'Utilisateurs', 'Rôles'],
     features: [
       'Authentification JWT (Bearer token, expiration 24 h)',
       'Compte admin initial : admin@erp.local / ErpAdmin2026!',
       '5 rôles système : SUPER_ADMIN, ADMIN, MANAGER, OPERATOR, VIEWER',
-      '19 permissions granulaires (produits, stock, entrées, utilisateurs, rôles)',
+      '26 permissions granulaires (produits, stock, entrées, sorties, alertes, utilisateurs, rôles)',
       'Protection @PreAuthorize sur toutes les routes métier',
-      'Acteur d’audit et mouvements dérivé du token (plus de « Admin » hardcodé)',
-      'API CRUD utilisateurs et gestion des permissions par rôle',
-      'Page de connexion React + routes protégées',
+      'Acteur d’audit et mouvements : email JWT côté serveur (champ client ignoré si authentifié)',
+      'Permissions rechargées depuis la base à chaque requête (effet immédiat sans reconnexion)',
+      'Routes frontend protégées par permission (Utilisateurs, Rôles, Alertes, Sorties stock) + message 403 explicite',
+      'Pages Utilisateurs : création, modification, activation/désactivation, assignation de rôles',
+      'Page Rôles : consultation et édition des permissions par rôle (sauf SUPER_ADMIN)',
     ],
     api: [
       'POST /api/auth/login',
@@ -168,7 +174,7 @@ export default function DocumentationPage() {
           Backend sur le port <strong>8080</strong>, frontend sur le port <strong>5173</strong>.
           Base PostgreSQL via Docker (<code className="text-xs bg-white px-1.5 py-0.5 rounded">.\db.ps1</code> ou{' '}
           <code className="text-xs bg-white px-1.5 py-0.5 rounded">.\dev.ps1</code>).
-          21 tests backend automatisés (JUnit + MockMvc).
+          31 tests backend automatisés (JUnit + MockMvc).
         </p>
       </Card>
 
@@ -201,6 +207,18 @@ export default function DocumentationPage() {
         ))}
       </div>
 
+      <Card className="p-6 mt-6 bg-emerald-50 border-emerald-100">
+        <h3 className="text-sm font-semibold text-emerald-900 mb-2">Sécurité & permissions (résumé)</h3>
+        <ul className="text-sm text-emerald-900 space-y-1.5">
+          <li>• Connexion JWT — compte par défaut : <code className="text-xs bg-white px-1 rounded">admin@erp.local</code> / <code className="text-xs bg-white px-1 rounded">ErpAdmin2026!</code></li>
+          <li>• Le backend recharge les permissions depuis PostgreSQL à chaque requête authentifiée (modification de rôle effective immédiatement).</li>
+          <li>• L’historique d’audit et les mouvements de stock utilisent l’email du token, jamais une valeur envoyée par le client.</li>
+          <li>• Alertes : <code className="text-xs bg-white px-1 rounded">alerts.read</code> pour consulter, <code className="text-xs bg-white px-1 rounded">alerts.manage</code> pour acquitter / résoudre / ignorer.</li>
+          <li>• Pages sensibles protégées côté frontend : /users, /roles, /alerts — accès refusé affiché si permission manquante.</li>
+          <li>• Erreur HTTP 403 : message « Accès refusé — permission insuffisante ».</li>
+        </ul>
+      </Card>
+
       <Card className="p-6 mt-6 border-dashed">
         <h3 className="text-sm font-semibold text-gray-900 mb-2">Règles métier alertes (résumé)</h3>
         <ul className="text-sm text-gray-600 space-y-1.5">
@@ -228,8 +246,8 @@ export default function DocumentationPage() {
         <h3 className="text-sm font-semibold text-amber-900 mb-2">Hors périmètre actuel</h3>
         <p className="text-sm text-amber-800">
           Envoi réel EMAIL/SMS/PUSH/Slack/WhatsApp, interface de configuration des seuils d’alerte,
-          pages frontend de gestion utilisateurs/rôles, gestion des commandes fournisseur (entité
-          minimale pour les retards), tableaux de bord analytics — non implémentés à ce stade.
+          gestion des commandes fournisseur (entité minimale pour les retards), tableaux de bord analytics
+          — non implémentés à ce stade.
         </p>
       </Card>
     </div>

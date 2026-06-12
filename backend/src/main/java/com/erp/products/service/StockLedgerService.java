@@ -41,7 +41,8 @@ class StockLedgerService {
             Long stockTransferId,
             Long stockReservationId,
             Long inventoryCountId,
-            Long stockEntryId
+            Long stockEntryId,
+            Long stockExitId
     ) {}
 
     @Transactional
@@ -196,6 +197,7 @@ class StockLedgerService {
                 .stockReservationId(meta.stockReservationId())
                 .inventoryCountId(meta.inventoryCountId())
                 .stockEntryId(meta.stockEntryId())
+                .stockExitId(meta.stockExitId())
                 .build();
         return stockMovementRepository.save(movement);
     }

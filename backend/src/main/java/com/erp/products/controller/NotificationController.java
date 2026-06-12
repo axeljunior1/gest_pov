@@ -21,7 +21,7 @@ public class NotificationController {
     private final CurrentUserService currentUserService;
 
     @GetMapping
-    @PreAuthorize("@permissionChecker.has(authentication, 'stock.read')")
+    @PreAuthorize("@permissionChecker.has(authentication, 'alerts.read')")
     public List<NotificationResponse> list(@RequestParam(required = false) String userId) {
         return notificationService.findByUser(resolveUserId(userId)).stream()
                 .map(alertMapper::toNotificationResponse)
@@ -29,13 +29,13 @@ public class NotificationController {
     }
 
     @GetMapping("/unread-count")
-    @PreAuthorize("@permissionChecker.has(authentication, 'stock.read')")
+    @PreAuthorize("@permissionChecker.has(authentication, 'alerts.read')")
     public Map<String, Long> unreadCount(@RequestParam(required = false) String userId) {
         return Map.of("count", notificationService.countUnread(resolveUserId(userId)));
     }
 
     @PostMapping("/{id}/read")
-    @PreAuthorize("@permissionChecker.has(authentication, 'stock.read')")
+    @PreAuthorize("@permissionChecker.has(authentication, 'alerts.read')")
     public NotificationResponse markRead(@PathVariable Long id) {
         return alertMapper.toNotificationResponse(notificationService.markRead(id));
     }

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { alertsApi, notificationsApi } from '../api'
+import { useAuth } from '../context/AuthContext'
 import { PageHeader, Card, Button, Loading, Tabs, Badge, EmptyState } from '../components/ui'
 import { useAsyncAction } from '../hooks/useAsyncAction'
 import { useNotification } from '../context/NotificationContext'
@@ -20,6 +21,8 @@ const statusTone = {
 
 export default function AlertsPage() {
   const notify = useNotification()
+  const { hasPermission } = useAuth()
+  const canManage = hasPermission('alerts.manage')
   const { run, submitting } = useAsyncAction()
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState('open')
@@ -145,7 +148,7 @@ export default function AlertsPage() {
                         {a.triggerCount > 1 && ` · ${a.triggerCount} fois`}
                       </p>
                     </div>
-                    {a.status === 'OPEN' && (
+                    {canManage && a.status === 'OPEN' && (
                       <div className="flex gap-2 shrink-0">
                         <Button className="px-3 py-1.5 text-xs" variant="secondary" disabled={submitting}
                           onClick={() => handleAction(a.id, 'acknowledge')}>
@@ -157,7 +160,7 @@ export default function AlertsPage() {
                         </Button>
                       </div>
                     )}
-                    {a.status === 'ACKNOWLEDGED' && (
+                    {canManage && a.status === 'ACKNOWLEDGED' && (
                       <Button className="px-3 py-1.5 text-xs" disabled={submitting}
                         onClick={() => handleAction(a.id, 'resolve')}>
                         Résoudre

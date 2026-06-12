@@ -108,6 +108,19 @@ export const stockEntriesApi = {
   delete: (id) => api.delete(`/stock/entries/${id}`),
 }
 
+export const stockExitsApi = {
+  list: (params) => api.get('/stock/exits', { params }).then(r => r.data),
+  getById: (id) => api.get(`/stock/exits/${id}`).then(r => r.data),
+  create: (data) => api.post('/stock/exits', data).then(r => r.data),
+  update: (id, data) => api.put(`/stock/exits/${id}`, data).then(r => r.data),
+  validate: (id) =>
+    api.post(`/stock/exits/${id}/validate`, {}).then(r => r.data),
+  cancel: (id) =>
+    api.post(`/stock/exits/${id}/cancel`, {}).then(r => r.data),
+  deleteLine: (exitId, lineId) => api.delete(`/stock/exits/${exitId}/lines/${lineId}`),
+  delete: (id) => api.delete(`/stock/exits/${id}`),
+}
+
 export const alertsApi = {
   list: (params) => api.get('/alerts', { params }).then(r => r.data),
   getById: (id) => api.get(`/alerts/${id}`).then(r => r.data),
@@ -124,4 +137,20 @@ export const notificationsApi = {
   unreadCount: () =>
     api.get('/notifications/unread-count').then(r => r.data),
   markRead: (id) => api.post(`/notifications/${id}/read`).then(r => r.data),
+}
+
+export const usersApi = {
+  list: () => api.get('/users').then(r => r.data),
+  getById: (id) => api.get(`/users/${id}`).then(r => r.data),
+  create: (data) => api.post('/users', data).then(r => r.data),
+  update: (id, data) => api.put(`/users/${id}`, data).then(r => r.data),
+  delete: (id) => api.delete(`/users/${id}`),
+}
+
+export const rolesApi = {
+  list: () => api.get('/roles').then(r => r.data),
+  getById: (id) => api.get(`/roles/${id}`).then(r => r.data),
+  listPermissions: () => api.get('/roles/permissions').then(r => r.data),
+  updatePermissions: (id, permissions) =>
+    api.put(`/roles/${id}/permissions`, { permissions }).then(r => r.data),
 }

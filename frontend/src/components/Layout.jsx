@@ -8,13 +8,20 @@ const navItems = [
   { to: '/units', label: 'Unités' },
   { to: '/stock', label: 'Stock' },
   { to: '/stock/entries', label: 'Entrées stock' },
-  { to: '/alerts', label: 'Alertes' },
+  { to: '/stock/exits', label: 'Sorties stock', permission: 'stock_exit.read' },
+  { to: '/alerts', label: 'Alertes', permission: 'alerts.read' },
   { to: '/attributes', label: 'Attributs' },
+  { to: '/users', label: 'Utilisateurs', permission: 'users.read' },
+  { to: '/roles', label: 'Rôles', permission: 'roles.read' },
   { to: '/documentation', label: 'Documentation' },
 ]
 
 export default function Layout() {
-  const { user, logout } = useAuth()
+  const { user, logout, hasPermission } = useAuth()
+
+  const visibleNavItems = navItems.filter(
+    (item) => !item.permission || hasPermission(item.permission),
+  )
 
   return (
     <div className="min-h-screen flex">
@@ -24,7 +31,7 @@ export default function Layout() {
           <p className="text-xs text-gray-500 mt-0.5">Modules 1, 2, 3 & auth</p>
         </div>
         <nav className="flex-1 p-3 space-y-0.5">
-          {navItems.map(({ to, label, end }) => (
+          {visibleNavItems.map(({ to, label, end }) => (
             <NavLink
               key={to}
               to={to}

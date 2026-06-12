@@ -10,6 +10,7 @@ import com.erp.products.exception.BusinessException;
 import com.erp.products.exception.ResourceNotFoundException;
 import com.erp.products.mapper.StockMapper;
 import com.erp.products.repository.*;
+import com.erp.products.security.CurrentUserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,9 +30,11 @@ public class StockReservationService {
     private final LotRepository lotRepository;
     private final StockLedgerService ledger;
     private final StockMapper mapper;
+    private final CurrentUserService currentUserService;
 
     @Transactional
     public StockReservationResponse reserve(StockReservationRequest request) {
+        String actor = currentUserService.resolveActor(request.getUtilisateur());
         StockReservation reservation = reservationRepository.save(
                 StockReservation.builder()
                         .product(loadProduct(request.getProductId()))
@@ -41,7 +44,7 @@ public class StockReservationService {
                         .lot(loadLot(request.getLotId()))
                         .quantity(request.getQuantity())
                         .reference(request.getReference())
-                        .utilisateur(request.getUtilisateur())
+                        .utilisateur(actor)
                         .status(StockReservationStatus.ACTIVE)
                         .build());
 
@@ -57,9 +60,10 @@ public class StockReservationService {
                         "RESERVATION",
                         request.getReference(),
                         "Reservation stock",
-                        request.getUtilisateur(),
+                        actor,
                         null,
                         reservation.getId(),
+                        null,
                         null,
                         null));
 
@@ -85,6 +89,7 @@ public class StockReservationService {
                         null,
                         reservation.getId(),
                         null,
+                        null,
                         null));
 
         reservation.setStatus(StockReservationStatus.RELEASED);
@@ -109,7 +114,7 @@ public class StockReservationService {
                 reservation.getQuantity().negate(),
                 new StockLedgerService.MovementMeta(
                         StockMovementType.RELEASE, "RESERVATION", op.getReference(),
-                        "Consommation reservation", op.getUtilisateur(), null, reservation.getId(), null, null));
+                        "Consommation reservation", op.getUtilisateur(), null, reservation.getId(), null, null, null));
 
         ledger.applyOnHandChange(
                 op.getProductId(), op.getVariantId(), op.getWarehouseId(), op.getLocationId(), op.getLotId(),

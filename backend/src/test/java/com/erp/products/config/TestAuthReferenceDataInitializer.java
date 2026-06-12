@@ -56,6 +56,11 @@ public class TestAuthReferenceDataInitializer implements ApplicationRunner {
                 new String[]{"stock_entry.update", "Modifier des entrees brouillon", "MODULE_STOCK"},
                 new String[]{"stock_entry.validate", "Valider des entrees stock", "MODULE_STOCK"},
                 new String[]{"stock_entry.cancel", "Annuler des entrees stock", "MODULE_STOCK"},
+                new String[]{"stock_exit.read", "Lire les sorties stock", "MODULE_STOCK"},
+                new String[]{"stock_exit.create", "Creer des sorties stock", "MODULE_STOCK"},
+                new String[]{"stock_exit.update", "Modifier des sorties brouillon", "MODULE_STOCK"},
+                new String[]{"stock_exit.validate", "Valider des sorties stock", "MODULE_STOCK"},
+                new String[]{"stock_exit.cancel", "Annuler des sorties stock", "MODULE_STOCK"},
                 new String[]{"users.read", "Lire les utilisateurs", "MODULE_USERS"},
                 new String[]{"users.create", "Creer des utilisateurs", "MODULE_USERS"},
                 new String[]{"users.update", "Modifier des utilisateurs", "MODULE_USERS"},
@@ -63,7 +68,9 @@ public class TestAuthReferenceDataInitializer implements ApplicationRunner {
                 new String[]{"roles.read", "Lire les roles", "MODULE_ROLES"},
                 new String[]{"roles.create", "Creer des roles", "MODULE_ROLES"},
                 new String[]{"roles.update", "Modifier les roles", "MODULE_ROLES"},
-                new String[]{"roles.delete", "Supprimer les roles", "MODULE_ROLES"}
+                new String[]{"roles.delete", "Supprimer les roles", "MODULE_ROLES"},
+                new String[]{"alerts.read", "Consulter les alertes", "MODULE_ALERTS"},
+                new String[]{"alerts.manage", "Traiter les alertes", "MODULE_ALERTS"}
         );
         for (String[] d : defs) {
             permissionRepository.save(Permission.builder()

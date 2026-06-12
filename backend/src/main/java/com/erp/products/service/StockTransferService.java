@@ -10,6 +10,7 @@ import com.erp.products.exception.BusinessException;
 import com.erp.products.exception.ResourceNotFoundException;
 import com.erp.products.mapper.StockMapper;
 import com.erp.products.repository.*;
+import com.erp.products.security.CurrentUserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,6 +33,7 @@ public class StockTransferService {
     private final LotRepository lotRepository;
     private final StockLedgerService ledger;
     private final StockMapper mapper;
+    private final CurrentUserService currentUserService;
 
     @Transactional
     public StockTransferResponse create(StockTransferRequest request) {
@@ -50,7 +52,7 @@ public class StockTransferService {
                 .destWarehouse(dest)
                 .status(StockTransferStatus.DRAFT)
                 .notes(request.getNotes())
-                .utilisateur(request.getUtilisateur())
+                .utilisateur(currentUserService.resolveActor(request.getUtilisateur()))
                 .lignes(new ArrayList<>())
                 .build();
 

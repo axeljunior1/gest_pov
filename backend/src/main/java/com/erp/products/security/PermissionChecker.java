@@ -17,7 +17,6 @@ public class PermissionChecker {
                 .map(GrantedAuthority::getAuthority)
                 .anyMatch(auth -> auth.equals(permission)
                         || auth.equals("ROLE_SUPER_ADMIN")
-                        || auth.equals("products.*")
                         || matchesWildcard(auth, permission));
     }
 
