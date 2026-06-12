@@ -1,5 +1,10 @@
 import api from './client'
 
+export const authApi = {
+  login: (email, password) => api.post('/auth/login', { email, password }).then(r => r.data),
+  me: () => api.get('/auth/me').then(r => r.data),
+}
+
 export const productsApi = {
   search: (params) => api.get('/products', { params }).then(r => r.data),
   getById: (id) => api.get(`/products/${id}`).then(r => r.data),
@@ -74,4 +79,49 @@ export const attributesApi = {
 
 export const barcodesApi = {
   generate: (data) => api.post('/barcodes/generate', data).then(r => r.data),
+}
+
+export const stockApi = {
+  getItems: (params) => api.get('/stock/items', { params }).then(r => r.data),
+  getAvailable: (params) => api.get('/stock/available', { params }).then(r => r.data),
+  getMovements: (params) => api.get('/stock/movements', { params }).then(r => r.data),
+  receipt: (data) => api.post('/stock/receipt', data).then(r => r.data),
+  issue: (data) => api.post('/stock/issue', data).then(r => r.data),
+  adjust: (data) => api.post('/stock/adjust', data).then(r => r.data),
+  getWarehouses: () => api.get('/warehouses').then(r => r.data),
+  createWarehouse: (data) => api.post('/warehouses', data).then(r => r.data),
+  getLocations: (warehouseId) => api.get(`/warehouses/${warehouseId}/locations`).then(r => r.data),
+  getTransfers: () => api.get('/stock/transfers').then(r => r.data),
+  getReservations: () => api.get('/stock/reservations').then(r => r.data),
+}
+
+export const stockEntriesApi = {
+  list: (params) => api.get('/stock/entries', { params }).then(r => r.data),
+  getById: (id) => api.get(`/stock/entries/${id}`).then(r => r.data),
+  create: (data) => api.post('/stock/entries', data).then(r => r.data),
+  update: (id, data) => api.put(`/stock/entries/${id}`, data).then(r => r.data),
+  validate: (id) =>
+    api.post(`/stock/entries/${id}/validate`, {}).then(r => r.data),
+  cancel: (id) =>
+    api.post(`/stock/entries/${id}/cancel`, {}).then(r => r.data),
+  deleteLine: (entryId, lineId) => api.delete(`/stock/entries/${entryId}/lines/${lineId}`),
+  delete: (id) => api.delete(`/stock/entries/${id}`),
+}
+
+export const alertsApi = {
+  list: (params) => api.get('/alerts', { params }).then(r => r.data),
+  getById: (id) => api.get(`/alerts/${id}`).then(r => r.data),
+  acknowledge: (id) =>
+    api.post(`/alerts/${id}/acknowledge`, {}).then(r => r.data),
+  resolve: (id) =>
+    api.post(`/alerts/${id}/resolve`, {}).then(r => r.data),
+  ignore: (id) =>
+    api.post(`/alerts/${id}/ignore`, {}).then(r => r.data),
+}
+
+export const notificationsApi = {
+  list: () => api.get('/notifications').then(r => r.data),
+  unreadCount: () =>
+    api.get('/notifications/unread-count').then(r => r.data),
+  markRead: (id) => api.post(`/notifications/${id}/read`).then(r => r.data),
 }

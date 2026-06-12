@@ -28,7 +28,6 @@ export function buildProductPayload(form, { isNew = false } = {}) {
     prixPromotionnel: toNumber(form.prixPromotionnel),
     statut: form.statut,
     cycleVie: form.cycleVie,
-    utilisateur: form.utilisateur || 'Admin',
   }
 
   const attributs = form.attributs || {}

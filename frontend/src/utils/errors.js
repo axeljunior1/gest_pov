@@ -1,8 +1,18 @@
 export function getErrorMessage(error) {
   if (!error) return 'Une erreur est survenue.'
 
+  const status = error.response?.status
+
+  if (error.code === 'ECONNABORTED') {
+    return 'Le serveur met trop de temps à répondre. Attendez quelques secondes puis réessayez (le backend peut être en cours de démarrage).'
+  }
+
+  if (status === 502 || status === 503 || status === 504) {
+    return 'Le backend est indisponible ou redémarre. Relancez avec .\\dev.ps1 puis réessayez dans 30 secondes.'
+  }
+
   if (error.code === 'ERR_NETWORK' || error.message === 'Network Error' || !error.response) {
-    return 'Impossible de joindre le serveur. Vérifiez que le backend est lancé sur le port 8080.'
+    return 'Impossible de joindre le serveur. Vérifiez que le backend tourne sur le port 8080 (commande : .\\dev.ps1).'
   }
 
   const data = error.response?.data
@@ -16,7 +26,6 @@ export function getErrorMessage(error) {
 
   if (data?.detail) return data.detail
 
-  const status = error.response?.status
   if (status === 400) {
     if (data?.error === 'Bad Request') {
       return 'Requête invalide : vérifiez les valeurs sélectionnées (catégorie, statut, type de code-barres…).'

@@ -25,9 +25,13 @@ if ($StopOnly) {
     exit 0
 }
 
+Write-Host "Démarrage PostgreSQL..." -ForegroundColor Cyan
+& "$Root\db.ps1"
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
 Write-Host "Démarrage backend + frontend..." -ForegroundColor Cyan
 
-$backendCmd = "Set-Location '$Root\backend'; `$env:JAVA_HOME='$env:JAVA_HOME'; mvn -q -DskipTests spring-boot:run"
+$backendCmd = "Set-Location '$Root\backend'; `$env:JAVA_HOME='$env:JAVA_HOME'; `$env:SPRING_DEVTOOLS_RESTART_ENABLED='false'; mvn -q -DskipTests spring-boot:run"
 $frontendCmd = "Set-Location '$Root\frontend'; npm run dev -- --host"
 
 Start-Process powershell -ArgumentList "-NoExit", "-NoProfile", "-Command", $backendCmd | Out-Null
@@ -35,4 +39,5 @@ Start-Process powershell -ArgumentList "-NoExit", "-NoProfile", "-Command", $fro
 
 Write-Host "Backend  -> http://localhost:8080" -ForegroundColor Green
 Write-Host "Frontend -> http://localhost:5173" -ForegroundColor Green
+Write-Host "PostgreSQL -> localhost:5432 / erp_products (erp_user)" -ForegroundColor Green
 Write-Host "Utilisez .\dev.ps1 -StopOnly pour tout arrêter." -ForegroundColor DarkGray

@@ -22,7 +22,7 @@ const initialForm = () => ({
   nom: '', sku: '', description: '', marque: '',
   categorieId: '', fournisseurPrincipalId: '', unitId: '',
   prixAchat: '', prixVente: '', prixPromotionnel: '',
-  statut: 'ACTIF', cycleVie: 'BROUILLON', utilisateur: 'Admin',
+  statut: 'ACTIF', cycleVie: 'BROUILLON',
   variantes: [emptyVariant()],
   attributs: {},
 })
@@ -49,8 +49,8 @@ export default function ProductDetailPage() {
 
   const [newVariant, setNewVariant] = useState(emptyVariant())
   const [newSupplier, setNewSupplier] = useState({ supplierId: '', principal: false, referenceFournisseur: '', delaiLivraisonJours: '', prixNegocie: '' })
-  const [priceForm, setPriceForm] = useState({ type: 'VENTE', nouveauPrix: '', utilisateur: 'Admin' })
-  const [lifecycleForm, setLifecycleForm] = useState({ cycleVie: 'BROUILLON', utilisateur: 'Admin' })
+  const [priceForm, setPriceForm] = useState({ type: 'VENTE', nouveauPrix: '' })
+  const [lifecycleForm, setLifecycleForm] = useState({ cycleVie: 'BROUILLON' })
   const [barcodePreview, setBarcodePreview] = useState(null)
   const [packagingForm, setPackagingForm] = useState({ nom: '', symbole: '', quantiteBase: '', principal: false })
   const [packagingConvert, setPackagingConvert] = useState({ packagingId: '', quantity: '' })
@@ -95,11 +95,11 @@ export default function ProductDetailPage() {
         fournisseurPrincipalId: data.fournisseurPrincipalId || '',
         unitId: data.unitId || '', prixAchat: data.prixAchat || '',
         prixVente: data.prixVente || '', prixPromotionnel: data.prixPromotionnel || '',
-        statut: data.statut, cycleVie: data.cycleVie, utilisateur: 'Admin',
+        statut: data.statut, cycleVie: data.cycleVie,
         variantes: data.variantes?.length ? data.variantes : [emptyVariant()],
         attributs: data.attributs || {},
       })
-      setLifecycleForm({ cycleVie: data.cycleVie, utilisateur: 'Admin' })
+      setLifecycleForm({ cycleVie: data.cycleVie })
       const [history, auditLog] = await Promise.all([
         productsApi.getPriceHistory(id),
         productsApi.getAudit(id),
