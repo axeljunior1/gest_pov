@@ -156,6 +156,14 @@ public class PosController {
         return saleService.listHoldSales();
     }
 
+    @GetMapping("/sales/completed")
+    @PreAuthorize("@permissionChecker.hasAny(authentication, 'pos.ticket.print', 'pos.ticket.reprint', 'pos.report.read')")
+    public List<SaleResponse> listCompletedSales(
+            @RequestParam(required = false, defaultValue = "false") boolean sessionOnly,
+            @RequestParam(required = false) Integer limit) {
+        return saleService.listCompletedSales(sessionOnly, limit);
+    }
+
     @GetMapping("/sales/pending-payment")
     @PreAuthorize("@permissionChecker.has(authentication, 'pos.payment.collect')")
     public List<SaleResponse> listPendingPayments() {
@@ -190,6 +198,12 @@ public class PosController {
     @PreAuthorize("@permissionChecker.hasAny(authentication, 'pos.ticket.print', 'pos.ticket.reprint')")
     public TicketResponse ticket(@PathVariable Long id) {
         return ticketService.buildTicket(id);
+    }
+
+    @GetMapping("/sales/{id}/invoice")
+    @PreAuthorize("@permissionChecker.hasAny(authentication, 'pos.ticket.print', 'pos.ticket.reprint')")
+    public InvoiceResponse invoice(@PathVariable Long id) {
+        return ticketService.buildInvoice(id);
     }
 
     @PostMapping("/sales/{id}/refund")

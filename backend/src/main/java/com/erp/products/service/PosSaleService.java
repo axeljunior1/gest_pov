@@ -14,6 +14,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.data.domain.PageRequest;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -45,6 +46,7 @@ public class PosSaleService {
     private final LoyaltyService loyaltyService;
     private final PaymentRepository paymentRepository;
     private final PermissionEvaluator permissionChecker;
+    private final StockExitService stockExitService;
 
     @Transactional
     public SaleResponse createSale() {
@@ -119,6 +121,52 @@ public class PosSaleService {
         PosSession session = sessionService.requireSessionForSaleCreation(user);
         return saleRepository.findByPosSessionIdAndStatusOrderByCreatedAtDesc(session.getId(), SaleStatus.HOLD)
                 .stream().map(mapper::toSaleResponse).toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<SaleResponse> listCompletedSales(Boolean sessionOnly, Integer limit) {
+        User user = currentUserService.requireCurrentUser();
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        boolean fullAccess = permissionChecker.has(auth, "pos.report.read");
+
+        Long sessionId = null;
+        if (Boolean.TRUE.equals(sessionOnly)) {
+            PosSessionResponse current = sessionService.getCurrentSessionOrNull();
+            if (current == null) {
+                return List.of();
+            }
+            sessionId = current.getId();
+        }
+
+        Long sellerId = null;
+        Long cashierId = null;
+        Long userId = null;
+        if (!fullAccess) {
+            boolean canCollect = permissionChecker.has(auth, "pos.payment.collect")
+                    || permissionChecker.has(auth, "pos.payment.validate");
+            boolean canPrepare = permissionChecker.has(auth, "pos.sale.send_to_payment")
+                    || permissionChecker.has(auth, "pos.sale.prepare")
+                    || permissionChecker.has(auth, "pos.sale.create");
+            if (canPrepare && !canCollect) {
+                sellerId = user.getId();
+            } else if (canCollect && !canPrepare) {
+                cashierId = user.getId();
+            } else {
+                userId = user.getId();
+            }
+        }
+
+        int max = limit != null && limit > 0 ? Math.min(limit, 200) : 50;
+        return saleRepository.findCompletedSales(
+                        SaleStatuses.COUNTED_FOR_REVENUE,
+                        sessionId,
+                        userId,
+                        sellerId,
+                        cashierId,
+                        PageRequest.of(0, max))
+                .stream()
+                .map(mapper::toSaleResponse)
+                .toList();
     }
 
     @Transactional
@@ -350,8 +398,10 @@ public class PosSaleService {
             change = paid.subtract(total).max(BigDecimal.ZERO);
         }
 
+        StockExit stockExit = stockExitService.createFromPosSale(sale);
+
         for (SaleLine line : sale.getLignes()) {
-            postStockMovement(sale, line);
+            postStockMovement(sale, line, stockExit.getId());
         }
 
         loyaltyService.processSaleValidated(sale);
@@ -407,7 +457,7 @@ public class PosSaleService {
         return mapper.toSaleResponse(saleRepository.save(sale));
     }
 
-    private void postStockMovement(Sale sale, SaleLine line) {
+    private void postStockMovement(Sale sale, SaleLine line, Long stockExitId) {
         ledger.applyOnHandChange(
                 line.getProduct().getId(),
                 line.getVariant() != null ? line.getVariant().getId() : null,
@@ -421,7 +471,7 @@ public class PosSaleService {
                         sale.getSaleNumber(),
                         "Vente caisse " + sale.getSaleNumber(),
                         resolveSellerEmail(sale),
-                        null, null, null, null, null,
+                        null, null, null, null, stockExitId,
                         line.getPackaging() != null ? line.getPackaging().getId() : null,
                         sale.getId(),
                         null));

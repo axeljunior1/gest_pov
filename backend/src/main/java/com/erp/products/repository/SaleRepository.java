@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import jakarta.persistence.LockModeType;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -76,4 +77,31 @@ public interface SaleRepository extends JpaRepository<Sale, Long> {
     List<Sale> findByStatusOrderBySubmittedAtAsc(SaleStatus status);
 
     long countByStatusAndWarehouseId(SaleStatus status, Long warehouseId);
+
+    @Query("""
+            SELECT s FROM Sale s
+            WHERE s.status = com.erp.products.domain.enums.SaleStatus.PAID
+            AND NOT EXISTS (SELECT 1 FROM StockExit e WHERE e.sale.id = s.id)
+            ORDER BY s.paidAt ASC NULLS LAST, s.id ASC
+            """)
+    List<Sale> findPaidWithoutStockExit(org.springframework.data.domain.Pageable pageable);
+
+    @Query("""
+            SELECT s FROM Sale s
+            WHERE s.status IN :statuses
+            AND (:sessionId IS NULL
+                 OR s.posSession.id = :sessionId
+                 OR s.paymentSession.id = :sessionId)
+            AND (:userId IS NULL OR s.seller.id = :userId OR s.cashier.id = :userId)
+            AND (:sellerId IS NULL OR s.seller.id = :sellerId)
+            AND (:cashierId IS NULL OR s.cashier.id = :cashierId)
+            ORDER BY COALESCE(s.paidAt, s.validatedAt) DESC, s.id DESC
+            """)
+    List<Sale> findCompletedSales(
+            @Param("statuses") Collection<SaleStatus> statuses,
+            @Param("sessionId") Long sessionId,
+            @Param("userId") Long userId,
+            @Param("sellerId") Long sellerId,
+            @Param("cashierId") Long cashierId,
+            org.springframework.data.domain.Pageable pageable);
 }

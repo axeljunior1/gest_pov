@@ -285,7 +285,12 @@ export default function StockExitsPage() {
                     className="border-b border-gray-50 hover:bg-gray-50/50 cursor-pointer"
                     onClick={() => openDetail(e.id)}
                   >
-                    <td className="py-3 font-mono text-xs">{e.exitNumber}</td>
+                    <td className="py-3 font-mono text-xs">
+                    <span className="inline-flex items-center gap-2">
+                      {e.exitNumber}
+                      {e.posOrigin && <Badge tone="info">POS</Badge>}
+                    </span>
+                  </td>
                     <td className="py-3">{e.exitDate}</td>
                     <td className="py-3">{e.warehouseCode}</td>
                     <td className="py-3">{reasonLabel(e.reason)}</td>
@@ -469,17 +474,23 @@ export default function StockExitsPage() {
               <p className="text-sm text-gray-500 mt-1">
                 {selected.exitDate} · {selected.warehouseCode}/{selected.locationCode} · {reasonLabel(selected.reason)}
               </p>
-              <div className="mt-2">
+              <div className="mt-2 flex flex-wrap gap-2">
                 <Badge tone={statusTone[selected.status] || 'default'}>{selected.status}</Badge>
+                {selected.posOrigin && <Badge tone="info">POS</Badge>}
               </div>
+              {selected.saleNumber && (
+                <p className="text-sm text-gray-600 mt-2">
+                  Vente caisse : <span className="font-mono">{selected.saleNumber}</span>
+                </p>
+              )}
             </div>
             <div className="flex gap-2">
-              {selected.status === 'DRAFT' && (
+              {!selected.posOrigin && selected.status === 'DRAFT' && (
                 <Button onClick={() => handleValidate(selected.id)} disabled={submitting}>
                   Valider
                 </Button>
               )}
-              {selected.status !== 'CANCELLED' && (
+              {!selected.posOrigin && selected.status !== 'CANCELLED' && (
                 <Button variant="secondary" onClick={() => handleCancel(selected.id)} disabled={submitting}>
                   Annuler
                 </Button>
@@ -518,6 +529,7 @@ export default function StockExitsPage() {
             Créée par {selected.createdBy}
             {selected.validatedBy && ` · Validée par ${selected.validatedBy}`}
             {selected.cancelledBy && ` · Annulée par ${selected.cancelledBy}`}
+            {selected.posOrigin && ' · Document généré automatiquement depuis le POS (lecture seule)'}
           </p>
         </Card>
       )}

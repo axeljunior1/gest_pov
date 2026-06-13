@@ -31,6 +31,7 @@ import DocumentationPage from './pages/DocumentationPage'
 import CustomersPage from './pages/CustomersPage'
 import POSPage from './pages/POSPage'
 import PosPendingPaymentsPage from './pages/PosPendingPaymentsPage'
+import PosSalesHistoryPage from './pages/PosSalesHistoryPage'
 
 export default function App() {
   return (
@@ -47,6 +48,9 @@ export default function App() {
                   </Route>
                   <Route element={<PermissionRoute anyOf={['pos.payment.collect', 'pos.payment.validate']} />}>
                     <Route path="pos/pending" element={<PosPendingPaymentsPage />} />
+                  </Route>
+                  <Route element={<PermissionRoute anyOf={['pos.ticket.print', 'pos.ticket.reprint', 'pos.report.read']} />}>
+                    <Route path="pos/history" element={<PosSalesHistoryPage />} />
                   </Route>
                 </Route>
               </Route>

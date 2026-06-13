@@ -15,6 +15,7 @@ import com.erp.products.repository.*;
 import com.erp.products.security.CurrentUserService;
 import com.erp.products.specification.StockExitSpecification;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,6 +32,7 @@ import java.util.stream.Collectors;
 public class StockExitService {
 
     private final StockExitRepository exitRepository;
+    private final SaleRepository saleRepository;
     private final WarehouseRepository warehouseRepository;
     private final LocationRepository locationRepository;
     private final ProductRepository productRepository;
@@ -67,6 +69,7 @@ public class StockExitService {
     @Transactional
     public StockExitResponse update(Long id, StockExitRequest request) {
         StockExit exit = findExit(id);
+        ensureNotPosLinked(exit);
         ensureDraft(exit);
 
         exit.setWarehouse(loadWarehouse(request.getWarehouseId()));
@@ -86,7 +89,7 @@ public class StockExitService {
         return mapper.toExitResponse(saved);
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public List<StockExitResponse> findAll(
             Long productId,
             Long warehouseId,
@@ -94,11 +97,67 @@ public class StockExitService {
             StockExitReason reason,
             LocalDate dateFrom,
             LocalDate dateTo) {
+        syncMissingPosExits();
         return exitRepository.findAll(StockExitSpecification.withFilters(
                         productId, warehouseId, status, reason, dateFrom, dateTo))
                 .stream()
                 .map(mapper::toExitResponse)
                 .collect(Collectors.toList());
+    }
+
+    @Transactional
+    public StockExit createFromPosSale(Sale sale) {
+        if (exitRepository.existsBySaleId(sale.getId())) {
+            return exitRepository.findBySaleId(sale.getId()).orElseThrow();
+        }
+
+        Instant validatedAt = sale.getPaidAt() != null ? sale.getPaidAt() : sale.getValidatedAt();
+        if (validatedAt == null) {
+            validatedAt = Instant.now();
+        }
+        LocalDate exitDate = validatedAt.atZone(java.time.ZoneId.systemDefault()).toLocalDate();
+        String actor = sale.getCashier() != null ? sale.getCashier().getEmail()
+                : currentUserService.resolveActor(null);
+
+        StockExit exit = StockExit.builder()
+                .exitNumber(generateExitNumber())
+                .warehouse(sale.getWarehouse())
+                .location(sale.getLocation())
+                .exitDate(exitDate)
+                .reason(StockExitReason.SALE)
+                .notes("Vente POS " + sale.getSaleNumber())
+                .status(StockExitStatus.VALIDATED)
+                .createdBy(actor)
+                .validatedBy(actor)
+                .validatedAt(validatedAt)
+                .sale(sale)
+                .lignes(new ArrayList<>())
+                .build();
+
+        for (SaleLine saleLine : sale.getLignes()) {
+            exit.getLignes().add(StockExitLine.builder()
+                    .stockExit(exit)
+                    .product(saleLine.getProduct())
+                    .variant(saleLine.getVariant())
+                    .packaging(saleLine.getPackaging())
+                    .quantityInput(saleLine.getQuantityInput())
+                    .quantityInBaseUnit(saleLine.getQuantityInBaseUnit())
+                    .build());
+        }
+
+        StockExit saved = exitRepository.save(exit);
+        auditService.log("StockExit", saved.getId(), AuditAction.CREATION,
+                "Sortie stock POS " + saved.getExitNumber() + " (vente " + sale.getSaleNumber() + ")",
+                actor);
+        return saved;
+    }
+
+    @Transactional
+    public void syncMissingPosExits() {
+        List<Sale> sales = saleRepository.findPaidWithoutStockExit(PageRequest.of(0, 200));
+        for (Sale sale : sales) {
+            createFromPosSale(sale);
+        }
     }
 
     @Transactional(readOnly = true)
@@ -110,6 +169,7 @@ public class StockExitService {
     public StockExitResponse validate(Long id, String user) {
         StockExit exit = exitRepository.findByIdForUpdate(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Sortie stock non trouvée: " + id));
+        ensureNotPosLinked(exit);
 
         if (exit.getStatus() != StockExitStatus.DRAFT) {
             throw new BusinessException("Seule une sortie brouillon peut être validée");
@@ -137,6 +197,7 @@ public class StockExitService {
     public StockExitResponse cancel(Long id, String user) {
         StockExit exit = exitRepository.findByIdForUpdate(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Sortie stock non trouvée: " + id));
+        ensureNotPosLinked(exit);
 
         if (exit.getStatus() == StockExitStatus.CANCELLED) {
             throw new BusinessException("Sortie déjà annulée");
@@ -160,6 +221,7 @@ public class StockExitService {
     @Transactional
     public void deleteLine(Long exitId, Long lineId) {
         StockExit exit = findExit(exitId);
+        ensureNotPosLinked(exit);
         ensureDraft(exit);
         boolean removed = exit.getLignes().removeIf(l -> l.getId().equals(lineId));
         if (!removed) {
@@ -171,6 +233,7 @@ public class StockExitService {
     @Transactional
     public void delete(Long id) {
         StockExit exit = findExit(id);
+        ensureNotPosLinked(exit);
         ensureDraft(exit);
         exitRepository.delete(exit);
         auditService.log("StockExit", id, AuditAction.SUPPRESSION,
@@ -272,6 +335,12 @@ public class StockExitService {
     private void ensureDraft(StockExit exit) {
         if (exit.getStatus() != StockExitStatus.DRAFT) {
             throw new BusinessException("Seule une sortie brouillon peut être modifiée");
+        }
+    }
+
+    private void ensureNotPosLinked(StockExit exit) {
+        if (exit.getSale() != null) {
+            throw new BusinessException("Cette sortie provient du POS et ne peut pas être modifiée manuellement");
         }
     }
 

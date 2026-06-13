@@ -25,4 +25,8 @@ public interface StockExitRepository extends JpaRepository<StockExit, Long>, Jpa
     long countByStatus(StockExitStatus status);
 
     List<StockExit> findTop10ByStatusOrderByValidatedAtDescCreatedAtDesc(StockExitStatus status);
+
+    Optional<StockExit> findBySaleId(Long saleId);
+
+    boolean existsBySaleId(Long saleId);
 }

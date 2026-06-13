@@ -5,10 +5,13 @@ import { useAuth } from '../context/AuthContext'
 import { useNotification } from '../context/NotificationContext'
 import { getErrorMessage } from '../utils/errors'
 import { isCashierOnlyUser } from '../utils/auth'
+import { notifyPosSessionChanged } from '../utils/posSession'
 import { saleStatusLabel } from '../utils/saleStatus'
 import { formatPosMoney } from '../utils/posMoney'
 import CashSessionCloseModal from '../components/pos/CashSessionCloseModal'
 import CashSessionOpenModal from '../components/pos/CashSessionOpenModal'
+import { PosSessionChip, PosSessionTypeBadge } from '../components/pos/PosWorkspaceNav'
+import { PosTicketModal } from '../components/pos/PosPrintModals'
 
 function PaymentModal({ sale, currency, onClose, onPaid }) {
   const [payments, setPayments] = useState([{ method: 'CASH', amount: sale?.total || 0 }])
@@ -97,32 +100,7 @@ function PaymentModal({ sale, currency, onClose, onPaid }) {
 }
 
 function TicketModal({ ticket, onClose }) {
-  if (!ticket) return null
-  return (
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-      <div className="pos-light-panel rounded-xl w-full max-w-sm p-6 font-mono text-sm">
-        <p className="font-bold text-center">{ticket.companyName}</p>
-        <p className="text-center text-xs text-gray-500">{ticket.registerName}</p>
-        <p className="text-center text-xs mb-3">Ticket {ticket.ticketNumber}</p>
-        <hr className="my-2 border-dashed" />
-        {ticket.lines?.map((l, i) => (
-          <div key={i} className="flex justify-between gap-2 py-0.5">
-            <span>{l.productNom} x{l.quantity}</span>
-            <span>{Number(l.lineTotal).toFixed(2)}</span>
-          </div>
-        ))}
-        <hr className="my-2 border-dashed" />
-        <div className="flex justify-between font-bold">
-          <span>TOTAL</span>
-          <span>{Number(ticket.total).toFixed(2)} {ticket.currency}</span>
-        </div>
-        <div className="flex gap-2 mt-4">
-          <button type="button" onClick={() => window.print()} className="flex-1 py-2 bg-gray-900 text-white rounded-lg text-xs">Imprimer</button>
-          <button type="button" onClick={onClose} className="flex-1 py-2 bg-gray-200 rounded-lg text-xs">Fermer</button>
-        </div>
-      </div>
-    </div>
-  )
+  return <PosTicketModal ticket={ticket} onClose={onClose} />
 }
 
 export default function PosPendingPaymentsPage() {
@@ -141,6 +119,7 @@ export default function PosPendingPaymentsPage() {
 
   const currency = context?.publicSettings?.currency || 'EUR'
   const cashierOnly = isCashierOnlyUser(user)
+  const canReprint = hasPermission('pos.ticket.print') || hasPermission('pos.ticket.reprint')
 
   const refresh = useCallback(async () => {
     setLoading(true)
@@ -168,6 +147,7 @@ export default function PosPendingPaymentsPage() {
       setSession(s)
       setShowOpenModal(false)
       notify.success('Session caisse ouverte')
+      notifyPosSessionChanged()
       await refresh()
     } catch (e) {
       notify.error(getErrorMessage(e))
@@ -180,6 +160,7 @@ export default function PosPendingPaymentsPage() {
     setShowCloseModal(false)
     setSession(null)
     setPending([])
+    notifyPosSessionChanged()
     await refresh()
   }
   useEffect(() => {
@@ -228,43 +209,75 @@ export default function PosPendingPaymentsPage() {
   }
 
   if (!session || session.sessionType !== 'CASHIER') {
+    const hasWrongSession = session?.sessionType === 'SALES'
     return (
-      <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
-        <h1 className="text-xl font-semibold mb-2">Ventes à encaisser</h1>
-        <p className="text-slate-400 text-sm mb-6 max-w-md">
-          Ouvrez votre session caisse pour voir les ventes en attente et encaisser les paiements.
-        </p>
-        <button type="button" disabled={openingSession} onClick={() => setShowOpenModal(true)}
-          className="px-6 py-3 bg-emerald-600 hover:bg-emerald-500 rounded-xl font-medium disabled:opacity-50">
-          Ouvrir session caisse
-        </button>
-        {!cashierOnly && (
-          <Link to="/pos" className="mt-4 text-sm text-emerald-400 underline">← Préparation ventes</Link>
+      <>
+        <div className="flex-1 flex flex-col items-center justify-center p-8 text-center max-w-lg mx-auto">
+          {hasWrongSession && (
+            <div className="mb-6">
+              <PosSessionChip session={session} expectedType="CASHIER" centralMode />
+            </div>
+          )}
+          <PosSessionTypeBadge type="CASHIER" size="lg" />
+          <h1 className="text-2xl font-semibold mt-6 mb-2">Poste encaissement</h1>
+          <p className="text-slate-400 mb-6">
+            {hasWrongSession
+              ? 'Fermez d’abord votre session vente, ou utilisez l’onglet Préparation ventes en haut de l’écran.'
+              : 'Ouvrez votre session caisse pour voir les ventes en attente et encaisser les paiements.'}
+          </p>
+          {!hasWrongSession && (
+            <button type="button" disabled={openingSession} onClick={() => setShowOpenModal(true)}
+              className="px-8 py-4 bg-emerald-600 hover:bg-emerald-500 rounded-xl text-lg font-medium disabled:opacity-50">
+              Ouvrir session caisse
+            </button>
+          )}
+          {cashierOnly && !hasWrongSession && (
+            <p className="mt-6 text-sm text-slate-500">
+              Votre compte est limité à l’encaissement — la préparation des ventes se fait sur un autre poste.
+            </p>
+          )}
+        </div>
+        {showOpenModal && (
+          <CashSessionOpenModal
+            currency={currency}
+            loading={openingSession}
+            onClose={() => setShowOpenModal(false)}
+            onConfirm={openCashierSession}
+          />
         )}
-      </div>
+      </>
     )
   }
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
-      <header className="px-4 py-3 bg-slate-900 border-b border-slate-800 flex items-center gap-4 text-sm">
+      <header className="px-4 py-3 bg-slate-900 border-b border-slate-800 flex flex-wrap items-center gap-4 text-sm">
         <div>
-          <h1 className="font-semibold text-lg">Ventes à encaisser</h1>
-          <p className="text-xs text-slate-500">
-            Session {session.sessionNumber} · {session.warehouseCode} — ventes transférées par les vendeurs
+          <h1 className="font-semibold text-lg">Encaissement</h1>
+          <p className="text-sm text-slate-400 mt-0.5">
+            Ventes transférées par les vendeurs
+            {!loading && pending.length > 0 && (
+              <span className="ml-2 px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-200 text-xs font-medium">
+                {pending.length} en attente
+              </span>
+            )}
           </p>
         </div>
+        <PosSessionChip session={session} expectedType="CASHIER" centralMode />
         <div className="ml-auto flex items-center gap-3">
+          {canReprint && (
+            <Link
+              to="/pos/history"
+              className="px-4 py-2 bg-slate-800 border border-slate-600 rounded-lg text-sm hover:bg-slate-700"
+            >
+              Ventes passées
+            </Link>
+          )}
           {(hasPermission('pos.session.close') || hasPermission('pos.payment.collect')) && (
             <button type="button" onClick={() => setShowCloseModal(true)}
-              className="text-xs px-3 py-1.5 bg-slate-800 rounded-lg hover:bg-slate-700">
-              Fermer session
+              className="px-4 py-2 bg-slate-800 rounded-lg hover:bg-slate-700 text-sm font-medium">
+              Fermer session caisse
             </button>
-          )}
-          {!cashierOnly && (
-            <Link to="/pos" className="text-xs text-emerald-400 hover:text-emerald-300 underline">
-              ← Préparation ventes
-            </Link>
           )}
         </div>
       </header>

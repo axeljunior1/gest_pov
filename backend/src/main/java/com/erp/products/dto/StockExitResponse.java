@@ -30,6 +30,9 @@ public class StockExitResponse {
     private Instant validatedAt;
     private String cancelledBy;
     private Instant cancelledAt;
+    private Long saleId;
+    private String saleNumber;
+    private boolean posOrigin;
     private List<Line> lignes;
 
     @Data

@@ -36,6 +36,23 @@ export function isSellerOnlyUser(user) {
   return canPrepareSales(user) && !canCollectPayment(user)
 }
 
+/** Accès aux deux postes (préparation + encaissement). */
+export function hasDualPosRole(user) {
+  if (!user) return false
+  return canPrepareSales(user) && canCollectPayment(user)
+}
+
+/** Libellé du rôle POS pour l'interface. */
+export function getPosRoleLabel(user) {
+  if (!user) return 'POS'
+  const prep = canPrepareSales(user)
+  const coll = canCollectPayment(user)
+  if (prep && coll) return 'Vendeur & caissier'
+  if (prep) return 'Vendeur'
+  if (coll) return 'Caissier'
+  return 'POS'
+}
+
 export function getDefaultAppPath(user) {
   if (isCashierOnlyUser(user)) return '/pos/pending'
   if (isPosOnlyUser(user)) return '/pos'

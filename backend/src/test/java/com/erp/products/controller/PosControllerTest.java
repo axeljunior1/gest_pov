@@ -176,6 +176,21 @@ class PosControllerTest extends com.erp.products.AbstractIntegrationTest {
         mockMvc.perform(auth(get("/api/pos/sales/" + saleId + "/ticket")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.ticketNumber", notNullValue()));
+
+        mockMvc.perform(get("/api/stock/exits")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(greaterThanOrEqualTo(1))))
+                .andExpect(jsonPath("$[0].posOrigin", is(true)))
+                .andExpect(jsonPath("$[0].saleNumber", notNullValue()));
+
+        mockMvc.perform(auth(get("/api/pos/sales/completed")).param("sessionOnly", "true"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.id==" + saleId + ")]", hasSize(1)));
+
+        mockMvc.perform(auth(get("/api/pos/sales/" + saleId + "/invoice")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.invoiceNumber", notNullValue()));
     }
 
     @Test

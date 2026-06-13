@@ -78,6 +78,10 @@ public class StockExit {
     @Builder.Default
     private List<StockExitLine> lignes = new ArrayList<>();
 
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "sale_id", unique = true)
+    private Sale sale;
+
     @PrePersist
     void onCreate() {
         if (createdAt == null) {
