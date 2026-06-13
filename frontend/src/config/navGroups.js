@@ -45,6 +45,7 @@ export const navGroups = [
       { to: '/roles', label: 'Rôles', permission: 'roles.read' },
       { to: '/import-export', label: 'Import / Export', permission: 'import.read' },
       { to: '/settings', label: 'Paramètres', permission: 'settings.read' },
+      { to: '/dev-tools', label: 'Outils dev', devOnly: true, roles: ['SUPER_ADMIN'] },
     ],
   },
   {
@@ -64,11 +65,14 @@ export function findActiveGroup(pathname, groups) {
   return groups.find((g) => g.label && g.items.some((item) => isNavItemActive(pathname, item)))
 }
 
-export function filterVisibleGroups(groups, hasPermission) {
+export function filterVisibleGroups(groups, hasPermission, options = {}) {
+  const { isDev = import.meta.env.DEV, userRoles = [] } = options
   return groups
     .map((group) => ({
       ...group,
       items: group.items.filter((item) => {
+        if (item.devOnly && !isDev) return false
+        if (item.roles?.length && !item.roles.some((r) => userRoles.includes(r))) return false
         if (item.permissions?.length) {
           return item.permissions.some((p) => hasPermission(p))
         }

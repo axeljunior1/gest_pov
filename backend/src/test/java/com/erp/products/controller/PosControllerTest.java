@@ -333,7 +333,7 @@ class PosControllerTest extends com.erp.products.AbstractIntegrationTest {
 
         mockMvc.perform(auth(post("/api/pos/sessions/close"))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(Map.of("closingCashAmount", 0))))
+                        .content(objectMapper.writeValueAsString(Map.of("closingCashAmount", 50))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.saleCount", is(0)));
     }

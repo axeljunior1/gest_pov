@@ -1,0 +1,9 @@
+# Profil dev local : outils admin (reset/seed demo)
+spring:
+  config:
+    activate:
+      on-profile: dev
+
+app:
+  admin:
+    reset-enabled: true

@@ -30,8 +30,8 @@ export default function Layout() {
   const [companyName, setCompanyName] = useState('ERP Produits')
 
   const visibleGroups = useMemo(
-    () => filterVisibleGroups(navGroups, hasPermission),
-    [hasPermission],
+    () => filterVisibleGroups(navGroups, hasPermission, { userRoles: user?.roles ?? [] }),
+    [hasPermission, user?.roles],
   )
 
   const activeGroupId = useMemo(

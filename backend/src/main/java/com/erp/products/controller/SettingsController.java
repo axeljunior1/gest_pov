@@ -2,12 +2,14 @@ package com.erp.products.controller;
 
 import com.erp.products.dto.*;
 import com.erp.products.security.CurrentUserService;
+import com.erp.products.service.ReferenceValueService;
 import com.erp.products.service.SettingsService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/settings")
@@ -15,6 +17,7 @@ import java.util.List;
 public class SettingsController {
 
     private final SettingsService settingsService;
+    private final ReferenceValueService referenceValueService;
     private final CurrentUserService currentUserService;
 
     @GetMapping("/public")
@@ -26,6 +29,12 @@ public class SettingsController {
     @PreAuthorize("@permissionChecker.has(authentication, 'settings.read')")
     public List<AppSettingResponse> getAll() {
         return settingsService.getAllSettings();
+    }
+
+    @GetMapping("/reference-values")
+    @PreAuthorize("@permissionChecker.has(authentication, 'settings.read')")
+    public Map<String, List<ReferenceValueResponse>> referenceValues() {
+        return referenceValueService.listAllGrouped();
     }
 
     @GetMapping("/{key:.+}")

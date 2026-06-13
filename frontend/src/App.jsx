@@ -25,6 +25,8 @@ import UsersPage from './pages/UsersPage'
 import RolesPage from './pages/RolesPage'
 import ImportExportPage from './pages/ImportExportPage'
 import SettingsPage from './pages/SettingsPage'
+import DevToolsPage from './pages/DevToolsPage'
+import SuperAdminRoute from './components/SuperAdminRoute'
 import DocumentationPage from './pages/DocumentationPage'
 import CustomersPage from './pages/CustomersPage'
 import POSPage from './pages/POSPage'
@@ -87,6 +89,9 @@ export default function App() {
                   </Route>
                   <Route element={<PermissionRoute permission="settings.read" />}>
                     <Route path="settings" element={<SettingsPage />} />
+                  </Route>
+                  <Route element={<SuperAdminRoute />}>
+                    <Route path="dev-tools" element={<DevToolsPage />} />
                   </Route>
                   <Route element={<PermissionRoute permission="customer.read" />}>
                     <Route path="customers" element={<CustomersPage />} />

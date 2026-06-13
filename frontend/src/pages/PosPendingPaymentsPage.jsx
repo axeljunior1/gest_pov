@@ -6,14 +6,9 @@ import { useNotification } from '../context/NotificationContext'
 import { getErrorMessage } from '../utils/errors'
 import { isCashierOnlyUser } from '../utils/auth'
 import { saleStatusLabel } from '../utils/saleStatus'
-function formatMoney(value, currency = 'EUR') {
-  if (value == null) return '—'
-  try {
-    return new Intl.NumberFormat('fr-FR', { style: 'currency', currency }).format(Number(value))
-  } catch {
-    return `${Number(value).toFixed(2)} ${currency}`
-  }
-}
+import { formatPosMoney } from '../utils/posMoney'
+import CashSessionCloseModal from '../components/pos/CashSessionCloseModal'
+import CashSessionOpenModal from '../components/pos/CashSessionOpenModal'
 
 function PaymentModal({ sale, currency, onClose, onPaid }) {
   const [payments, setPayments] = useState([{ method: 'CASH', amount: sale?.total || 0 }])
@@ -46,7 +41,7 @@ function PaymentModal({ sale, currency, onClose, onPaid }) {
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
       <div className="bg-slate-900 border border-slate-700 rounded-xl w-full max-w-lg p-6">
         <h3 className="text-lg font-semibold mb-1">Encaisser — {sale?.saleNumber}</h3>
-        <p className="text-sm text-slate-400 mb-4">Vendeur : {sale?.sellerName || sale?.cashierName} · Total {formatMoney(total, currency)}</p>
+        <p className="text-sm text-slate-400 mb-4">Vendeur : {sale?.sellerName || sale?.cashierName} · Total {formatPosMoney(total, currency)}</p>
         {payments.map((p, i) => (
           <div key={i} className="flex gap-2 mb-2">
             <select
@@ -86,7 +81,7 @@ function PaymentModal({ sale, currency, onClose, onPaid }) {
             placeholder="Optionnel"
           />
           {change > 0 && (
-            <p className="text-emerald-400 text-sm mt-2">Monnaie à rendre : {formatMoney(change, currency)}</p>
+            <p className="text-emerald-400 text-sm mt-2">Monnaie à rendre : {formatPosMoney(change, currency)}</p>
           )}
         </div>
         <div className="flex gap-2 justify-end">
@@ -138,6 +133,8 @@ export default function PosPendingPaymentsPage() {
   const [pending, setPending] = useState([])
   const [loading, setLoading] = useState(true)
   const [openingSession, setOpeningSession] = useState(false)
+  const [showOpenModal, setShowOpenModal] = useState(false)
+  const [showCloseModal, setShowCloseModal] = useState(false)
   const [selected, setSelected] = useState(null)
   const [detail, setDetail] = useState(null)
   const [ticket, setTicket] = useState(null)
@@ -164,14 +161,12 @@ export default function PosPendingPaymentsPage() {
     }
   }, [hasPermission, notify])
 
-  const openCashierSession = async () => {
+  const openCashierSession = async (openingCashAmount) => {
     setOpeningSession(true)
     try {
-      const raw = window.prompt('Fond de caisse initial (€)', '0')
-      if (raw === null) return
-      const openingCashAmount = Number(raw) || 0
       const s = await posApi.openSession({ sessionType: 'CASHIER', openingCashAmount })
       setSession(s)
+      setShowOpenModal(false)
       notify.success('Session caisse ouverte')
       await refresh()
     } catch (e) {
@@ -181,19 +176,11 @@ export default function PosPendingPaymentsPage() {
     }
   }
 
-  const closeCashierSession = async () => {
-    if (!window.confirm('Confirmer la clôture de session caisse ?')) return
-    try {
-      const raw = window.prompt('Cash déclaré en caisse (€)', '0')
-      if (raw === null) return
-      const report = await posApi.closeSession({ closingCashAmount: Number(raw) || 0 })
-      notify.success(`Session fermée — ${report.saleCount} vente(s), écart ${Number(report.cashDifference || 0).toFixed(2)} €`)
-      setSession(null)
-      setPending([])
-      await refresh()
-    } catch (e) {
-      notify.error(getErrorMessage(e))
-    }
+  const onSessionClosed = async () => {
+    setShowCloseModal(false)
+    setSession(null)
+    setPending([])
+    await refresh()
   }
   useEffect(() => {
     refresh()
@@ -247,7 +234,7 @@ export default function PosPendingPaymentsPage() {
         <p className="text-slate-400 text-sm mb-6 max-w-md">
           Ouvrez votre session caisse pour voir les ventes en attente et encaisser les paiements.
         </p>
-        <button type="button" disabled={openingSession} onClick={openCashierSession}
+        <button type="button" disabled={openingSession} onClick={() => setShowOpenModal(true)}
           className="px-6 py-3 bg-emerald-600 hover:bg-emerald-500 rounded-xl font-medium disabled:opacity-50">
           Ouvrir session caisse
         </button>
@@ -269,7 +256,7 @@ export default function PosPendingPaymentsPage() {
         </div>
         <div className="ml-auto flex items-center gap-3">
           {(hasPermission('pos.session.close') || hasPermission('pos.payment.collect')) && (
-            <button type="button" onClick={closeCashierSession}
+            <button type="button" onClick={() => setShowCloseModal(true)}
               className="text-xs px-3 py-1.5 bg-slate-800 rounded-lg hover:bg-slate-700">
               Fermer session
             </button>
@@ -322,7 +309,7 @@ export default function PosPendingPaymentsPage() {
                         ? new Date(s.sentToPaymentAt || s.submittedAt).toLocaleTimeString('fr-FR')
                         : '—'}
                     </td>
-                    <td className="py-3 pr-4 text-emerald-400">{formatMoney(s.total, currency)}</td>
+                    <td className="py-3 pr-4 text-emerald-400">{formatPosMoney(s.total, currency)}</td>
                     <td className="py-3">
                       <div className="flex flex-wrap gap-2">
                         {hasPermission('pos.payment.collect') && (
@@ -360,11 +347,11 @@ export default function PosPendingPaymentsPage() {
               {detail.lignes?.map((l) => (
                 <li key={l.id} className="flex justify-between">
                   <span>{l.productNom} × {l.quantityInput}</span>
-                  <span>{formatMoney(l.lineTotal, currency)}</span>
+                  <span>{formatPosMoney(l.lineTotal, currency)}</span>
                 </li>
               ))}
             </ul>
-            <p className="font-bold text-emerald-400">Total {formatMoney(detail.total, currency)}</p>
+            <p className="font-bold text-emerald-400">Total {formatPosMoney(detail.total, currency)}</p>
             <button type="button" onClick={() => setDetail(null)} className="mt-4 px-4 py-2 bg-slate-700 rounded-lg text-sm">Fermer</button>
           </div>
         </div>
@@ -374,6 +361,22 @@ export default function PosPendingPaymentsPage() {
         <PaymentModal sale={selected} currency={currency} onClose={() => setSelected(null)} onPaid={onPaid} />
       )}
       {ticket && <TicketModal ticket={ticket} onClose={() => setTicket(null)} />}
+      {showOpenModal && (
+        <CashSessionOpenModal
+          currency={currency}
+          loading={openingSession}
+          onClose={() => setShowOpenModal(false)}
+          onConfirm={openCashierSession}
+        />
+      )}
+      {showCloseModal && session && (
+        <CashSessionCloseModal
+          session={session}
+          currency={currency}
+          onClose={() => setShowCloseModal(false)}
+          onClosed={onSessionClosed}
+        />
+      )}
     </div>
   )
 }

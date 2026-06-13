@@ -7,6 +7,8 @@ import { useNotification } from '../context/NotificationContext'
 import { getErrorMessage } from '../utils/errors'
 import { isCashierOnlyUser } from '../utils/auth'
 import { parseQty, parseSearchWithQty } from '../utils/posQty'
+import CashSessionCloseModal from '../components/pos/CashSessionCloseModal'
+import CashSessionOpenModal from '../components/pos/CashSessionOpenModal'
 
 function formatMoney(value, currency = 'EUR') {
   if (value == null) return '—'
@@ -268,6 +270,8 @@ export default function POSPage() {
   const [clock, setClock] = useState(new Date())
   const [online] = useState(true)
   const [openingSession, setOpeningSession] = useState(false)
+  const [showOpenModal, setShowOpenModal] = useState(false)
+  const [showCloseModal, setShowCloseModal] = useState(false)
   const [nextQty, setNextQty] = useState('')
   const [packagingPicker, setPackagingPicker] = useState(null)
 
@@ -546,21 +550,14 @@ export default function POSPage() {
     return () => window.removeEventListener('keydown', onKey)
   }, [sale, notify, searchOpen, clearSearch, showSendToCash, showPaymentButton, submitToCash])
 
-  const openSession = async () => {
+  const openSession = async (openingCashAmount = 0) => {
     setOpeningSession(true)
     try {
       const sessionType = requiredSessionType
-      let openingCashAmount = 0
-      if (sessionType === 'CASHIER') {
-        const raw = window.prompt('Fond de caisse initial (€)', '0')
-        if (raw === null) {
-          setOpeningSession(false)
-          return
-        }
-        openingCashAmount = Number(raw) || 0
-      }
-      const s = await posApi.openSession({ sessionType, openingCashAmount })
+      const payload = { sessionType, openingCashAmount: sessionType === 'CASHIER' ? openingCashAmount : 0 }
+      const s = await posApi.openSession(payload)
       setSession(s)
+      setShowOpenModal(false)
       notify.success(sessionType === 'SALES' ? 'Session vente ouverte' : 'Session caisse ouverte')
       await loadCatalog(s.warehouseId, null)
       await refreshContext()
@@ -571,45 +568,41 @@ export default function POSPage() {
     }
   }
 
-  const closeSession = async () => {
-    if (!window.confirm('Confirmer la clôture de session ?')) return
-
-    const attemptClose = async (cancelPendingDrafts = false, closingCashAmount = 0) => {
-      const report = await posApi.closeSession({ closingCashAmount, cancelPendingDrafts })
-      notify.success(`Session fermée — ${report.saleCount} vente(s), CA ${formatMoney(report.totalRevenue, currency)}`)
-      setSession(null)
-      setSale(null)
+  const startOpenSession = () => {
+    if (requiredSessionType === 'CASHIER') {
+      setShowOpenModal(true)
+    } else {
+      openSession(0)
     }
+  }
 
+  const closeSalesSession = async () => {
+    if (!window.confirm('Confirmer la clôture de session ?')) return
     try {
-      let declaredCash = 0
-      if (session?.sessionType === 'CASHIER') {
-        const raw = window.prompt('Cash déclaré en caisse (€)', '0')
-        if (raw === null) return
-        declaredCash = Number(raw) || 0
-      }
       if (sale?.id) {
         const hasLines = (sale.lignes?.length ?? 0) > 0
         if (hasLines) {
           const abandon = window.confirm(
-            'Un panier est en cours. Annuler cette vente et fermer la caisse ?\n\n'
-            + 'Cliquez OK pour annuler le panier, ou Annuler pour revenir à la caisse.',
+            'Un panier est en cours. Annuler cette vente et fermer la session ?',
           )
           if (!abandon) return
         }
         await posApi.cancelSale(sale.id)
         setSale(null)
       }
-      await attemptClose(false, declaredCash)
+      const report = await posApi.closeSession({ closingCashAmount: 0 })
+      notify.success(`Session fermée — ${report.saleCount} vente(s)`)
+      setSession(null)
     } catch (e) {
       const msg = getErrorMessage(e)
       if (msg.includes('brouillon')) {
-        const force = window.confirm(
-          `${msg}\n\nAnnuler toutes les ventes brouillon et fermer la caisse ?`,
-        )
+        const force = window.confirm(`${msg}\n\nAnnuler toutes les ventes brouillon et fermer ?`)
         if (force) {
           try {
-            await attemptClose(true)
+            await posApi.closeSession({ closingCashAmount: 0, cancelPendingDrafts: true })
+            setSession(null)
+            setSale(null)
+            notify.success('Session fermée')
           } catch (e2) {
             notify.error(getErrorMessage(e2))
           }
@@ -618,6 +611,20 @@ export default function POSPage() {
         notify.error(msg)
       }
     }
+  }
+
+  const handleCloseClick = () => {
+    if (session?.sessionType === 'CASHIER') {
+      setShowCloseModal(true)
+    } else {
+      closeSalesSession()
+    }
+  }
+
+  const onCashSessionClosed = () => {
+    setShowCloseModal(false)
+    setSession(null)
+    setSale(null)
   }
 
   const onPaid = async (validatedSale) => {
@@ -650,7 +657,7 @@ export default function POSPage() {
             : 'Aucune session active. Ouvrez une session caisse pour commencer à vendre.'}
         </p>
         {canStartSession && (
-          <button type="button" disabled={openingSession} onClick={openSession}
+          <button type="button" disabled={openingSession} onClick={startOpenSession}
             className="px-8 py-4 bg-emerald-600 hover:bg-emerald-500 rounded-xl text-lg font-medium disabled:opacity-50">
             Ouvrir la session
           </button>
@@ -671,7 +678,7 @@ export default function POSPage() {
           )}
         </p>
         {(hasPermission('pos.session.close') || canPrepareSales) && (
-          <button type="button" onClick={closeSession}
+          <button type="button" onClick={handleCloseClick}
             className="px-6 py-3 bg-slate-700 hover:bg-slate-600 rounded-xl text-sm">
             Fermer la session actuelle
           </button>
@@ -708,7 +715,7 @@ export default function POSPage() {
           {online ? 'En ligne' : 'Hors ligne'}
         </div>
         {(hasPermission('pos.session.close') || (session.sessionType === 'SALES' && canPrepareSales)) && (
-          <button type="button" onClick={closeSession} className="px-3 py-1.5 bg-red-900/50 border border-red-800 rounded-lg text-xs hover:bg-red-900">
+          <button type="button" onClick={handleCloseClick} className="px-3 py-1.5 bg-red-900/50 border border-red-800 rounded-lg text-xs hover:bg-red-900">
             Fermer session
           </button>
         )}
@@ -982,6 +989,22 @@ export default function POSPage() {
         />
       )}
       {ticket && <TicketModal ticket={ticket} onClose={() => setTicket(null)} />}
+      {showOpenModal && (
+        <CashSessionOpenModal
+          currency={currency}
+          loading={openingSession}
+          onClose={() => setShowOpenModal(false)}
+          onConfirm={(amount) => openSession(amount)}
+        />
+      )}
+      {showCloseModal && session?.sessionType === 'CASHIER' && (
+        <CashSessionCloseModal
+          session={session}
+          currency={currency}
+          onClose={() => setShowCloseModal(false)}
+          onClosed={onCashSessionClosed}
+        />
+      )}
     </div>
   )
 }

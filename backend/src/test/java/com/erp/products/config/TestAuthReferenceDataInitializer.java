@@ -100,6 +100,7 @@ public class TestAuthReferenceDataInitializer implements ApplicationRunner {
                 new String[]{"pos.session.open", "Ouvrir session caisse", "MODULE_POS"},
                 new String[]{"pos.session.close", "Fermer session caisse", "MODULE_POS"},
                 new String[]{"pos.session.read", "Consulter sessions caisse", "MODULE_POS"},
+                new String[]{"pos.session.validate_cash_difference", "Valider ecart caisse (manager)", "MODULE_POS"},
                 new String[]{"pos.sale.read", "Lire ventes POS", "MODULE_POS"},
                 new String[]{"pos.sale.read_own", "Lire ses ventes POS", "MODULE_POS"},
                 new String[]{"pos.sale.prepare", "Preparer ventes POS", "MODULE_POS"},
@@ -145,6 +146,7 @@ public class TestAuthReferenceDataInitializer implements ApplicationRunner {
                 "pos.session.open", "pos.session.close", "pos.sale.read", "pos.sale.prepare", "pos.sale.create",
                 "pos.payment.collect", "pos.sale.validate",
                 "pos.sale.cancel", "pos.sale.discount", "pos.sale.refund", "pos.ticket.reprint", "pos.report.read",
+                "pos.session.validate_cash_difference",
                 "customer.read", "customer.create", "customer.update", "loyalty.read", "loyalty.redeem", "loyalty.manage"));
         saveRole("Caissier", "CASHIER", filter(all,
                 "pos.session.open", "pos.session.close", "pos.session.read",

@@ -31,7 +31,7 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 Write-Host "Démarrage backend + frontend..." -ForegroundColor Cyan
 
-$backendCmd = "Set-Location '$Root\backend'; `$env:JAVA_HOME='$env:JAVA_HOME'; `$env:SPRING_DEVTOOLS_RESTART_ENABLED='false'; mvn -q -DskipTests spring-boot:run"
+$backendCmd = "Set-Location '$Root\backend'; `$env:JAVA_HOME='$env:JAVA_HOME'; `$env:SPRING_DEVTOOLS_RESTART_ENABLED='false'; `$env:SPRING_PROFILES_ACTIVE='dev'; mvn -q -DskipTests spring-boot:run"
 $frontendCmd = "Set-Location '$Root\frontend'; npm run dev -- --host"
 
 Start-Process powershell -ArgumentList "-NoExit", "-NoProfile", "-Command", $backendCmd | Out-Null

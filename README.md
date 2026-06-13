@@ -6,7 +6,7 @@ Application full-stack pour la gestion du catalogue produits (Feature 1).
 
 | Couche | Technologie |
 |--------|-------------|
-| Backend | Spring Boot 3.2, JPA, H2 |
+| Backend | Spring Boot 3.2, JPA, PostgreSQL, Flyway |
 | Frontend | React 19, Vite, Tailwind CSS 4 |
 | Tests | JUnit 5, MockMvc (17 tests) |
 
@@ -28,8 +28,69 @@ Branches : `main` (stable) · `feature/nom-feature` (travail en cours)
 ## Démarrage rapide
 
 ```powershell
-.\dev.ps1
+.\db.ps1      # PostgreSQL (Docker)
+.\dev.ps1     # Backend (profil dev) + frontend
 ```
+
+Comptes par défaut : `admin@erp.local` / `ErpAdmin2026!` · caissier : `caissier@erp.local` / `Caissier2026!`
+
+## Base de données et migrations (Flyway)
+
+Le schéma PostgreSQL est géré par **Flyway** (`backend/src/main/resources/db/migration/`).
+
+| Fichier | Rôle |
+|---------|------|
+| `V1__baseline_schema.sql` | Schéma complet (nouvelle base) |
+| `V2__ensure_pos_and_packaging_columns.sql` | Colonnes POS / conditionnements (idempotent) |
+
+Configuration :
+
+- `spring.jpa.hibernate.ddl-auto: validate` — Hibernate ne modifie plus le schéma
+- `spring.flyway.baseline-on-migrate: true` — bases existantes marquées sans rejouer V1
+
+Migration manuelle :
+
+```powershell
+cd backend
+mvn flyway:migrate
+```
+
+## Reset développement
+
+### Script PowerShell `reset-db.ps1`
+
+```powershell
+# Purge métier uniquement (garde users, rôles, paramètres, WH-MAIN)
+.\reset-db.ps1 -Mode demo
+
+# Purge + jeu de démo (backend doit tourner sur :8080)
+.\reset-db.ps1 -Mode demo -SeedDemo
+
+# Reset PostgreSQL complet (volume Docker effacé + Flyway + seed référentiel)
+.\reset-db.ps1 -Mode full
+```
+
+**Conservé en mode demo :** utilisateurs, rôles, permissions, `app_settings`, unités, entrepôt WH-MAIN.
+
+**Jeu de démo (`-SeedDemo`) :** produit `DEMO-EAU-1L` — unité 500, carton 5 500, palette 250 000, stock 500 L.
+
+### API admin (profil `dev` uniquement)
+
+Backend lancé avec `SPRING_PROFILES_ACTIVE=dev` (fait par `dev.ps1`).
+
+**Interface :** menu Administration → **Outils dev** (build Vite dev + compte SUPER_ADMIN).
+
+```http
+GET  /api/admin/dev-tools/status
+POST /api/admin/reset-demo
+POST /api/admin/seed-demo
+Authorization: Bearer <token admin>
+X-Reset-Token: dev-reset-token-change-me
+```
+
+Jeton configurable : `app.admin.reset-token` ou variable `APP_RESET_TOKEN`.
+
+## Démarrage manuel
 
 ## Fonctionnalités couvertes
 

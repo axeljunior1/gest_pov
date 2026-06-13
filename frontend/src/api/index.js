@@ -284,6 +284,7 @@ export const importApi = {
 
 export const settingsApi = {
   getPublic: () => api.get('/settings/public').then(r => r.data),
+  getReferenceValues: () => api.get('/settings/reference-values').then(r => r.data),
   getAll: () => api.get('/settings').then(r => r.data),
   update: (key, value) =>
     api.put(`/settings/${encodeURIComponent(key)}`, { value }).then(r => r.data),
@@ -295,6 +296,7 @@ export const posApi = {
   context: () => api.get('/pos/context').then(r => r.data),
   openSession: (data) => api.post('/pos/sessions/open', data).then(r => r.data),
   currentSession: () => api.get('/pos/sessions/current').then(r => r.data),
+  sessionClosePreview: () => api.get('/pos/sessions/current/close-preview').then(r => r.data),
   closeSession: (data) => api.post('/pos/sessions/close', data).then(r => r.data),
   sessionReport: (id) => api.get(`/pos/sessions/${id}/report`).then(r => r.data),
   catalog: (params) => api.get('/pos/catalog', { params }).then(r => r.data),
@@ -334,4 +336,21 @@ export const customersApi = {
   delete: (id) => api.delete(`/customers/${id}`),
   transactions: (id) => api.get(`/customers/${id}/loyalty/transactions`).then(r => r.data),
   adjustPoints: (id, data) => api.post(`/customers/${id}/loyalty/adjust`, data).then(r => r.data),
+}
+
+const adminDevHeaders = (resetToken) => ({
+  headers: { 'X-Reset-Token': resetToken },
+})
+
+export const adminDevApi = {
+  status: () => api.get('/admin/dev-tools/status').then(r => r.data),
+  resetDemo: (resetToken) =>
+    api.post('/admin/reset-demo', null, adminDevHeaders(resetToken)).then(r => r.data),
+  seedDemo: (resetToken) =>
+    api.post('/admin/seed-demo', null, adminDevHeaders(resetToken)).then(r => r.data),
+  resetAndSeedDemo: async (resetToken) => {
+    const reset = await adminDevApi.resetDemo(resetToken)
+    const seed = await adminDevApi.seedDemo(resetToken)
+    return { reset, seed }
+  },
 }

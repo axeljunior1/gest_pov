@@ -51,9 +51,15 @@ public class PosController {
     }
 
     @PostMapping("/sessions/close")
-    @PreAuthorize("@permissionChecker.hasAny(authentication, 'pos.session.close', 'pos.sale.send_to_payment', 'pos.sale.prepare')")
+    @PreAuthorize("@permissionChecker.hasAny(authentication, 'pos.session.close', 'pos.payment.collect', 'pos.sale.send_to_payment', 'pos.sale.prepare')")
     public PosSessionReportResponse closeSession(@RequestBody PosSessionCloseRequest request) {
         return sessionService.closeSession(request);
+    }
+
+    @GetMapping("/sessions/current/close-preview")
+    @PreAuthorize("@permissionChecker.hasAny(authentication, 'pos.session.close', 'pos.payment.collect')")
+    public PosSessionReportResponse closePreview() {
+        return sessionService.getClosePreview();
     }
 
     @GetMapping("/sessions/{id}/report")

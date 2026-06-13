@@ -2,6 +2,7 @@ package com.erp.products.service;
 
 import com.erp.products.domain.entity.AppSetting;
 import com.erp.products.domain.enums.AppSettingType;
+import com.erp.products.domain.enums.ReferenceValueCategory;
 import com.erp.products.dto.*;
 import com.erp.products.exception.BusinessException;
 import com.erp.products.exception.ResourceNotFoundException;
@@ -24,6 +25,7 @@ import java.util.Map;
 public class SettingsService {
 
     private static final Map<String, DefaultSetting> DEFAULTS = buildDefaults();
+    private static final Map<String, ReferenceValueCategory> REFERENCE_CATEGORIES = buildReferenceCategories();
     private static final String DEFAULT_LOYALTY_TIERS = """
             [{"name":"BRONZE","minPoints":0,"discountPercent":0},\
             {"name":"SILVER","minPoints":1000,"discountPercent":2},\
@@ -32,6 +34,7 @@ public class SettingsService {
             """;
 
     private final AppSettingRepository settingRepository;
+    private final ReferenceValueService referenceValueService;
     private final ObjectMapper objectMapper;
 
     @Transactional(readOnly = true)
@@ -47,7 +50,7 @@ public class SettingsService {
         if (def == null) {
             throw new BusinessException("Cle de parametre inconnue: " + key);
         }
-        validateValue(def.type(), value);
+        validateValue(key, def.type(), value);
 
         AppSetting setting = settingRepository.findByKey(key).orElseGet(() -> AppSetting.builder()
                 .key(key)
@@ -180,6 +183,8 @@ public class SettingsService {
                 .maxPendingPaymentDurationMinutes(maxPending != null ? maxPending : 120)
                 .alertPendingPaymentMinutes(alertPending != null ? alertPending : 15)
                 .alertCashDifferenceThreshold(alertCash != null ? alertCash : 20)
+                .requireManagerValidationForCashDifference(
+                        getBoolean(SettingKeys.POS_REQUIRE_MANAGER_VALIDATION_FOR_CASH_DIFFERENCE))
                 .build();
     }
 
@@ -230,6 +235,7 @@ public class SettingsService {
                 .type(setting.getType())
                 .description(setting.getDescription())
                 .isPublic(setting.getIsPublic())
+                .referenceCategory(REFERENCE_CATEGORIES.get(setting.getKey()))
                 .updatedBy(setting.getUpdatedBy())
                 .updatedAt(setting.getUpdatedAt())
                 .build();
@@ -243,6 +249,7 @@ public class SettingsService {
                 .type(def.type())
                 .description(def.description())
                 .isPublic(def.isPublic())
+                .referenceCategory(REFERENCE_CATEGORIES.get(key))
                 .build();
     }
 
@@ -254,7 +261,7 @@ public class SettingsService {
         return def.value();
     }
 
-    private static void validateValue(AppSettingType type, String value) {
+    private void validateValue(String key, AppSettingType type, String value) {
         if (value == null) {
             throw new BusinessException("Valeur obligatoire");
         }
@@ -273,6 +280,20 @@ public class SettingsService {
             }
             case STRING, JSON -> { /* ok */ }
         }
+        ReferenceValueCategory category = REFERENCE_CATEGORIES.get(key);
+        if (category != null) {
+            referenceValueService.requireValid(category, value);
+        }
+    }
+
+    private static Map<String, ReferenceValueCategory> buildReferenceCategories() {
+        Map<String, ReferenceValueCategory> map = new LinkedHashMap<>();
+        map.put(SettingKeys.APP_CURRENCY, ReferenceValueCategory.CURRENCY);
+        map.put(SettingKeys.APP_LANGUAGE, ReferenceValueCategory.LANGUAGE);
+        map.put(SettingKeys.APP_TIMEZONE, ReferenceValueCategory.TIMEZONE);
+        map.put(SettingKeys.APP_DATE_FORMAT, ReferenceValueCategory.DATE_FORMAT);
+        map.put(SettingKeys.POS_SALES_FLOW_MODE, ReferenceValueCategory.POS_SALES_FLOW_MODE);
+        return map;
     }
 
     private static Map<String, DefaultSetting> buildDefaults() {
@@ -304,6 +325,8 @@ public class SettingsService {
         map.put(SettingKeys.POS_MAX_PENDING_PAYMENT_DURATION, def("120", AppSettingType.NUMBER, "Duree max attente paiement (minutes)", false));
         map.put(SettingKeys.POS_ALERT_PENDING_PAYMENT_MINUTES, def("15", AppSettingType.NUMBER, "Alerte vente en attente (minutes)", false));
         map.put(SettingKeys.POS_ALERT_CASH_DIFFERENCE_THRESHOLD, def("20", AppSettingType.NUMBER, "Seuil alerte ecart caisse", false));
+        map.put(SettingKeys.POS_REQUIRE_MANAGER_VALIDATION_FOR_CASH_DIFFERENCE, def("false", AppSettingType.BOOLEAN,
+                "Validation manager obligatoire si ecart caisse a la cloture", false));
         map.put(SettingKeys.LOYALTY_ENABLED, def("true", AppSettingType.BOOLEAN, "Activer la fidelite", false));
         map.put(SettingKeys.LOYALTY_POINTS_PER_CURRENCY_UNIT, def("1", AppSettingType.NUMBER, "Points gagnes par unite de devise", false));
         map.put(SettingKeys.LOYALTY_CURRENCY_UNIT_AMOUNT, def("1", AppSettingType.NUMBER, "Montant devise pour le calcul des points", false));

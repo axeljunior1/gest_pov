@@ -63,6 +63,21 @@ public class PosSession {
     @Column(name = "closed_at")
     private Instant closedAt;
 
+    @Column(name = "closed_by", length = 120)
+    private String closedBy;
+
+    @Column(name = "difference_reason", length = 50)
+    private String differenceReason;
+
+    @Column(name = "difference_comment", length = 500)
+    private String differenceComment;
+
+    @Column(name = "manager_validated_by", length = 120)
+    private String managerValidatedBy;
+
+    @Column(name = "manager_validated_at")
+    private Instant managerValidatedAt;
+
     @Version
     private Long version;
 

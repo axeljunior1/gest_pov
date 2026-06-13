@@ -87,6 +87,25 @@ class SettingsControllerTest extends com.erp.products.AbstractIntegrationTest {
     }
 
     @Test
+    void shouldListReferenceValues() throws Exception {
+        mockMvc.perform(get("/api/settings/reference-values"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.CURRENCY", hasSize(greaterThanOrEqualTo(5))))
+                .andExpect(jsonPath("$.CURRENCY[?(@.code=='EUR')].label", hasItem("Euro (EUR)")))
+                .andExpect(jsonPath("$.LANGUAGE[?(@.code=='fr')].label", hasItem("Français")))
+                .andExpect(jsonPath("$.POS_SALES_FLOW_MODE", hasSize(2)));
+    }
+
+    @Test
+    void shouldRejectInvalidCurrency() throws Exception {
+        mockMvc.perform(put("/api/settings/" + SettingKeys.APP_CURRENCY)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("value", "INVALID"))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message", containsString("CURRENCY")));
+    }
+
+    @Test
     void shouldReadDefaultSettings() throws Exception {
         mockMvc.perform(get("/api/settings"))
                 .andExpect(status().isOk())

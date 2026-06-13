@@ -28,6 +28,8 @@ public final class SettingKeys {
     public static final String POS_MAX_PENDING_PAYMENT_DURATION = "pos.max_pending_payment_duration";
     public static final String POS_ALERT_PENDING_PAYMENT_MINUTES = "pos.alert.pending_payment_minutes";
     public static final String POS_ALERT_CASH_DIFFERENCE_THRESHOLD = "pos.alert.cash_difference_threshold";
+    public static final String POS_REQUIRE_MANAGER_VALIDATION_FOR_CASH_DIFFERENCE =
+            "pos.require_manager_validation_for_cash_difference";
 
     public static final String LOYALTY_ENABLED = "loyalty.enabled";
     public static final String LOYALTY_POINTS_PER_CURRENCY_UNIT = "loyalty.points_per_currency_unit";

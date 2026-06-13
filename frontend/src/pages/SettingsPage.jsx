@@ -28,6 +28,7 @@ const GROUPS = [
       'pos.max_pending_payment_duration',
       'pos.alert.pending_payment_minutes',
       'pos.alert.cash_difference_threshold',
+      'pos.require_manager_validation_for_cash_difference',
       'pos.register_name',
       'pos.default_warehouse_code',
       'pos.tax_rate_default',
@@ -45,17 +46,6 @@ const GROUPS = [
   },
 ]
 
-const SELECT_OPTIONS = {
-  pos_sales_flow_mode: [
-    { value: 'SELLER_COLLECTS_PAYMENT', label: 'Vendeur encaisseur (SELLER_COLLECTS_PAYMENT)' },
-    { value: 'CENTRAL_CASHIER', label: 'Caisse centrale (CENTRAL_CASHIER)' },
-  ],
-  'pos.cash_handling_mode': [
-    { value: 'SELLER_CASHIER', label: 'Vendeur = caissier (legacy)' },
-    { value: 'CENTRAL_CASHIER', label: 'Caisse centrale (legacy)' },
-  ],
-}
-
 export default function SettingsPage() {
   const notify = useNotification()
   const { hasPermission } = useAuth()
@@ -64,11 +54,13 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false)
   const [settings, setSettings] = useState([])
   const [values, setValues] = useState({})
+  const [referenceValues, setReferenceValues] = useState({})
 
   useEffect(() => {
-    settingsApi.getAll()
-      .then((data) => {
+    Promise.all([settingsApi.getAll(), settingsApi.getReferenceValues()])
+      .then(([data, refs]) => {
         setSettings(data)
+        setReferenceValues(refs)
         const map = {}
         data.forEach((s) => { map[s.key] = s.value ?? '' })
         setValues(map)
@@ -79,6 +71,12 @@ export default function SettingsPage() {
 
   const handleChange = (key, value) => {
     setValues((prev) => ({ ...prev, [key]: value }))
+  }
+
+  const getSelectOptions = (meta) => {
+    if (!meta?.referenceCategory) return null
+    const options = referenceValues[meta.referenceCategory] ?? []
+    return options.map((opt) => ({ value: opt.code, label: opt.label }))
   }
 
   const handleSave = async () => {
@@ -122,7 +120,7 @@ export default function SettingsPage() {
                 if (!meta) return null
                 const isBool = meta.type === 'BOOLEAN'
                 const isJson = meta.type === 'JSON'
-                const selectOptions = SELECT_OPTIONS[key]
+                const selectOptions = getSelectOptions(meta)
                 return (
                   <label key={key} className={`block ${isJson ? 'md:col-span-2' : ''}`}>
                     <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">
@@ -131,7 +129,7 @@ export default function SettingsPage() {
                     {selectOptions ? (
                       <select
                         className="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
-                        value={values[key] ?? selectOptions[0].value}
+                        value={values[key] ?? selectOptions[0]?.value ?? ''}
                         disabled={!canUpdate}
                         onChange={(e) => handleChange(key, e.target.value)}
                       >

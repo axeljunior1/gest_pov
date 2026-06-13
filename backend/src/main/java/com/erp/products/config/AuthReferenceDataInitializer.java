@@ -116,6 +116,7 @@ public class AuthReferenceDataInitializer implements ApplicationRunner {
                 "pos.session.open", "pos.session.close", "pos.sale.read", "pos.sale.prepare", "pos.sale.create",
                 "pos.payment.collect", "pos.sale.validate",
                 "pos.sale.cancel", "pos.sale.discount", "pos.sale.refund", "pos.ticket.reprint", "pos.report.read",
+                "pos.session.validate_cash_difference",
                 "customer.read", "customer.create", "customer.update", "loyalty.read", "loyalty.redeem", "loyalty.manage"));
 
         saveRole("Caissier", "CASHIER",
@@ -166,6 +167,7 @@ public class AuthReferenceDataInitializer implements ApplicationRunner {
                 "pos.session.open", "pos.session.close", "pos.sale.read", "pos.sale.prepare", "pos.sale.create",
                 "pos.payment.collect", "pos.sale.validate",
                 "pos.sale.cancel", "pos.sale.discount", "pos.sale.refund", "pos.ticket.reprint", "pos.report.read",
+                "pos.session.validate_cash_difference",
                 "customer.read", "customer.create", "customer.update", "loyalty.read", "loyalty.redeem", "loyalty.manage"));
         ensureCashierRolePermissions();
         ensureSellerRolePermissions();
@@ -360,6 +362,7 @@ public class AuthReferenceDataInitializer implements ApplicationRunner {
                 p("pos.session.open", "Ouvrir une session caisse", "MODULE_POS"),
                 p("pos.session.close", "Fermer une session caisse", "MODULE_POS"),
                 p("pos.session.read", "Consulter les sessions caisse", "MODULE_POS"),
+                p("pos.session.validate_cash_difference", "Valider un ecart de caisse (manager)", "MODULE_POS"),
                 p("pos.sale.read", "Consulter les ventes POS", "MODULE_POS"),
                 p("pos.sale.read_own", "Consulter ses ventes POS", "MODULE_POS"),
                 p("pos.sale.prepare", "Preparer des ventes POS (legacy)", "MODULE_POS"),

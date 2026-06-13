@@ -16,4 +16,5 @@ public class PosConfigResponse {
     private int maxPendingPaymentDurationMinutes;
     private int alertPendingPaymentMinutes;
     private int alertCashDifferenceThreshold;
+    private boolean requireManagerValidationForCashDifference;
 }
