@@ -2,6 +2,7 @@ package com.erp.products.controller;
 
 import com.erp.products.config.TestAuthReferenceDataInitializer;
 import com.erp.products.settings.SettingKeys;
+import com.erp.products.support.PosTestSupport;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -83,6 +84,7 @@ class CustomerLoyaltyTest extends com.erp.products.AbstractIntegrationTest {
         seedStock(50);
 
         adminToken = loginToken("admin@erp.local", "ErpAdmin2026!");
+        PosTestSupport.useSellerCollectsMode(mockMvc, objectMapper, adminToken);
         cashierToken = loginToken(TestAuthReferenceDataInitializer.CASHIER_EMAIL, TestAuthReferenceDataInitializer.CASHIER_PASSWORD);
         managerToken = loginToken(TestAuthReferenceDataInitializer.MANAGER_EMAIL, TestAuthReferenceDataInitializer.MANAGER_PASSWORD);
     }
@@ -91,7 +93,7 @@ class CustomerLoyaltyTest extends com.erp.products.AbstractIntegrationTest {
     void shouldValidateAnonymousSaleWithoutPoints() throws Exception {
         openSession();
         Long saleId = createSaleWithLine();
-        validateSale(saleId, 100);
+        validateSale(saleId);
         mockMvc.perform(auth(get("/api/pos/sales/" + saleId)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.customerId").value(nullValue()))
@@ -122,7 +124,7 @@ class CustomerLoyaltyTest extends com.erp.products.AbstractIntegrationTest {
         Long customerId = createCustomer("Jean", "Martin", "0699887766");
         Long saleId = createSaleWithLine();
         assignCustomer(saleId, customerId);
-        validateSale(saleId, 100);
+        validateSale(saleId);
 
         mockMvc.perform(auth(get("/api/customers/" + customerId)))
                 .andExpect(status().isOk())
@@ -143,7 +145,7 @@ class CustomerLoyaltyTest extends com.erp.products.AbstractIntegrationTest {
         Long customerId = createCustomer("Paul", "Durand", "0611223344");
         Long saleId = createSaleWithLine();
         assignCustomer(saleId, customerId);
-        validateSale(saleId, 100);
+        validateSale(saleId);
 
         mockMvc.perform(auth(get("/api/customers/" + customerId)))
                 .andExpect(jsonPath("$.loyaltyPoints", is(0)));
@@ -175,7 +177,7 @@ class CustomerLoyaltyTest extends com.erp.products.AbstractIntegrationTest {
                 .andExpect(jsonPath("$.loyaltyDiscountAmount", is(10.0)))
                 .andExpect(jsonPath("$.total", is(90.0)));
 
-        validateSale(saleId, 90);
+        validateSale(saleId);
 
         mockMvc.perform(auth(get("/api/customers/" + customerId)))
                 .andExpect(jsonPath("$.loyaltyPoints", is(390)));
@@ -238,7 +240,7 @@ class CustomerLoyaltyTest extends com.erp.products.AbstractIntegrationTest {
         Long customerId = createCustomer("Luc", "Refund", "0600000004");
         Long saleId = createSaleWithLine();
         assignCustomer(saleId, customerId);
-        validateSale(saleId, 100);
+        validateSale(saleId);
 
         mockMvc.perform(auth(get("/api/customers/" + customerId)))
                 .andExpect(jsonPath("$.loyaltyPoints", is(100)));
@@ -295,10 +297,17 @@ class CustomerLoyaltyTest extends com.erp.products.AbstractIntegrationTest {
     }
 
     private void validateSale(Long saleId, double amount) throws Exception {
+        JsonNode sale = objectMapper.readTree(
+                mockMvc.perform(auth(get("/api/pos/sales/" + saleId)))
+                        .andExpect(status().isOk())
+                        .andReturn().getResponse().getContentAsString());
+        double total = sale.get("total").asDouble();
+
         mockMvc.perform(auth(post("/api/pos/sales/" + saleId + "/validate"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
-                                "payments", List.of(Map.of("method", "CASH", "amount", amount))))))
+                                "payments", List.of(Map.of("method", "CASH", "amount", total)),
+                                "cashReceived", total))))
                 .andExpect(status().isOk());
     }
 

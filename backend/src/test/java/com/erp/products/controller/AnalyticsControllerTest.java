@@ -1,5 +1,6 @@
 package com.erp.products.controller;
 
+import com.erp.products.support.PosTestSupport;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -88,6 +89,7 @@ class AnalyticsControllerTest extends com.erp.products.AbstractIntegrationTest {
         seedStock(100);
 
         adminToken = loginToken("admin@erp.local", "ErpAdmin2026!");
+        PosTestSupport.useSellerCollectsMode(mockMvc, objectMapper, adminToken);
         managerToken = loginToken("manager@erp.local", "Manager2026!");
         cashierToken = loginToken("cashier@erp.local", "Cashier2026!");
     }
@@ -177,7 +179,50 @@ class AnalyticsControllerTest extends com.erp.products.AbstractIntegrationTest {
 
     @Test
     void cashierShouldAccessOwnSalesOverview() throws Exception {
-        createValidatedSale(cashierToken, 1);
+        mockMvc.perform(post("/api/pos/sessions/open")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "warehouseId", warehouseId,
+                                "openingCashAmount", 0))))
+                .andExpect(status().isCreated());
+
+        MvcResult saleResult = mockMvc.perform(post("/api/pos/sales")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isCreated())
+                .andReturn();
+        Long saleId = objectMapper.readTree(saleResult.getResponse().getContentAsString()).get("id").asLong();
+
+        mockMvc.perform(post("/api/pos/sales/" + saleId + "/lines")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "productId", productId,
+                                "quantityInput", 1,
+                                "unitPrice", 50))))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/pos/sessions/open")
+                        .header("Authorization", "Bearer " + cashierToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "warehouseId", warehouseId,
+                                "openingCashAmount", 0))))
+                .andExpect(status().isCreated());
+
+        JsonNode sale = objectMapper.readTree(mockMvc.perform(get("/api/pos/sales/" + saleId)
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString());
+        double total = sale.get("total").asDouble();
+
+        mockMvc.perform(post("/api/pos/sales/" + saleId + "/validate")
+                        .header("Authorization", "Bearer " + cashierToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "payments", List.of(Map.of("method", "CASH", "amount", total)),
+                                "cashReceived", total))))
+                .andExpect(status().isOk());
 
         mockMvc.perform(get("/api/analytics/overview")
                         .header("Authorization", "Bearer " + cashierToken)
@@ -229,12 +274,18 @@ class AnalyticsControllerTest extends com.erp.products.AbstractIntegrationTest {
                                 "unitPrice", 50))))
                 .andExpect(status().isOk());
 
+        JsonNode sale = objectMapper.readTree(mockMvc.perform(get("/api/pos/sales/" + saleId)
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString());
+        double total = sale.get("total").asDouble();
+
         mockMvc.perform(post("/api/pos/sales/" + saleId + "/validate")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
-                                "payments", List.of(Map.of("method", "CASH", "amount", qty * 50)),
-                                "cashReceived", qty * 50))))
+                                "payments", List.of(Map.of("method", "CASH", "amount", total)),
+                                "cashReceived", total))))
                 .andExpect(status().isOk());
     }
 
