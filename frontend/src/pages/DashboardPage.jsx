@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { dashboardApi } from '../api'
+import { dashboardApi, settingsApi } from '../api'
 import { PageHeader, Card, Loading, Badge, EmptyState } from '../components/ui'
 import { useNotification } from '../context/NotificationContext'
 import { getErrorMessage } from '../utils/errors'
@@ -22,9 +22,31 @@ function formatNumber(value) {
   return n.toLocaleString('fr-FR', { maximumFractionDigits: 2 })
 }
 
-function formatCurrency(value) {
+function formatCurrency(value, currency = 'EUR') {
   if (value == null) return '—'
-  return `${Number(value).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
+  try {
+    return new Intl.NumberFormat('fr-FR', {
+      style: 'currency',
+      currency: currency || 'EUR',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(Number(value))
+  } catch {
+    return `${Number(value).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency || 'EUR'}`
+  }
+}
+
+function formatDate(value, dateFormat) {
+  if (!value) return '—'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  if (dateFormat === 'dd/MM/yyyy') {
+    return date.toLocaleDateString('fr-FR')
+  }
+  if (dateFormat === 'yyyy-MM-dd') {
+    return date.toISOString().slice(0, 10)
+  }
+  return date.toLocaleDateString('fr-FR')
 }
 
 export default function DashboardPage() {
@@ -37,6 +59,13 @@ export default function DashboardPage() {
   const [exits, setExits] = useState([])
   const [topProducts, setTopProducts] = useState([])
   const [warehouses, setWarehouses] = useState([])
+  const [publicSettings, setPublicSettings] = useState({ currency: 'EUR', dateFormat: 'dd/MM/yyyy' })
+
+  useEffect(() => {
+    settingsApi.getPublic()
+      .then((s) => setPublicSettings((prev) => ({ ...prev, ...s })))
+      .catch(() => {})
+  }, [])
 
   useEffect(() => {
     const load = async () => {
@@ -87,7 +116,7 @@ export default function DashboardPage() {
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
         <KpiCard label="Produits" value={summary?.totalProducts ?? 0} />
         <KpiCard label="Quantité totale" value={formatNumber(summary?.totalStockQuantity)} />
-        <KpiCard label="Valeur du stock" value={formatCurrency(summary?.stockValue)} />
+        <KpiCard label="Valeur du stock" value={formatCurrency(summary?.stockValue, publicSettings.currency)} />
         <KpiCard label="Ruptures" value={summary?.outOfStockProducts ?? 0} tone="danger" />
         <KpiCard label="Stock faible" value={summary?.lowStockProducts ?? 0} tone="warning" />
       </div>
@@ -122,7 +151,7 @@ export default function DashboardPage() {
                       <span className="text-gray-400 ml-2">{w.warehouseNom}</span>
                     </td>
                     <td className="py-2.5 text-right">{formatNumber(w.totalQuantity)}</td>
-                    <td className="py-2.5 text-right">{formatCurrency(w.stockValue)}</td>
+                    <td className="py-2.5 text-right">{formatCurrency(w.stockValue, publicSettings.currency)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -165,7 +194,7 @@ export default function DashboardPage() {
                     <span className="text-sm font-medium truncate">{m.productNom}</span>
                   </div>
                   <p className="text-xs text-gray-400">
-                    {formatNumber(m.quantity)} · {new Date(m.movementDate).toLocaleString('fr-FR')}
+                    {formatNumber(m.quantity)} · {formatDate(m.movementDate, publicSettings.dateFormat)}
                   </p>
                 </li>
               ))}
@@ -184,7 +213,7 @@ export default function DashboardPage() {
                   <p className="text-sm font-medium">{e.entryNumber}</p>
                   <p className="text-xs text-gray-400">
                     {e.warehouseCode} · {e.lineCount} ligne(s)
-                    {e.validatedAt && ` · ${new Date(e.validatedAt).toLocaleDateString('fr-FR')}`}
+                    {e.validatedAt && ` · ${formatDate(e.validatedAt, publicSettings.dateFormat)}`}
                   </p>
                 </li>
               ))}

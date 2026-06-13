@@ -3,7 +3,9 @@ import { AuthProvider } from './context/AuthContext'
 import { NotificationProvider } from './context/NotificationContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import PermissionRoute from './components/PermissionRoute'
+import BackOfficeRoute from './components/BackOfficeRoute'
 import Layout from './components/Layout'
+import POSLayout from './components/POSLayout'
 import LoginPage from './pages/LoginPage'
 import DashboardPage from './pages/DashboardPage'
 import ProductsPage from './pages/ProductsPage'
@@ -23,6 +25,7 @@ import RolesPage from './pages/RolesPage'
 import ImportExportPage from './pages/ImportExportPage'
 import SettingsPage from './pages/SettingsPage'
 import DocumentationPage from './pages/DocumentationPage'
+import POSPage from './pages/POSPage'
 
 export default function App() {
   return (
@@ -32,43 +35,50 @@ export default function App() {
           <Routes>
             <Route path="/login" element={<LoginPage />} />
             <Route element={<ProtectedRoute />}>
-              <Route element={<Layout />}>
-                <Route element={<PermissionRoute permission="dashboard.read" />}>
-                  <Route path="dashboard" element={<DashboardPage />} />
+              <Route element={<PermissionRoute permission="pos.sale.read" />}>
+                <Route element={<POSLayout />}>
+                  <Route path="pos" element={<POSPage />} />
                 </Route>
-                <Route index element={<ProductsPage />} />
-                <Route path="products/:id" element={<ProductDetailPage />} />
-                <Route path="categories" element={<CategoriesPage />} />
-                <Route path="suppliers" element={<SuppliersPage />} />
-                <Route path="units" element={<UnitsPage />} />
-                <Route path="attributes" element={<AttributesPage />} />
-                <Route path="stock" element={<StockPage />} />
-                <Route path="stock/entries" element={<StockEntriesPage />} />
-                <Route element={<PermissionRoute permission="inventory.read" />}>
-                  <Route path="stock/inventories" element={<InventoryCountsPage />} />
+              </Route>
+              <Route element={<BackOfficeRoute />}>
+                <Route element={<Layout />}>
+                  <Route element={<PermissionRoute permission="dashboard.read" />}>
+                    <Route path="dashboard" element={<DashboardPage />} />
+                  </Route>
+                  <Route index element={<ProductsPage />} />
+                  <Route path="products/:id" element={<ProductDetailPage />} />
+                  <Route path="categories" element={<CategoriesPage />} />
+                  <Route path="suppliers" element={<SuppliersPage />} />
+                  <Route path="units" element={<UnitsPage />} />
+                  <Route path="attributes" element={<AttributesPage />} />
+                  <Route path="stock" element={<StockPage />} />
+                  <Route path="stock/entries" element={<StockEntriesPage />} />
+                  <Route element={<PermissionRoute permission="inventory.read" />}>
+                    <Route path="stock/inventories" element={<InventoryCountsPage />} />
+                  </Route>
+                  <Route element={<PermissionRoute permission="stock_movement.read" />}>
+                    <Route path="stock/movements" element={<StockMovementsPage />} />
+                  </Route>
+                  <Route element={<PermissionRoute permission="stock_exit.read" />}>
+                    <Route path="stock/exits" element={<StockExitsPage />} />
+                  </Route>
+                  <Route element={<PermissionRoute permission="alerts.read" />}>
+                    <Route path="alerts" element={<AlertsPage />} />
+                  </Route>
+                  <Route element={<PermissionRoute permission="users.read" />}>
+                    <Route path="users" element={<UsersPage />} />
+                  </Route>
+                  <Route element={<PermissionRoute permission="roles.read" />}>
+                    <Route path="roles" element={<RolesPage />} />
+                  </Route>
+                  <Route element={<PermissionRoute permission="import.read" />}>
+                    <Route path="import-export" element={<ImportExportPage />} />
+                  </Route>
+                  <Route element={<PermissionRoute permission="settings.read" />}>
+                    <Route path="settings" element={<SettingsPage />} />
+                  </Route>
+                  <Route path="documentation" element={<DocumentationPage />} />
                 </Route>
-                <Route element={<PermissionRoute permission="stock_movement.read" />}>
-                  <Route path="stock/movements" element={<StockMovementsPage />} />
-                </Route>
-                <Route element={<PermissionRoute permission="stock_exit.read" />}>
-                  <Route path="stock/exits" element={<StockExitsPage />} />
-                </Route>
-                <Route element={<PermissionRoute permission="alerts.read" />}>
-                  <Route path="alerts" element={<AlertsPage />} />
-                </Route>
-                <Route element={<PermissionRoute permission="users.read" />}>
-                  <Route path="users" element={<UsersPage />} />
-                </Route>
-                <Route element={<PermissionRoute permission="roles.read" />}>
-                  <Route path="roles" element={<RolesPage />} />
-                </Route>
-                <Route element={<PermissionRoute permission="import.read" />}>
-                  <Route path="import-export" element={<ImportExportPage />} />
-                </Route>
-                <Route element={<PermissionRoute permission="settings.read" />}>
-                  <Route path="settings" element={<SettingsPage />} />
-                </Route>
-                <Route path="documentation" element={<DocumentationPage />} />
               </Route>
             </Route>
           </Routes>

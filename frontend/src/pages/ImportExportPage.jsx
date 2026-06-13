@@ -58,7 +58,9 @@ export default function ImportExportPage() {
     try {
       const result = importType === 'products'
         ? await importApi.previewProducts(file, duplicateMode)
-        : await importApi.previewInitialStock(file)
+        : importType === 'packagings'
+          ? await importApi.previewPackagings(file)
+          : await importApi.previewInitialStock(file)
       setPreview(result)
     } catch (e) {
       notify.error(getErrorMessage(e))
@@ -73,7 +75,9 @@ export default function ImportExportPage() {
     try {
       const result = importType === 'products'
         ? await importApi.validateProducts(file, duplicateMode)
-        : await importApi.validateInitialStock(file)
+        : importType === 'packagings'
+          ? await importApi.validatePackagings(file)
+          : await importApi.validateInitialStock(file)
       setPreview(result)
       notify.success(`Import terminé — ${result.job.successRows} ligne(s) OK`)
       importApi.history().then(setHistory).catch(() => {})
@@ -132,6 +136,7 @@ export default function ImportExportPage() {
           <div className="flex flex-wrap gap-3 mb-4">
             <select className="border border-gray-200 rounded-lg px-3 py-2 text-sm" value={importType} onChange={(e) => { setImportType(e.target.value); setPreview(null); setFile(null) }}>
               <option value="products">Produits</option>
+              <option value="packagings">Conditionnements</option>
               <option value="initial-stock">Stock initial</option>
             </select>
             {importType === 'products' && (
@@ -140,7 +145,9 @@ export default function ImportExportPage() {
                 <option value="UPDATE">SKU existant → mettre à jour</option>
               </select>
             )}
-            <Button variant="secondary" onClick={() => downloadTemplate(importType === 'products' ? 'products' : 'initial-stock')}>
+            <Button variant="secondary" onClick={() => downloadTemplate(
+              importType === 'products' ? 'products' : importType === 'packagings' ? 'packagings' : 'initial-stock'
+            )}>
               Télécharger le template
             </Button>
           </div>

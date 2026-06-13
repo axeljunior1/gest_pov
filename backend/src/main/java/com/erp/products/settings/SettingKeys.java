@@ -15,6 +15,10 @@ public final class SettingKeys {
     public static final String NUMBERING_EXIT_PREFIX = "numbering.exit_prefix";
     public static final String NUMBERING_INVENTORY_PREFIX = "numbering.inventory_prefix";
     public static final String NUMBERING_MOVEMENT_PREFIX = "numbering.movement_prefix";
+    public static final String NUMBERING_SALE_PREFIX = "numbering.sale_prefix";
+    public static final String POS_REGISTER_NAME = "pos.register_name";
+    public static final String POS_TAX_RATE_DEFAULT = "pos.tax_rate_default";
+    public static final String POS_DEFAULT_WAREHOUSE_CODE = "pos.default_warehouse_code";
 
     private SettingKeys() {}
 }

@@ -90,6 +90,7 @@ public class SettingsService {
                 .exitPrefix(getSetting(SettingKeys.NUMBERING_EXIT_PREFIX))
                 .inventoryPrefix(getSetting(SettingKeys.NUMBERING_INVENTORY_PREFIX))
                 .movementPrefix(getSetting(SettingKeys.NUMBERING_MOVEMENT_PREFIX))
+                .salePrefix(getSetting(SettingKeys.NUMBERING_SALE_PREFIX))
                 .build();
     }
 
@@ -214,6 +215,10 @@ public class SettingsService {
         map.put(SettingKeys.NUMBERING_EXIT_PREFIX, def("SX", AppSettingType.STRING, "Prefixe numerotation sorties", false));
         map.put(SettingKeys.NUMBERING_INVENTORY_PREFIX, def("INV", AppSettingType.STRING, "Prefixe numerotation inventaires", false));
         map.put(SettingKeys.NUMBERING_MOVEMENT_PREFIX, def("MV", AppSettingType.STRING, "Prefixe numerotation mouvements", false));
+        map.put(SettingKeys.NUMBERING_SALE_PREFIX, def("TK", AppSettingType.STRING, "Prefixe numerotation ventes POS", false));
+        map.put(SettingKeys.POS_REGISTER_NAME, def("Caisse 1", AppSettingType.STRING, "Nom de la caisse POS", true));
+        map.put(SettingKeys.POS_TAX_RATE_DEFAULT, def("0", AppSettingType.NUMBER, "Taux TVA par defaut (%)", false));
+        map.put(SettingKeys.POS_DEFAULT_WAREHOUSE_CODE, def("WH-MAIN", AppSettingType.STRING, "Code entrepot POS par defaut", false));
         return map;
     }
 

@@ -1,14 +1,22 @@
 package com.erp.products.security;
 
+import com.erp.products.domain.entity.User;
+import com.erp.products.repository.UserRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
+import java.util.Optional;
+
 @Service
+@RequiredArgsConstructor
 public class CurrentUserService {
 
     private static final String SYSTEM = "system";
+
+    private final UserRepository userRepository;
 
     public String getCurrentUserEmail() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -37,5 +45,18 @@ public class CurrentUserService {
             return getCurrentUserEmailOrDefault();
         }
         return clientProvided != null && !clientProvided.isBlank() ? clientProvided : SYSTEM;
+    }
+
+    public Optional<User> getCurrentUser() {
+        String email = getCurrentUserEmail();
+        if (email == null) {
+            return Optional.empty();
+        }
+        return userRepository.findByEmailIgnoreCase(email);
+    }
+
+    public User requireCurrentUser() {
+        return getCurrentUser()
+                .orElseThrow(() -> new com.erp.products.exception.BusinessException("Utilisateur non authentifie"));
     }
 }

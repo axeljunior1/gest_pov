@@ -2,10 +2,11 @@ import { useState } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useNotification } from '../context/NotificationContext'
+import { getDefaultAppPath, isPosOnlyUser } from '../utils/auth'
 import { getErrorMessage } from '../utils/errors'
 
 export default function LoginPage() {
-  const { login, isAuthenticated } = useAuth()
+  const { login, isAuthenticated, user } = useAuth()
   const notify = useNotification()
   const location = useLocation()
   const [email, setEmail] = useState('admin@erp.local')
@@ -13,7 +14,8 @@ export default function LoginPage() {
   const [submitting, setSubmitting] = useState(false)
 
   if (isAuthenticated) {
-    const redirect = location.state?.from?.pathname ?? '/'
+    const from = location.state?.from?.pathname
+    const redirect = from && !isPosOnlyUser(user) ? from : getDefaultAppPath(user)
     return <Navigate to={redirect} replace />
   }
 
@@ -78,7 +80,7 @@ export default function LoginPage() {
         </form>
 
         <p className="text-xs text-gray-400 mt-6 text-center">
-          Compte par défaut : admin@erp.local
+          Admin : admin@erp.local — Caissier : caissier@erp.local
         </p>
       </div>
     </div>

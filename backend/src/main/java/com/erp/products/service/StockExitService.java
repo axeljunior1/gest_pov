@@ -213,6 +213,9 @@ public class StockExitService {
     }
 
     private void ensureAvailable(StockExit exit, StockExitLine line) {
+        if (settingsService.getStockConfig().isAllowNegativeStock()) {
+            return;
+        }
         BigDecimal available = ledger.getAvailable(
                 line.getProduct().getId(),
                 line.getVariant() != null ? line.getVariant().getId() : null,

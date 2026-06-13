@@ -252,6 +252,20 @@ export const importApi = {
       headers: { 'Content-Type': 'multipart/form-data' },
     }).then(r => r.data)
   },
+  previewPackagings: (file) => {
+    const form = new FormData()
+    form.append('file', file)
+    return api.post('/import/packagings/preview', form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }).then(r => r.data)
+  },
+  validatePackagings: (file) => {
+    const form = new FormData()
+    form.append('file', file)
+    return api.post('/import/packagings/validate', form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }).then(r => r.data)
+  },
   history: () => api.get('/import/history').then(r => r.data),
 }
 
@@ -262,4 +276,28 @@ export const settingsApi = {
     api.put(`/settings/${encodeURIComponent(key)}`, { value }).then(r => r.data),
   updateBulk: (settings) =>
     api.put('/settings', { settings }).then(r => r.data),
+}
+
+export const posApi = {
+  context: () => api.get('/pos/context').then(r => r.data),
+  openSession: (data) => api.post('/pos/sessions/open', data).then(r => r.data),
+  currentSession: () => api.get('/pos/sessions/current').then(r => r.data),
+  closeSession: (data) => api.post('/pos/sessions/close', data).then(r => r.data),
+  sessionReport: (id) => api.get(`/pos/sessions/${id}/report`).then(r => r.data),
+  catalog: (params) => api.get('/pos/catalog', { params }).then(r => r.data),
+  search: (q, params = {}) => api.get('/pos/catalog/search', { params: { q, ...params } }).then(r => r.data),
+  createSale: () => api.post('/pos/sales').then(r => r.data),
+  getSale: (id) => api.get(`/pos/sales/${id}`).then(r => r.data),
+  addLine: (id, data) => api.post(`/pos/sales/${id}/lines`, data).then(r => r.data),
+  updateLine: (id, lineId, quantity) => api.put(`/pos/sales/${id}/lines/${lineId}`, { quantity }).then(r => r.data),
+  lineDiscount: (id, lineId, discountAmount) =>
+    api.put(`/pos/sales/${id}/lines/${lineId}/discount`, { discountAmount }).then(r => r.data),
+  holdSale: (id, label) => api.post(`/pos/sales/${id}/hold`, { label }).then(r => r.data),
+  resumeSale: (id) => api.post(`/pos/sales/${id}/resume`).then(r => r.data),
+  listHold: () => api.get('/pos/sales/hold').then(r => r.data),
+  deleteHold: (id) => api.delete(`/pos/sales/${id}`),
+  validateSale: (id, data) => api.post(`/pos/sales/${id}/validate`, data).then(r => r.data),
+  cancelSale: (id) => api.post(`/pos/sales/${id}/cancel`).then(r => r.data),
+  ticket: (id) => api.get(`/pos/sales/${id}/ticket`).then(r => r.data),
+  refund: (id, data) => api.post(`/pos/sales/${id}/refund`, data).then(r => r.data),
 }

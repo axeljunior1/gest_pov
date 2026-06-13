@@ -18,6 +18,7 @@ const navItems = [
   { to: '/attributes', label: 'Attributs' },
   { to: '/users', label: 'Utilisateurs', permission: 'users.read' },
   { to: '/roles', label: 'Rôles', permission: 'roles.read' },
+  { to: '/pos', label: 'Caisse POS', permission: 'pos.sale.read' },
   { to: '/import-export', label: 'Import / Export', permission: 'import.read' },
   { to: '/settings', label: 'Paramètres', permission: 'settings.read' },
   { to: '/documentation', label: 'Documentation' },

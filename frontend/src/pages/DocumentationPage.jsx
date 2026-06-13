@@ -111,7 +111,7 @@ const modules = [
       'Authentification JWT (Bearer token, expiration 24 h)',
       'Compte admin initial : admin@erp.local / ErpAdmin2026!',
       '5 rôles système : SUPER_ADMIN, ADMIN, MANAGER, OPERATOR, VIEWER',
-      '33 permissions granulaires (produits, stock, mouvements, inventaires, entrées, sorties, alertes, utilisateurs, rôles)',
+      'Permissions granulaires (produits, stock, mouvements, inventaires, entrées, sorties, alertes, dashboard, import/export, paramètres, utilisateurs, rôles)',
       'Protection @PreAuthorize sur toutes les routes métier',
       'Acteur d’audit et mouvements : email JWT côté serveur (champ client ignoré si authentifié)',
       'Permissions rechargées depuis la base à chaque requête (effet immédiat sans reconnexion)',
@@ -125,6 +125,82 @@ const modules = [
       'GET/POST/PUT/DELETE /api/users',
       'GET /api/roles',
       'PUT /api/roles/{id}/permissions',
+    ],
+  },
+  {
+    id: 5,
+    title: 'Module 5 — Tableau de bord KPI',
+    status: 'En place',
+    tone: 'success',
+    route: '/dashboard',
+    pages: ['Tableau de bord'],
+    features: [
+      'Synthèse stock : produits actifs, valeur estimée, alertes ouvertes',
+      'Mouvements récents, entrées et sorties validées',
+      'Top produits les plus mouvementés',
+      'Répartition par entrepôt',
+      'Devise affichée selon les paramètres généraux (app.currency)',
+      'Permission dédiée : dashboard.read',
+    ],
+    api: [
+      'GET /api/dashboard/summary',
+      'GET /api/dashboard/alerts',
+      'GET /api/dashboard/recent-movements',
+      'GET /api/dashboard/recent-entries',
+      'GET /api/dashboard/recent-exits',
+      'GET /api/dashboard/top-moved-products',
+      'GET /api/dashboard/warehouses',
+    ],
+  },
+  {
+    id: 6,
+    title: 'Module 6 — Import / Export',
+    status: 'En place',
+    tone: 'success',
+    route: '/import-export',
+    pages: ['Import / Export'],
+    features: [
+      'Export CSV ou Excel : produits, stock, mouvements, entrées, sorties, alertes, inventaires',
+      'Import produits avec prévisualisation et mode doublon (refuser / mettre à jour)',
+      'Import conditionnements (liés au SKU produit)',
+      'Import stock initial (mouvement INITIAL_STOCK)',
+      'Templates téléchargeables par type d’import',
+      'Historique des jobs d’import (statut, lignes OK / erreurs)',
+      'Permissions : import.read, import.create, export.read',
+    ],
+    api: [
+      'GET /api/export/{type}?format=CSV|XLSX',
+      'GET /api/import/templates/{products|packagings|initial-stock}',
+      'POST /api/import/products/preview | validate',
+      'POST /api/import/packagings/preview | validate',
+      'POST /api/import/initial-stock/preview | validate',
+      'GET /api/import/history',
+    ],
+  },
+  {
+    id: 7,
+    title: 'Module 7 — Paramètres généraux',
+    status: 'En place',
+    tone: 'success',
+    route: '/settings',
+    pages: ['Paramètres'],
+    features: [
+      'Paramètres centralisés (table app_settings) : entreprise, logo, devise, langue, fuseau, format date',
+      'Stock : autorisation stock négatif, seuil stock faible par défaut',
+      'Alertes : délai péremption par défaut (utilisé si non surchargé par produit/entrepôt)',
+      'Numérotation : préfixes entrées, sorties, inventaires, mouvements',
+      'Paramètres publics (sans auth) pour nom entreprise et affichage UI',
+      'Intégration modules stock, alertes, numérotation documents',
+      'Permissions : settings.read, settings.update',
+    ],
+    api: [
+      'GET /api/settings/public',
+      'GET /api/settings',
+      'PUT /api/settings/{key}',
+      'PUT /api/settings (bulk)',
+      'GET /api/settings/config/numbering',
+      'GET /api/settings/config/stock',
+      'GET /api/settings/config/alerts',
     ],
   },
 ]
@@ -176,7 +252,7 @@ export default function DocumentationPage() {
           Backend sur le port <strong>8080</strong>, frontend sur le port <strong>5173</strong>.
           Base PostgreSQL via Docker (<code className="text-xs bg-white px-1.5 py-0.5 rounded">.\db.ps1</code> ou{' '}
           <code className="text-xs bg-white px-1.5 py-0.5 rounded">.\dev.ps1</code>).
-          47 tests backend automatisés (JUnit + MockMvc).
+          47+ tests backend automatisés (JUnit + MockMvc).
         </p>
       </Card>
 
@@ -216,7 +292,9 @@ export default function DocumentationPage() {
           <li>• Le backend recharge les permissions depuis PostgreSQL à chaque requête authentifiée (modification de rôle effective immédiatement).</li>
           <li>• L’historique d’audit et les mouvements de stock utilisent l’email du token, jamais une valeur envoyée par le client.</li>
           <li>• Alertes : <code className="text-xs bg-white px-1 rounded">alerts.read</code> pour consulter, <code className="text-xs bg-white px-1 rounded">alerts.manage</code> pour acquitter / résoudre / ignorer.</li>
-          <li>• Pages sensibles protégées côté frontend : /users, /roles, /alerts — accès refusé affiché si permission manquante.</li>
+          <li>• Paramètres : <code className="text-xs bg-white px-1 rounded">settings.read</code> pour consulter, <code className="text-xs bg-white px-1 rounded">settings.update</code> pour modifier.</li>
+          <li>• Import/Export : <code className="text-xs bg-white px-1 rounded">import.read</code>, <code className="text-xs bg-white px-1 rounded">import.create</code>, <code className="text-xs bg-white px-1 rounded">export.read</code>.</li>
+          <li>• Pages sensibles protégées côté frontend : /users, /roles, /alerts, /settings — accès refusé affiché si permission manquante.</li>
           <li>• Erreur HTTP 403 : message « Accès refusé — permission insuffisante ».</li>
         </ul>
       </Card>
@@ -247,8 +325,8 @@ export default function DocumentationPage() {
       <Card className="p-6 mt-6 bg-amber-50 border-amber-100">
         <h3 className="text-sm font-semibold text-amber-900 mb-2">Hors périmètre actuel</h3>
         <p className="text-sm text-amber-800">
-          Envoi réel EMAIL/SMS/PUSH/Slack/WhatsApp, interface de configuration des seuils d’alerte,
-          gestion des commandes fournisseur (entité minimale pour les retards), tableaux de bord analytics
+          Envoi réel EMAIL/SMS/PUSH/Slack/WhatsApp, interface avancée de configuration des seuils d’alerte par produit,
+          gestion des commandes fournisseur (entité minimale pour les retards)
           — non implémentés à ce stade.
         </p>
       </Card>

@@ -34,6 +34,7 @@ public class StockService {
     private final StockMapper mapper;
     private final AuditService auditService;
     private final CurrentUserService currentUserService;
+    private final SettingsService settingsService;
 
     @Transactional
     public StockMovementResponse receive(StockOperationRequest request) {
@@ -185,6 +186,9 @@ public class StockService {
     }
 
     private void ensureAvailable(StockOperationRequest request, BigDecimal qty) {
+        if (settingsService.getStockConfig().isAllowNegativeStock()) {
+            return;
+        }
         BigDecimal available = ledger.getAvailable(
                 request.getProductId(),
                 request.getVariantId(),

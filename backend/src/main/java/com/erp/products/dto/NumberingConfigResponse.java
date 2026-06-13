@@ -11,4 +11,5 @@ public class NumberingConfigResponse {
     private String exitPrefix;
     private String inventoryPrefix;
     private String movementPrefix;
+    private String salePrefix;
 }

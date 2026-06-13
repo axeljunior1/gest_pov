@@ -27,6 +27,8 @@ public class TestAuthReferenceDataInitializer implements ApplicationRunner {
     public static final String VIEWER_PASSWORD = "Viewer2026!";
     public static final String MANAGER_EMAIL = "manager@erp.local";
     public static final String MANAGER_PASSWORD = "Manager2026!";
+    public static final String CASHIER_EMAIL = "cashier@erp.local";
+    public static final String CASHIER_PASSWORD = "Cashier2026!";
 
     private final PermissionRepository permissionRepository;
     private final RoleRepository roleRepository;
@@ -87,7 +89,17 @@ public class TestAuthReferenceDataInitializer implements ApplicationRunner {
                 new String[]{"import.create", "Executer des imports", "MODULE_IMPORT"},
                 new String[]{"export.read", "Exporter les donnees", "MODULE_EXPORT"},
                 new String[]{"settings.read", "Consulter les parametres", "MODULE_SETTINGS"},
-                new String[]{"settings.update", "Modifier les parametres", "MODULE_SETTINGS"}
+                new String[]{"settings.update", "Modifier les parametres", "MODULE_SETTINGS"},
+                new String[]{"pos.session.open", "Ouvrir session caisse", "MODULE_POS"},
+                new String[]{"pos.session.close", "Fermer session caisse", "MODULE_POS"},
+                new String[]{"pos.sale.read", "Lire ventes POS", "MODULE_POS"},
+                new String[]{"pos.sale.create", "Creer ventes POS", "MODULE_POS"},
+                new String[]{"pos.sale.validate", "Valider ventes POS", "MODULE_POS"},
+                new String[]{"pos.sale.cancel", "Annuler ventes POS", "MODULE_POS"},
+                new String[]{"pos.sale.discount", "Remises POS", "MODULE_POS"},
+                new String[]{"pos.sale.refund", "Rembourser ventes POS", "MODULE_POS"},
+                new String[]{"pos.ticket.reprint", "Reimprimer tickets", "MODULE_POS"},
+                new String[]{"pos.report.read", "Rapports caisse", "MODULE_POS"}
         );
         for (String[] d : defs) {
             permissionRepository.save(Permission.builder()
@@ -106,8 +118,13 @@ public class TestAuthReferenceDataInitializer implements ApplicationRunner {
         saveRole("Manager", "MANAGER", filter(all,
                 "inventory.read", "inventory.create", "inventory.update", "inventory.validate", "inventory.cancel",
                 "stock.read", "stock.adjust", "stock_entry.read", "stock_exit.read", "products.read",
-                "dashboard.read", "import.read", "import.create", "export.read"));
-        saveRole("Consultation", "VIEWER", filter(all, "inventory.read", "stock.read", "products.read"));
+                "dashboard.read", "import.read", "import.create", "export.read",
+                "pos.session.open", "pos.session.close", "pos.sale.read", "pos.sale.create", "pos.sale.validate",
+                "pos.sale.cancel", "pos.sale.discount", "pos.sale.refund", "pos.ticket.reprint", "pos.report.read"));
+        saveRole("Caissier", "CASHIER", filter(all,
+                "pos.session.open", "pos.sale.read", "pos.sale.create", "pos.sale.validate", "pos.ticket.reprint"));
+        saveRole("Consultation", "VIEWER", filter(all, "inventory.read", "stock.read", "products.read",
+                "pos.sale.read", "pos.report.read"));
     }
 
     private Collection<Permission> filter(Map<String, Permission> all, String... codes) {
@@ -123,6 +140,7 @@ public class TestAuthReferenceDataInitializer implements ApplicationRunner {
     private void seedAdminUser() {
         Role superAdmin = roleRepository.findByCode("SUPER_ADMIN").orElseThrow();
         Role manager = roleRepository.findByCode("MANAGER").orElseThrow();
+        Role cashier = roleRepository.findByCode("CASHIER").orElseThrow();
         Role viewer = roleRepository.findByCode("VIEWER").orElseThrow();
         userRepository.save(User.builder()
                 .firstName("Admin")
@@ -139,6 +157,14 @@ public class TestAuthReferenceDataInitializer implements ApplicationRunner {
                 .passwordHash(passwordEncoder.encode(MANAGER_PASSWORD))
                 .isActive(true)
                 .roles(new HashSet<>(Set.of(manager)))
+                .build());
+        userRepository.save(User.builder()
+                .firstName("Caissier")
+                .lastName("POS")
+                .email(CASHIER_EMAIL)
+                .passwordHash(passwordEncoder.encode(CASHIER_PASSWORD))
+                .isActive(true)
+                .roles(new HashSet<>(Set.of(cashier)))
                 .build());
         userRepository.save(User.builder()
                 .firstName("Viewer")
