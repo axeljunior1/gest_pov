@@ -21,6 +21,8 @@ public interface SaleRepository extends JpaRepository<Sale, Long> {
 
     List<Sale> findByPosSessionIdOrderByCreatedAtDesc(Long sessionId);
 
+    List<Sale> findByPaymentSessionIdOrderByCreatedAtDesc(Long paymentSessionId);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT s FROM Sale s WHERE s.id = :id")
     Optional<Sale> findByIdForUpdate(@Param("id") Long id);
@@ -29,9 +31,49 @@ public interface SaleRepository extends JpaRepository<Sale, Long> {
             SELECT sl.product.id, SUM(sl.quantityInBaseUnit)
             FROM SaleLine sl
             JOIN sl.sale s
-            WHERE s.status = com.erp.products.domain.enums.SaleStatus.VALIDATED
+            WHERE s.status IN (com.erp.products.domain.enums.SaleStatus.PAID,
+                               com.erp.products.domain.enums.SaleStatus.VALIDATED)
             GROUP BY sl.product.id
             ORDER BY SUM(sl.quantityInBaseUnit) DESC
             """)
     List<Object[]> findTopSoldProductIds(org.springframework.data.domain.Pageable pageable);
+
+    @Query("""
+            SELECT COUNT(s), COALESCE(SUM(s.total), 0), MAX(s.validatedAt)
+            FROM Sale s
+            WHERE s.customer.id = :customerId
+            AND s.status IN (
+                com.erp.products.domain.enums.SaleStatus.PAID,
+                com.erp.products.domain.enums.SaleStatus.VALIDATED,
+                com.erp.products.domain.enums.SaleStatus.PARTIALLY_REFUNDED,
+                com.erp.products.domain.enums.SaleStatus.REFUNDED
+            )
+            """)
+    Object[] aggregateCustomerPurchases(@Param("customerId") Long customerId);
+
+    @Query("""
+            SELECT sl.product.id, sl.product.nom, SUM(sl.quantityInput), SUM(sl.lineTotal)
+            FROM SaleLine sl
+            JOIN sl.sale s
+            WHERE s.customer.id = :customerId
+            AND s.status IN (
+                com.erp.products.domain.enums.SaleStatus.PAID,
+                com.erp.products.domain.enums.SaleStatus.VALIDATED,
+                com.erp.products.domain.enums.SaleStatus.PARTIALLY_REFUNDED,
+                com.erp.products.domain.enums.SaleStatus.REFUNDED
+            )
+            GROUP BY sl.product.id, sl.product.nom
+            ORDER BY SUM(sl.lineTotal) DESC
+            """)
+    List<Object[]> findTopProductsByCustomer(@Param("customerId") Long customerId,
+                                               org.springframework.data.domain.Pageable pageable);
+
+    List<Sale> findByCustomerIdAndStatusInOrderByValidatedAtDesc(
+            Long customerId, List<SaleStatus> statuses, org.springframework.data.domain.Pageable pageable);
+
+    List<Sale> findByStatusAndWarehouseIdOrderBySubmittedAtAsc(SaleStatus status, Long warehouseId);
+
+    List<Sale> findByStatusOrderBySubmittedAtAsc(SaleStatus status);
+
+    long countByStatusAndWarehouseId(SaleStatus status, Long warehouseId);
 }

@@ -8,7 +8,10 @@ import com.erp.products.exception.ResourceNotFoundException;
 import com.erp.products.mapper.PosMapper;
 import com.erp.products.repository.*;
 import com.erp.products.security.CurrentUserService;
+import com.erp.products.security.PermissionEvaluator;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,21 +36,27 @@ public class PosSaleService {
     private final LocationRepository locationRepository;
     private final StockLedgerService ledger;
     private final SettingsService settingsService;
+    private final PosConfigService posConfigService;
     private final PosSessionService sessionService;
     private final CurrentUserService currentUserService;
     private final PosMapper mapper;
     private final AuditService auditService;
+    private final CustomerRepository customerRepository;
+    private final LoyaltyService loyaltyService;
+    private final PaymentRepository paymentRepository;
+    private final PermissionEvaluator permissionChecker;
 
     @Transactional
     public SaleResponse createSale() {
-        User cashier = currentUserService.requireCurrentUser();
-        PosSession session = sessionService.requireOpenSession(cashier);
+        User seller = currentUserService.requireCurrentUser();
+        PosSession session = sessionService.requireSessionForSaleCreation(seller);
         Location location = resolveDefaultLocation(session.getWarehouse());
 
         Sale sale = Sale.builder()
                 .saleNumber(generateSaleNumber())
                 .posSession(session)
-                .cashier(cashier)
+                .seller(seller)
+                .cashier(seller)
                 .warehouse(session.getWarehouse())
                 .location(location)
                 .status(SaleStatus.DRAFT)
@@ -58,14 +67,56 @@ public class PosSaleService {
     }
 
     @Transactional(readOnly = true)
+    public List<SaleResponse> listPendingPayments() {
+        User user = currentUserService.requireCurrentUser();
+        sessionService.requireOpenSession(user, PosSessionType.CASHIER);
+        List<Sale> sales;
+        if (posConfigService.isCentralCashier()) {
+            sales = saleRepository.findByStatusOrderBySubmittedAtAsc(SaleStatus.PENDING_PAYMENT);
+        } else {
+            PosSession session = sessionService.requireOpenSession(user, PosSessionType.CASHIER);
+            sales = saleRepository.findByStatusAndWarehouseIdOrderBySubmittedAtAsc(
+                    SaleStatus.PENDING_PAYMENT, session.getWarehouse().getId());
+        }
+        return sales.stream().map(mapper::toSaleResponse).toList();
+    }
+
+    @Transactional
+    public SaleResponse sendToPayment(Long saleId) {
+        return submitForPayment(saleId);
+    }
+
+    @Transactional
+    public SaleResponse submitForPayment(Long saleId) {
+        if (!posConfigService.isCentralCashier()) {
+            throw new BusinessException("Envoi en caisse disponible uniquement en mode caisse centrale");
+        }
+        Sale sale = findSaleForUpdate(saleId);
+        ensureEditable(sale);
+        if (sale.getLignes().isEmpty()) {
+            throw new BusinessException("Panier vide");
+        }
+        recalculateTotals(sale);
+        clearOrphanPayments(sale);
+        ensureSellerAndCashier(sale);
+        sale.setStatus(SaleStatus.PENDING_PAYMENT);
+        sale.setSubmittedAt(Instant.now());
+        Sale saved = saleRepository.save(sale);
+        auditService.log("Sale", saved.getId(), AuditAction.MODIFICATION,
+                "Vente transferee a la caisse (a encaisser) " + saved.getSaleNumber(),
+                resolveSellerEmail(saved));
+        return mapper.toSaleResponse(saved);
+    }
+
+    @Transactional(readOnly = true)
     public SaleResponse getSale(Long id) {
         return mapper.toSaleResponse(findSale(id));
     }
 
     @Transactional(readOnly = true)
     public List<SaleResponse> listHoldSales() {
-        User cashier = currentUserService.requireCurrentUser();
-        PosSession session = sessionService.requireOpenSession(cashier);
+        User user = currentUserService.requireCurrentUser();
+        PosSession session = sessionService.requireSessionForSaleCreation(user);
         return saleRepository.findByPosSessionIdAndStatusOrderByCreatedAtDesc(session.getId(), SaleStatus.HOLD)
                 .stream().map(mapper::toSaleResponse).toList();
     }
@@ -77,7 +128,7 @@ public class PosSaleService {
 
         Product product = loadProduct(request.getProductId());
         ProductVariant variant = resolveVariant(product.getId(), request.getVariantId());
-        ProductPackaging packaging = loadPackagingOptional(product.getId(), request.getPackagingId());
+        ProductPackaging packaging = resolvePackaging(product, request.getPackagingId());
 
         BigDecimal qtyInput = request.getQuantityInput() != null
                 ? request.getQuantityInput() : BigDecimal.ONE;
@@ -86,8 +137,7 @@ public class PosSaleService {
         }
 
         BigDecimal qtyBase = resolveBaseQuantity(product, packaging, qtyInput);
-        BigDecimal unitPrice = request.getUnitPrice() != null
-                ? request.getUnitPrice() : resolveUnitPrice(product);
+        BigDecimal unitPrice = resolveLineUnitPrice(product, packaging, request);
         BigDecimal taxRate = request.getTaxRate() != null
                 ? request.getTaxRate()
                 : settingsService.getDecimal(com.erp.products.settings.SettingKeys.POS_TAX_RATE_DEFAULT);
@@ -98,7 +148,7 @@ public class PosSaleService {
                 ? request.getDiscountAmount() : BigDecimal.ZERO;
 
         Optional<SaleLine> existing = sale.getLignes().stream()
-                .filter(l -> sameLine(l, product.getId(), variant, packaging))
+                .filter(l -> sameLine(l, product.getId(), variant, packaging, unitPrice, discount))
                 .findFirst();
 
         if (existing.isPresent()) {
@@ -112,9 +162,12 @@ public class PosSaleService {
                     .product(product)
                     .variant(variant)
                     .packaging(packaging)
+                    .packagingNameSnapshot(packaging != null ? packaging.getNom() : null)
+                    .packagingQuantitySnapshot(packaging != null ? packaging.getQuantiteBase() : null)
                     .quantityInput(qtyInput)
                     .quantityInBaseUnit(qtyBase)
                     .unitPrice(unitPrice)
+                    .unitPriceSnapshot(unitPrice)
                     .discountAmount(discount)
                     .taxRate(taxRate)
                     .lineTotal(computeLineTotal(qtyInput, unitPrice, discount))
@@ -194,15 +247,64 @@ public class PosSaleService {
     }
 
     @Transactional
+    public SaleResponse assignCustomer(Long saleId, Long customerId) {
+        Sale sale = findSaleForUpdate(saleId);
+        ensureEditable(sale);
+        Customer customer = customerRepository.findById(customerId)
+                .orElseThrow(() -> new ResourceNotFoundException("Client non trouve: " + customerId));
+        if (!Boolean.TRUE.equals(customer.getIsActive())) {
+            throw new BusinessException("Client inactif");
+        }
+        loyaltyService.clearRedemptionFromSale(sale);
+        sale.setCustomer(customer);
+        recalculateTotals(sale);
+        return mapper.toSaleResponse(saleRepository.save(sale));
+    }
+
+    @Transactional
+    public SaleResponse removeCustomer(Long saleId) {
+        Sale sale = findSaleForUpdate(saleId);
+        ensureEditable(sale);
+        loyaltyService.clearRedemptionFromSale(sale);
+        sale.setCustomer(null);
+        recalculateTotals(sale);
+        return mapper.toSaleResponse(saleRepository.save(sale));
+    }
+
+    @Transactional
+    public SaleResponse applyLoyaltyRedemption(Long saleId, LoyaltyRedeemRequest request) {
+        Sale sale = findSaleForUpdate(saleId);
+        ensureEditable(sale);
+        if (request.getPoints() == null || request.getPoints() <= 0) {
+            throw new BusinessException("Nombre de points invalide");
+        }
+        loyaltyService.applyRedemptionToSale(sale, request.getPoints());
+        recalculateTotals(sale);
+        return mapper.toSaleResponse(saleRepository.save(sale));
+    }
+
+    @Transactional
+    public SaleResponse clearLoyaltyRedemption(Long saleId) {
+        Sale sale = findSaleForUpdate(saleId);
+        ensureEditable(sale);
+        loyaltyService.clearRedemptionFromSale(sale);
+        recalculateTotals(sale);
+        return mapper.toSaleResponse(saleRepository.save(sale));
+    }
+
+    @Transactional
     public SaleResponse validateSale(Long saleId, SaleValidateRequest request) {
         Sale sale = findSaleForUpdate(saleId);
-        if (sale.getStatus() != SaleStatus.DRAFT) {
-            throw new BusinessException("Seule une vente brouillon peut etre validee");
+        if (SaleStatuses.isPaid(sale.getStatus())) {
+            throw new BusinessException("Cette vente est deja payee");
         }
+        PosSession paymentSession = resolvePaymentSession(sale);
+        User paymentCollector = currentUserService.requireCurrentUser();
+        ensureSellerAndCashier(sale);
+        assertValidatableStatus(sale);
         if (sale.getLignes().isEmpty()) {
             throw new BusinessException("Panier vide");
         }
-        sessionService.requireOpenSession(sale.getCashier());
 
         recalculateTotals(sale);
         BigDecimal total = sale.getTotal();
@@ -211,12 +313,19 @@ public class PosSaleService {
             throw new BusinessException("Paiement requis");
         }
 
+        PosConfigResponse config = posConfigService.getConfig();
+        if (!config.isAllowSplitPayment() && inputs.size() > 1) {
+            throw new BusinessException("Paiement fractionne desactive par parametre");
+        }
+
         BigDecimal paid = inputs.stream()
                 .map(SaleValidateRequest.PaymentInput::getAmount)
                 .filter(Objects::nonNull)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         if (paid.compareTo(total) < 0) {
-            throw new BusinessException("Montant paye insuffisant");
+            if (!config.isAllowPartialPayment()) {
+                throw new BusinessException("Montant paye insuffisant");
+            }
         }
 
         if (!settingsService.getStockConfig().isAllowNegativeStock()) {
@@ -232,17 +341,9 @@ public class PosSaleService {
             }
         }
 
-        sale.getPayments().clear();
-        for (SaleValidateRequest.PaymentInput input : inputs) {
-            sale.getPayments().add(Payment.builder()
-                    .sale(sale)
-                    .method(input.getMethod())
-                    .amount(input.getAmount())
-                    .status(PaymentStatus.PAID)
-                    .build());
-        }
+        attachPayments(sale, paymentCollector, paymentSession, inputs);
 
-        BigDecimal change = BigDecimal.ZERO;
+        BigDecimal change;
         if (request.getCashReceived() != null && request.getCashReceived().compareTo(BigDecimal.ZERO) > 0) {
             change = request.getCashReceived().subtract(total).max(BigDecimal.ZERO);
         } else {
@@ -253,15 +354,41 @@ public class PosSaleService {
             postStockMovement(sale, line);
         }
 
+        loyaltyService.processSaleValidated(sale);
+
+        Instant paidAt = Instant.now();
+        sale.setPaymentSession(paymentSession);
+        sale.setCashier(paymentCollector);
         sale.setPaidAmount(paid);
         sale.setChangeAmount(change);
-        sale.setStatus(SaleStatus.VALIDATED);
-        sale.setValidatedAt(Instant.now());
+        sale.setStatus(SaleStatus.PAID);
+        sale.setValidatedAt(paidAt);
+        sale.setPaidAt(paidAt);
 
         Sale saved = saleRepository.save(sale);
         auditService.log("Sale", saved.getId(), AuditAction.MODIFICATION,
-                "Vente POS validee " + saved.getSaleNumber(), sale.getCashier().getEmail());
+                "Vente POS validee " + saved.getSaleNumber(), currentUserService.requireCurrentUser().getEmail());
         return mapper.toSaleResponse(saved);
+    }
+
+    private PosSession resolvePaymentSession(Sale sale) {
+        if (posConfigService.isCentralCashier()) {
+            User cashier = currentUserService.requireCurrentUser();
+            return sessionService.requireOpenSession(cashier, PosSessionType.CASHIER);
+        }
+        return sessionService.requireOpenSession(sale.getCashier(), PosSessionType.CASHIER);
+    }
+
+    private void assertValidatableStatus(Sale sale) {
+        if (posConfigService.isCentralCashier()) {
+            if (sale.getStatus() != SaleStatus.PENDING_PAYMENT) {
+                throw new BusinessException("Seule une vente en attente de paiement peut etre encaissee");
+            }
+            return;
+        }
+        if (sale.getStatus() != SaleStatus.DRAFT) {
+            throw new BusinessException("Seule une vente brouillon peut etre validee");
+        }
     }
 
     @Transactional
@@ -270,8 +397,10 @@ public class PosSaleService {
         if (sale.getStatus() == SaleStatus.CANCELLED) {
             throw new BusinessException("Vente deja annulee");
         }
-        if (sale.getStatus() == SaleStatus.VALIDATED) {
-            throw new BusinessException("Une vente validee doit etre remboursee, pas annulee");
+        if (SaleStatuses.isPaid(sale.getStatus())
+                || sale.getStatus() == SaleStatus.REFUNDED
+                || sale.getStatus() == SaleStatus.PARTIALLY_REFUNDED) {
+            throw new BusinessException("Une vente payee doit etre remboursee, pas annulee");
         }
         sale.setStatus(SaleStatus.CANCELLED);
         sale.setCancelledAt(Instant.now());
@@ -291,7 +420,7 @@ public class PosSaleService {
                         "POS_SALE",
                         sale.getSaleNumber(),
                         "Vente caisse " + sale.getSaleNumber(),
-                        sale.getCashier().getEmail(),
+                        resolveSellerEmail(sale),
                         null, null, null, null, null,
                         line.getPackaging() != null ? line.getPackaging().getId() : null,
                         sale.getId(),
@@ -317,7 +446,10 @@ public class PosSaleService {
         sale.setSubtotal(subtotal.setScale(4, RoundingMode.HALF_UP));
         sale.setDiscountTotal(discountTotal.setScale(4, RoundingMode.HALF_UP));
         sale.setTaxTotal(taxTotal.setScale(4, RoundingMode.HALF_UP));
-        sale.setTotal(subtotal.subtract(discountTotal).add(taxTotal).setScale(4, RoundingMode.HALF_UP));
+        BigDecimal loyaltyDiscount = sale.getLoyaltyDiscountAmount() != null
+                ? sale.getLoyaltyDiscountAmount() : BigDecimal.ZERO;
+        sale.setTotal(subtotal.subtract(discountTotal).subtract(loyaltyDiscount)
+                .add(taxTotal).max(BigDecimal.ZERO).setScale(4, RoundingMode.HALF_UP));
     }
 
     private BigDecimal computeLineTotal(BigDecimal qty, BigDecimal unitPrice, BigDecimal discount) {
@@ -342,14 +474,57 @@ public class PosSaleService {
         return qtyInput.setScale(6, RoundingMode.HALF_UP);
     }
 
-    private boolean sameLine(SaleLine line, Long productId, ProductVariant variant, ProductPackaging packaging) {
+    private BigDecimal resolveLineUnitPrice(Product product, ProductPackaging packaging, SaleLineRequest request) {
+        if (packaging != null) {
+            BigDecimal packagingPrice = packaging.getPrixVente();
+            if (request.getUnitPrice() != null
+                    && request.getUnitPrice().compareTo(packagingPrice) != 0
+                    && canUpdatePackagingPrice()) {
+                return request.getUnitPrice().setScale(4, RoundingMode.HALF_UP);
+            }
+            return packagingPrice;
+        }
+        if (request.getUnitPrice() != null && canUpdatePackagingPrice()) {
+            return request.getUnitPrice().setScale(4, RoundingMode.HALF_UP);
+        }
+        return resolveUnitPrice(product);
+    }
+
+    private ProductPackaging resolvePackaging(Product product, Long packagingId) {
+        if (packagingId != null) {
+            ProductPackaging packaging = loadPackagingOptional(product.getId(), packagingId);
+            if (!Boolean.TRUE.equals(packaging.getActif())) {
+                throw new BusinessException("Conditionnement inactif");
+            }
+            return packaging;
+        }
+        return packagingRepository.findFirstByProductIdAndDefaultVenteTrueAndActifTrue(product.getId())
+                .orElse(null);
+    }
+
+    private boolean canUpdatePackagingPrice() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        return permissionChecker.has(auth, "product_packaging.update_price");
+    }
+
+    private boolean sameLine(
+            SaleLine line,
+            Long productId,
+            ProductVariant variant,
+            ProductPackaging packaging,
+            BigDecimal unitPrice,
+            BigDecimal discount) {
         Long variantId = variant != null ? variant.getId() : null;
         Long packagingId = packaging != null ? packaging.getId() : null;
         Long lineVariant = line.getVariant() != null ? line.getVariant().getId() : null;
         Long linePackaging = line.getPackaging() != null ? line.getPackaging().getId() : null;
+        BigDecimal lineDiscount = line.getDiscountAmount() != null ? line.getDiscountAmount() : BigDecimal.ZERO;
+        BigDecimal expectedDiscount = discount != null ? discount : BigDecimal.ZERO;
         return line.getProduct().getId().equals(productId)
                 && Objects.equals(lineVariant, variantId)
-                && Objects.equals(linePackaging, packagingId);
+                && Objects.equals(linePackaging, packagingId)
+                && line.getUnitPrice().compareTo(unitPrice) == 0
+                && lineDiscount.compareTo(expectedDiscount) == 0;
     }
 
     private String generateSaleNumber() {
@@ -364,6 +539,53 @@ public class PosSaleService {
                 .or(() -> locationRepository.findByWarehouseIdAndActifTrueOrderByCodeAsc(warehouse.getId())
                         .stream().findFirst())
                 .orElseThrow(() -> new BusinessException("Aucun emplacement actif pour l entrepot"));
+    }
+
+    private void attachPayments(
+            Sale sale,
+            User collector,
+            PosSession session,
+            List<SaleValidateRequest.PaymentInput> inputs) {
+        if (!sale.getPayments().isEmpty()) {
+            paymentRepository.deleteBySaleId(sale.getId());
+            sale.getPayments().clear();
+        }
+        for (SaleValidateRequest.PaymentInput input : inputs) {
+            Payment payment = Payment.builder()
+                    .sale(sale)
+                    .cashier(collector)
+                    .posSession(session)
+                    .method(input.getMethod())
+                    .amount(input.getAmount())
+                    .status(PaymentStatus.PAID)
+                    .build();
+            sale.getPayments().add(payment);
+        }
+    }
+
+    private void clearOrphanPayments(Sale sale) {
+        paymentRepository.deleteBySaleId(sale.getId());
+        if (sale.getPayments() != null) {
+            sale.getPayments().clear();
+        }
+    }
+
+    private void ensureSellerAndCashier(Sale sale) {
+        if (sale.getSeller() == null && sale.getCashier() != null) {
+            sale.setSeller(sale.getCashier());
+        } else if (sale.getSeller() == null) {
+            sale.setSeller(currentUserService.requireCurrentUser());
+        }
+        if (sale.getCashier() == null) {
+            sale.setCashier(sale.getSeller());
+        }
+    }
+
+    private String resolveSellerEmail(Sale sale) {
+        if (sale.getSeller() != null) {
+            return sale.getSeller().getEmail();
+        }
+        return sale.getCashier().getEmail();
     }
 
     private void ensureEditable(Sale sale) {

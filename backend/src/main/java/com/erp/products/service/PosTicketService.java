@@ -2,6 +2,7 @@ package com.erp.products.service;
 
 import com.erp.products.domain.entity.Sale;
 import com.erp.products.domain.enums.SaleStatus;
+import com.erp.products.domain.enums.SaleStatuses;
 import com.erp.products.dto.TicketResponse;
 import com.erp.products.exception.BusinessException;
 import com.erp.products.exception.ResourceNotFoundException;
@@ -25,16 +26,16 @@ public class PosTicketService {
     public TicketResponse buildTicket(Long saleId) {
         Sale sale = saleRepository.findById(saleId)
                 .orElseThrow(() -> new ResourceNotFoundException("Vente non trouvee: " + saleId));
-        if (sale.getStatus() != SaleStatus.VALIDATED
+        if (!SaleStatuses.isPaid(sale.getStatus())
                 && sale.getStatus() != SaleStatus.PARTIALLY_REFUNDED
                 && sale.getStatus() != SaleStatus.REFUNDED) {
-            throw new BusinessException("Ticket disponible uniquement pour une vente validee");
+            throw new BusinessException("Ticket disponible uniquement pour une vente payee");
         }
 
         var publicSettings = settingsService.getPublicSettings();
         return TicketResponse.builder()
                 .ticketNumber(sale.getSaleNumber())
-                .saleDate(sale.getValidatedAt())
+                .saleDate(sale.getPaidAt() != null ? sale.getPaidAt() : sale.getValidatedAt())
                 .companyName(publicSettings.getCompanyName())
                 .registerName(settingsService.getSetting(com.erp.products.settings.SettingKeys.POS_REGISTER_NAME))
                 .cashierName(sale.getCashier().fullName())

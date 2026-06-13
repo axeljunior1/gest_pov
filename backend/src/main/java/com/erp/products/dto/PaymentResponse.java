@@ -17,4 +17,6 @@ public class PaymentResponse {
     private BigDecimal amount;
     private PaymentStatus status;
     private Instant paidAt;
+    private Long cashierId;
+    private Long posSessionId;
 }

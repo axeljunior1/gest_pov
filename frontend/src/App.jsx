@@ -8,6 +8,7 @@ import Layout from './components/Layout'
 import POSLayout from './components/POSLayout'
 import LoginPage from './pages/LoginPage'
 import DashboardPage from './pages/DashboardPage'
+import AnalyticsPage from './pages/AnalyticsPage'
 import ProductsPage from './pages/ProductsPage'
 import ProductDetailPage from './pages/ProductDetailPage'
 import CategoriesPage from './pages/CategoriesPage'
@@ -25,7 +26,9 @@ import RolesPage from './pages/RolesPage'
 import ImportExportPage from './pages/ImportExportPage'
 import SettingsPage from './pages/SettingsPage'
 import DocumentationPage from './pages/DocumentationPage'
+import CustomersPage from './pages/CustomersPage'
 import POSPage from './pages/POSPage'
+import PosPendingPaymentsPage from './pages/PosPendingPaymentsPage'
 
 export default function App() {
   return (
@@ -37,13 +40,21 @@ export default function App() {
             <Route element={<ProtectedRoute />}>
               <Route element={<PermissionRoute permission="pos.sale.read" />}>
                 <Route element={<POSLayout />}>
-                  <Route path="pos" element={<POSPage />} />
+                  <Route element={<PermissionRoute anyOf={['pos.sale.send_to_payment', 'pos.sale.create', 'pos.sale.prepare']} />}>
+                    <Route path="pos" element={<POSPage />} />
+                  </Route>
+                  <Route element={<PermissionRoute anyOf={['pos.payment.collect', 'pos.payment.validate']} />}>
+                    <Route path="pos/pending" element={<PosPendingPaymentsPage />} />
+                  </Route>
                 </Route>
               </Route>
               <Route element={<BackOfficeRoute />}>
                 <Route element={<Layout />}>
                   <Route element={<PermissionRoute permission="dashboard.read" />}>
                     <Route path="dashboard" element={<DashboardPage />} />
+                  </Route>
+                  <Route element={<PermissionRoute anyOf={['analytics.read', 'analytics.sales.read']} />}>
+                    <Route path="analytics" element={<AnalyticsPage />} />
                   </Route>
                   <Route index element={<ProductsPage />} />
                   <Route path="products/:id" element={<ProductDetailPage />} />
@@ -76,6 +87,10 @@ export default function App() {
                   </Route>
                   <Route element={<PermissionRoute permission="settings.read" />}>
                     <Route path="settings" element={<SettingsPage />} />
+                  </Route>
+                  <Route element={<PermissionRoute permission="customer.read" />}>
+                    <Route path="customers" element={<CustomersPage />} />
+                    <Route path="customers/:id" element={<CustomersPage />} />
                   </Route>
                   <Route path="documentation" element={<DocumentationPage />} />
                 </Route>

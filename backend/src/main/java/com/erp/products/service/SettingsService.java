@@ -7,6 +7,8 @@ import com.erp.products.exception.BusinessException;
 import com.erp.products.exception.ResourceNotFoundException;
 import com.erp.products.repository.AppSettingRepository;
 import com.erp.products.settings.SettingKeys;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,8 +24,15 @@ import java.util.Map;
 public class SettingsService {
 
     private static final Map<String, DefaultSetting> DEFAULTS = buildDefaults();
+    private static final String DEFAULT_LOYALTY_TIERS = """
+            [{"name":"BRONZE","minPoints":0,"discountPercent":0},\
+            {"name":"SILVER","minPoints":1000,"discountPercent":2},\
+            {"name":"GOLD","minPoints":5000,"discountPercent":5},\
+            {"name":"PLATINUM","minPoints":10000,"discountPercent":10}]\
+            """;
 
     private final AppSettingRepository settingRepository;
+    private final ObjectMapper objectMapper;
 
     @Transactional(readOnly = true)
     public String getSetting(String key) {
@@ -110,6 +119,32 @@ public class SettingsService {
                 .build();
     }
 
+    @Transactional(readOnly = true)
+    public LoyaltyConfigResponse getLoyaltyConfig() {
+        return LoyaltyConfigResponse.builder()
+                .loyaltyEnabled(getBoolean(SettingKeys.LOYALTY_ENABLED))
+                .pointsPerCurrencyUnit(getDecimal(SettingKeys.LOYALTY_POINTS_PER_CURRENCY_UNIT))
+                .currencyUnitAmount(getDecimal(SettingKeys.LOYALTY_CURRENCY_UNIT_AMOUNT))
+                .pointValue(getDecimal(SettingKeys.LOYALTY_POINT_VALUE))
+                .minimumPointsToRedeem(getInteger(SettingKeys.LOYALTY_MINIMUM_POINTS_TO_REDEEM))
+                .maximumDiscountPercent(getDecimal(SettingKeys.LOYALTY_MAXIMUM_DISCOUNT_PERCENT))
+                .pointsExpirationEnabled(getBoolean(SettingKeys.LOYALTY_POINTS_EXPIRATION_ENABLED))
+                .pointsExpirationDays(getInteger(SettingKeys.LOYALTY_POINTS_EXPIRATION_DAYS))
+                .earnPointsOnDiscountedSales(getBoolean(SettingKeys.LOYALTY_EARN_ON_DISCOUNTED_SALES))
+                .earnPointsOnTaxIncludedAmount(getBoolean(SettingKeys.LOYALTY_EARN_ON_TAX_INCLUDED))
+                .allowPointsRedemption(getBoolean(SettingKeys.LOYALTY_ALLOW_REDEMPTION))
+                .loyaltyTiersConfig(parseLoyaltyTiers(getSetting(SettingKeys.LOYALTY_TIERS_CONFIG)))
+                .build();
+    }
+
+    public List<LoyaltyTierConfig> parseLoyaltyTiers(String json) {
+        try {
+            return objectMapper.readValue(json, new TypeReference<>() {});
+        } catch (Exception e) {
+            throw new BusinessException("Configuration niveaux fidélité invalide");
+        }
+    }
+
     public boolean getBoolean(String key) {
         return Boolean.parseBoolean(getSetting(key));
     }
@@ -128,6 +163,46 @@ public class SettingsService {
             return null;
         }
         return Integer.parseInt(value);
+    }
+
+    @Transactional(readOnly = true)
+    public PosConfigResponse getPosConfig() {
+        Integer maxPending = getInteger(SettingKeys.POS_MAX_PENDING_PAYMENT_DURATION);
+        Integer alertPending = getInteger(SettingKeys.POS_ALERT_PENDING_PAYMENT_MINUTES);
+        Integer alertCash = getInteger(SettingKeys.POS_ALERT_CASH_DIFFERENCE_THRESHOLD);
+        String salesFlowMode = resolveSalesFlowMode();
+        return PosConfigResponse.builder()
+                .salesFlowMode(salesFlowMode)
+                .cashHandlingMode(mapSalesFlowToLegacyMode(salesFlowMode))
+                .allowSellerCashCollection(getBoolean(SettingKeys.POS_ALLOW_SELLER_CASH_COLLECTION))
+                .allowPartialPayment(getBoolean(SettingKeys.POS_ALLOW_PARTIAL_PAYMENT))
+                .allowSplitPayment(getBoolean(SettingKeys.POS_ALLOW_SPLIT_PAYMENT))
+                .maxPendingPaymentDurationMinutes(maxPending != null ? maxPending : 120)
+                .alertPendingPaymentMinutes(alertPending != null ? alertPending : 15)
+                .alertCashDifferenceThreshold(alertCash != null ? alertCash : 20)
+                .build();
+    }
+
+    private String resolveSalesFlowMode() {
+        String mode = getSetting(SettingKeys.POS_SALES_FLOW_MODE);
+        if (mode != null && !mode.isBlank()) {
+            return mode.trim();
+        }
+        String legacy = getSetting(SettingKeys.POS_CASH_HANDLING_MODE);
+        if ("CENTRAL_CASHIER".equals(legacy)) {
+            return "CENTRAL_CASHIER";
+        }
+        if ("SELLER_CASHIER".equals(legacy)) {
+            return "SELLER_COLLECTS_PAYMENT";
+        }
+        return "CENTRAL_CASHIER";
+    }
+
+    private static String mapSalesFlowToLegacyMode(String salesFlowMode) {
+        if ("CENTRAL_CASHIER".equals(salesFlowMode)) {
+            return "CENTRAL_CASHIER";
+        }
+        return "SELLER_CASHIER";
     }
 
     public void ensureDefaultsSeeded() {
@@ -219,6 +294,28 @@ public class SettingsService {
         map.put(SettingKeys.POS_REGISTER_NAME, def("Caisse 1", AppSettingType.STRING, "Nom de la caisse POS", true));
         map.put(SettingKeys.POS_TAX_RATE_DEFAULT, def("0", AppSettingType.NUMBER, "Taux TVA par defaut (%)", false));
         map.put(SettingKeys.POS_DEFAULT_WAREHOUSE_CODE, def("WH-MAIN", AppSettingType.STRING, "Code entrepot POS par defaut", false));
+        map.put(SettingKeys.POS_SALES_FLOW_MODE, def("CENTRAL_CASHIER", AppSettingType.STRING,
+                "Mode flux POS: SELLER_COLLECTS_PAYMENT ou CENTRAL_CASHIER", false));
+        map.put(SettingKeys.POS_CASH_HANDLING_MODE, def("CENTRAL_CASHIER", AppSettingType.STRING,
+                "Deprecated — utiliser pos_sales_flow_mode", false));
+        map.put(SettingKeys.POS_ALLOW_SELLER_CASH_COLLECTION, def("false", AppSettingType.BOOLEAN, "Autoriser encaissement vendeur", false));
+        map.put(SettingKeys.POS_ALLOW_PARTIAL_PAYMENT, def("false", AppSettingType.BOOLEAN, "Autoriser paiement partiel", false));
+        map.put(SettingKeys.POS_ALLOW_SPLIT_PAYMENT, def("true", AppSettingType.BOOLEAN, "Autoriser paiement fractionne", false));
+        map.put(SettingKeys.POS_MAX_PENDING_PAYMENT_DURATION, def("120", AppSettingType.NUMBER, "Duree max attente paiement (minutes)", false));
+        map.put(SettingKeys.POS_ALERT_PENDING_PAYMENT_MINUTES, def("15", AppSettingType.NUMBER, "Alerte vente en attente (minutes)", false));
+        map.put(SettingKeys.POS_ALERT_CASH_DIFFERENCE_THRESHOLD, def("20", AppSettingType.NUMBER, "Seuil alerte ecart caisse", false));
+        map.put(SettingKeys.LOYALTY_ENABLED, def("true", AppSettingType.BOOLEAN, "Activer la fidelite", false));
+        map.put(SettingKeys.LOYALTY_POINTS_PER_CURRENCY_UNIT, def("1", AppSettingType.NUMBER, "Points gagnes par unite de devise", false));
+        map.put(SettingKeys.LOYALTY_CURRENCY_UNIT_AMOUNT, def("1", AppSettingType.NUMBER, "Montant devise pour le calcul des points", false));
+        map.put(SettingKeys.LOYALTY_POINT_VALUE, def("0.05", AppSettingType.NUMBER, "Valeur monetaire d un point", false));
+        map.put(SettingKeys.LOYALTY_MINIMUM_POINTS_TO_REDEEM, def("100", AppSettingType.NUMBER, "Minimum de points pour utilisation", false));
+        map.put(SettingKeys.LOYALTY_MAXIMUM_DISCOUNT_PERCENT, def("50", AppSettingType.NUMBER, "Remise max fidélité (% du total)", false));
+        map.put(SettingKeys.LOYALTY_POINTS_EXPIRATION_ENABLED, def("false", AppSettingType.BOOLEAN, "Expiration des points activee", false));
+        map.put(SettingKeys.LOYALTY_POINTS_EXPIRATION_DAYS, def("365", AppSettingType.NUMBER, "Duree validite points (jours)", false));
+        map.put(SettingKeys.LOYALTY_EARN_ON_DISCOUNTED_SALES, def("true", AppSettingType.BOOLEAN, "Points sur ventes remisees", false));
+        map.put(SettingKeys.LOYALTY_EARN_ON_TAX_INCLUDED, def("false", AppSettingType.BOOLEAN, "Calcul points TTC", false));
+        map.put(SettingKeys.LOYALTY_ALLOW_REDEMPTION, def("true", AppSettingType.BOOLEAN, "Autoriser utilisation points", false));
+        map.put(SettingKeys.LOYALTY_TIERS_CONFIG, def(DEFAULT_LOYALTY_TIERS, AppSettingType.JSON, "Niveaux fidelite (JSON)", false));
         return map;
     }
 

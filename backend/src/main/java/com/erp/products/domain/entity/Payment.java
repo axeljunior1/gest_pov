@@ -25,6 +25,14 @@ public class Payment {
     @JoinColumn(name = "sale_id", nullable = false)
     private Sale sale;
 
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "cashier_id", nullable = false)
+    private User cashier;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "pos_session_id", nullable = false)
+    private PosSession posSession;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
     private PaymentMethod method;

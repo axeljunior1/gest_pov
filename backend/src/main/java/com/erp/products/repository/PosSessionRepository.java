@@ -15,4 +15,7 @@ public interface PosSessionRepository extends JpaRepository<PosSession, Long> {
     long countBySessionNumberStartingWith(String prefix);
 
     Optional<PosSession> findByCashierIdAndStatus(Long cashierId, PosSessionStatus status);
+
+    Optional<PosSession> findByCashierIdAndStatusAndSessionType(
+            Long cashierId, PosSessionStatus status, com.erp.products.domain.enums.PosSessionType sessionType);
 }

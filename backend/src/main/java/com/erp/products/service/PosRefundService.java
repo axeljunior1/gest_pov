@@ -32,13 +32,14 @@ public class PosRefundService {
     private final CurrentUserService currentUserService;
     private final PosMapper mapper;
     private final AuditService auditService;
+    private final LoyaltyService loyaltyService;
 
     @Transactional
     public SaleRefundResponse createRefund(Long saleId, SaleRefundRequest request) {
         Sale sale = saleRepository.findByIdForUpdate(saleId)
                 .orElseThrow(() -> new ResourceNotFoundException("Vente non trouvee: " + saleId));
-        if (sale.getStatus() != SaleStatus.VALIDATED && sale.getStatus() != SaleStatus.PARTIALLY_REFUNDED) {
-            throw new BusinessException("Seule une vente validee peut etre remboursee");
+        if (!SaleStatuses.isPaid(sale.getStatus()) && sale.getStatus() != SaleStatus.PARTIALLY_REFUNDED) {
+            throw new BusinessException("Seule une vente payee peut etre remboursee");
         }
 
         boolean returnToStock = request.getReturnToStock() == null || request.getReturnToStock();
@@ -103,6 +104,7 @@ public class PosRefundService {
         saleRepository.save(sale);
 
         SaleRefund saved = refundRepository.save(refund);
+        loyaltyService.processRefund(sale, totalRefund);
         auditService.log("SaleRefund", saved.getId(), AuditAction.CREATION,
                 "Remboursement " + saved.getRefundNumber(), saved.getCreatedBy());
         return mapper.toRefundResponse(saved);

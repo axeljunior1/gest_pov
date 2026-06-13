@@ -152,6 +152,19 @@ export const dashboardApi = {
   warehouses: () => api.get('/dashboard/warehouses').then(r => r.data),
 }
 
+export const analyticsApi = {
+  overview: (params) => api.get('/analytics/overview', { params }).then(r => r.data),
+  timeline: (params) => api.get('/analytics/sales/timeline', { params }).then(r => r.data),
+  topProducts: (params) => api.get('/analytics/products/top', { params }).then(r => r.data),
+  categories: (params) => api.get('/analytics/categories', { params }).then(r => r.data),
+  payments: (params) => api.get('/analytics/payments', { params }).then(r => r.data),
+  cashiers: (params) => api.get('/analytics/cashiers', { params }).then(r => r.data),
+  customers: (params) => api.get('/analytics/customers', { params }).then(r => r.data),
+  stockAlerts: (params) => api.get('/analytics/stock-alerts', { params }).then(r => r.data),
+  businessAlerts: (params) => api.get('/analytics/business-alerts', { params }).then(r => r.data),
+  exportCsv: (params) => api.get('/analytics/export', { params, responseType: 'blob' }).then(r => r.data),
+}
+
 export const alertsApi = {
   list: (params) => api.get('/alerts', { params }).then(r => r.data),
   getById: (id) => api.get(`/alerts/${id}`).then(r => r.data),
@@ -297,7 +310,28 @@ export const posApi = {
   listHold: () => api.get('/pos/sales/hold').then(r => r.data),
   deleteHold: (id) => api.delete(`/pos/sales/${id}`),
   validateSale: (id, data) => api.post(`/pos/sales/${id}/validate`, data).then(r => r.data),
+  submitForPayment: (id) => api.post(`/pos/sales/${id}/send-to-payment`).then(r => r.data),
+  sendToPayment: (id) => api.post(`/pos/sales/${id}/send-to-payment`).then(r => r.data),
+  listPendingPayments: () => api.get('/pos/sales/pending-payment').then(r => r.data),
   cancelSale: (id) => api.post(`/pos/sales/${id}/cancel`).then(r => r.data),
   ticket: (id) => api.get(`/pos/sales/${id}/ticket`).then(r => r.data),
   refund: (id, data) => api.post(`/pos/sales/${id}/refund`, data).then(r => r.data),
+  searchCustomers: (q) => api.get('/pos/customers/search', { params: { q } }).then(r => r.data),
+  quickCreateCustomer: (data) => api.post('/pos/customers/quick', data).then(r => r.data),
+  assignCustomer: (saleId, customerId) => api.put(`/pos/sales/${saleId}/customer`, { customerId }).then(r => r.data),
+  removeCustomer: (saleId) => api.delete(`/pos/sales/${saleId}/customer`).then(r => r.data),
+  redeemLoyalty: (saleId, points) => api.post(`/pos/sales/${saleId}/loyalty/redeem`, { points }).then(r => r.data),
+  clearLoyaltyRedemption: (saleId) => api.delete(`/pos/sales/${saleId}/loyalty/redeem`).then(r => r.data),
+}
+
+export const customersApi = {
+  list: () => api.get('/customers').then(r => r.data),
+  search: (q) => api.get('/customers/search', { params: { q } }).then(r => r.data),
+  get: (id) => api.get(`/customers/${id}`).then(r => r.data),
+  history: (id) => api.get(`/customers/${id}/history`).then(r => r.data),
+  create: (data) => api.post('/customers', data).then(r => r.data),
+  update: (id, data) => api.put(`/customers/${id}`, data).then(r => r.data),
+  delete: (id) => api.delete(`/customers/${id}`),
+  transactions: (id) => api.get(`/customers/${id}/loyalty/transactions`).then(r => r.data),
+  adjustPoints: (id, data) => api.post(`/customers/${id}/loyalty/adjust`, data).then(r => r.data),
 }

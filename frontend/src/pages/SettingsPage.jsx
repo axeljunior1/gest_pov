@@ -16,9 +16,45 @@ const GROUPS = [
   },
   {
     title: 'Numérotation documents',
-    keys: ['numbering.entry_prefix', 'numbering.exit_prefix', 'numbering.inventory_prefix', 'numbering.movement_prefix'],
+    keys: ['numbering.entry_prefix', 'numbering.exit_prefix', 'numbering.inventory_prefix', 'numbering.movement_prefix', 'numbering.sale_prefix'],
+  },
+  {
+    title: 'Point de vente (POS)',
+    keys: [
+      'pos_sales_flow_mode',
+      'pos.allow_seller_cash_collection',
+      'pos.allow_partial_payment',
+      'pos.allow_split_payment',
+      'pos.max_pending_payment_duration',
+      'pos.alert.pending_payment_minutes',
+      'pos.alert.cash_difference_threshold',
+      'pos.register_name',
+      'pos.default_warehouse_code',
+      'pos.tax_rate_default',
+    ],
+  },
+  {
+    title: 'Fidélité',
+    keys: [
+      'loyalty.enabled', 'loyalty.points_per_currency_unit', 'loyalty.currency_unit_amount',
+      'loyalty.point_value', 'loyalty.minimum_points_to_redeem', 'loyalty.maximum_discount_percent',
+      'loyalty.points_expiration_enabled', 'loyalty.points_expiration_days',
+      'loyalty.earn_points_on_discounted_sales', 'loyalty.earn_points_on_tax_included_amount',
+      'loyalty.allow_points_redemption', 'loyalty.tiers_config',
+    ],
   },
 ]
+
+const SELECT_OPTIONS = {
+  pos_sales_flow_mode: [
+    { value: 'SELLER_COLLECTS_PAYMENT', label: 'Vendeur encaisseur (SELLER_COLLECTS_PAYMENT)' },
+    { value: 'CENTRAL_CASHIER', label: 'Caisse centrale (CENTRAL_CASHIER)' },
+  ],
+  'pos.cash_handling_mode': [
+    { value: 'SELLER_CASHIER', label: 'Vendeur = caissier (legacy)' },
+    { value: 'CENTRAL_CASHIER', label: 'Caisse centrale (legacy)' },
+  ],
+}
 
 export default function SettingsPage() {
   const notify = useNotification()
@@ -85,12 +121,25 @@ export default function SettingsPage() {
                 const meta = byKey[key]
                 if (!meta) return null
                 const isBool = meta.type === 'BOOLEAN'
+                const isJson = meta.type === 'JSON'
+                const selectOptions = SELECT_OPTIONS[key]
                 return (
-                  <label key={key} className="block">
+                  <label key={key} className={`block ${isJson ? 'md:col-span-2' : ''}`}>
                     <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">
                       {meta.description || key}
                     </span>
-                    {isBool ? (
+                    {selectOptions ? (
+                      <select
+                        className="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                        value={values[key] ?? selectOptions[0].value}
+                        disabled={!canUpdate}
+                        onChange={(e) => handleChange(key, e.target.value)}
+                      >
+                        {selectOptions.map((opt) => (
+                          <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
+                      </select>
+                    ) : isBool ? (
                       <select
                         className="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
                         value={values[key] ?? 'false'}
@@ -100,6 +149,13 @@ export default function SettingsPage() {
                         <option value="true">Oui</option>
                         <option value="false">Non</option>
                       </select>
+                    ) : isJson ? (
+                      <textarea
+                        className="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono min-h-[120px]"
+                        value={values[key] ?? ''}
+                        disabled={!canUpdate}
+                        onChange={(e) => handleChange(key, e.target.value)}
+                      />
                     ) : (
                       <input
                         type={meta.type === 'NUMBER' ? 'number' : 'text'}

@@ -16,6 +16,11 @@ public class ProductPackagingResponse {
     private String symbole;
     private BigDecimal quantiteBase;
     private String codeBarre;
+    private BigDecimal prixVente;
+    private BigDecimal prixAchat;
+    private Boolean defaultVente;
+    private Boolean defaultAchat;
+    private Boolean actif;
     private Boolean principal;
     private String baseUnitSymbole;
     private String baseUnitNom;

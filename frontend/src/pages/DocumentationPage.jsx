@@ -110,8 +110,8 @@ const modules = [
     features: [
       'Authentification JWT (Bearer token, expiration 24 h)',
       'Compte admin initial : admin@erp.local / ErpAdmin2026!',
-      '5 rôles système : SUPER_ADMIN, ADMIN, MANAGER, OPERATOR, VIEWER',
-      'Permissions granulaires (produits, stock, mouvements, inventaires, entrées, sorties, alertes, dashboard, import/export, paramètres, utilisateurs, rôles)',
+      '6 rôles système : SUPER_ADMIN, ADMIN, MANAGER, OPERATOR, VIEWER, CASHIER',
+      'Permissions granulaires (produits, stock, mouvements, inventaires, entrées, sorties, alertes, dashboard, import/export, paramètres, utilisateurs, rôles, POS, clients, fidélité)',
       'Protection @PreAuthorize sur toutes les routes métier',
       'Acteur d’audit et mouvements : email JWT côté serveur (champ client ignoré si authentifié)',
       'Permissions rechargées depuis la base à chaque requête (effet immédiat sans reconnexion)',
@@ -188,10 +188,13 @@ const modules = [
       'Paramètres centralisés (table app_settings) : entreprise, logo, devise, langue, fuseau, format date',
       'Stock : autorisation stock négatif, seuil stock faible par défaut',
       'Alertes : délai péremption par défaut (utilisé si non surchargé par produit/entrepôt)',
-      'Numérotation : préfixes entrées, sorties, inventaires, mouvements',
+      'Numérotation : préfixes entrées, sorties, inventaires, mouvements, ventes POS',
+      'POS : nom caisse, taux TVA, entrepôt par défaut, mode caisse (SELLER_CASHIER / CENTRAL_CASHIER)',
+      'POS : paiement partiel/fractionné, durée max attente paiement, seuils alertes',
+      'Fidélité paramétrable : taux de gain, valeur du point, minimum utilisation, plafond remise, expiration, niveaux JSON',
       'Paramètres publics (sans auth) pour nom entreprise et affichage UI',
-      'Intégration modules stock, alertes, numérotation documents',
-      'Permissions : settings.read, settings.update',
+      'Intégration modules stock, alertes, numérotation documents, caisse',
+      'Permissions : settings.read, settings.update, loyalty.settings.update',
     ],
     api: [
       'GET /api/settings/public',
@@ -201,6 +204,77 @@ const modules = [
       'GET /api/settings/config/numbering',
       'GET /api/settings/config/stock',
       'GET /api/settings/config/alerts',
+      'GET /api/settings/config/loyalty',
+    ],
+  },
+  {
+    id: 8,
+    title: 'Module 8 — Caisse POS',
+    status: 'En place',
+    tone: 'success',
+    route: '/pos',
+    pages: ['Caisse POS', 'Paiements en attente (/pos/pending)'],
+    features: [
+      'Deux modes pilotés par Settings (pos.cash_handling_mode) sans modification de code :',
+      '  · SELLER_CASHIER — vendeur = caissier : DRAFT → paiement → VALIDATED, session CASHIER, fond de caisse',
+      '  · CENTRAL_CASHIER — vendeur prépare (session SALES) → PENDING_PAYMENT → caissier encaisse → VALIDATED',
+      'Stock décrémenté uniquement à VALIDATED (jamais en DRAFT ni PENDING_PAYMENT)',
+      'Sessions typées SALES (vendeur) ou CASHIER (caisse) selon le mode et le rôle',
+      'Rôles SELLER (préparation) et CASHIER (encaissement) avec permissions dédiées',
+      'Écran « Paiements en attente » pour la caisse centrale (encaisser / annuler / détail)',
+      'Sessions de caisse (ouverture / clôture) liées à un entrepôt, calcul écart cash',
+      'Catalogue produits par catégorie, promotions, recherche nom / SKU / code-barres',
+      'Panier : lignes, quantités, remises, ventes en attente (HOLD) et reprise',
+      'Paiement multi-modes paramétrable (split / partiel via Settings)',
+      'Validation vente → sortie stock (mouvement OUT) + ticket TK-YYYYMMDD-####',
+      'Remboursements total ou partiel avec retour stock optionnel',
+      'Comptes test : seller@erp.local / Seller2026! · cashier@erp.local / Cashier2026!',
+      'Raccourcis : F2 recherche, F3 quantité, F4 paiement ou envoi caisse, F8 attente, F9 reprise',
+      'Permissions : pos.sale.prepare, pos.payment.collect, pos.session.*, pos.sale.*',
+    ],
+    api: [
+      'GET /api/pos/context (inclut posConfig)',
+      'POST /api/pos/sessions/open | close',
+      'GET /api/pos/catalog | /catalog/search',
+      'POST /api/pos/sales',
+      'POST /api/pos/sales/{id}/submit-payment',
+      'GET /api/pos/sales/pending-payment',
+      'POST /api/pos/sales/{id}/lines | validate | hold | resume | cancel',
+      'POST /api/pos/sales/{id}/refund',
+      'GET /api/pos/sales/{id}/ticket',
+    ],
+  },
+  {
+    id: 9,
+    title: 'Module 9 — Clients & Fidélité',
+    status: 'En place',
+    tone: 'success',
+    route: '/customers',
+    pages: ['Clients', 'Caisse POS (zone client)'],
+    features: [
+      'Fiche client : numéro CLI-YYYYMMDD-####, identité, contact, notes, statut actif',
+      'Vente anonyme toujours possible ; association client sur vente brouillon',
+      'Recherche POS par téléphone, nom, prénom, email ou numéro client',
+      'Création rapide depuis la caisse (nom + téléphone) sans quitter l’écran POS',
+      'Fidélité entièrement paramétrable (Settings) — jamais codée en dur',
+      'Gain de points à la validation vente uniquement (pas en attente / brouillon / annulée)',
+      'Utilisation des points en remise avant paiement (minimum, plafond %, valeur point)',
+      'Niveaux fidélité configurables en JSON (BRONZE, SILVER, GOLD, PLATINUM…)',
+      'Historique immuable LoyaltyTransaction avec rule_snapshot (paramètres au moment du calcul)',
+      'Remboursement : reversal des points gagnés et recrédit des points utilisés',
+      'Fiche client : achats, CA, panier moyen, top produits, transactions fidélité',
+      'Ajustement manuel points réservé MANAGER / ADMIN (caissier interdit)',
+      'Comptes : caissier@erp.local / Caissier2026! (prod) · cashier@erp.local / Cashier2026! (test)',
+    ],
+    api: [
+      'GET/POST/PUT/DELETE /api/customers',
+      'GET /api/customers/search | /{id}/history',
+      'GET /api/customers/{id}/loyalty/transactions',
+      'POST /api/customers/{id}/loyalty/adjust',
+      'GET /api/pos/customers/search',
+      'POST /api/pos/customers/quick',
+      'PUT/DELETE /api/pos/sales/{id}/customer',
+      'POST/DELETE /api/pos/sales/{id}/loyalty/redeem',
     ],
   },
 ]
@@ -252,7 +326,7 @@ export default function DocumentationPage() {
           Backend sur le port <strong>8080</strong>, frontend sur le port <strong>5173</strong>.
           Base PostgreSQL via Docker (<code className="text-xs bg-white px-1.5 py-0.5 rounded">.\db.ps1</code> ou{' '}
           <code className="text-xs bg-white px-1.5 py-0.5 rounded">.\dev.ps1</code>).
-          47+ tests backend automatisés (JUnit + MockMvc).
+          94+ tests backend automatisés (JUnit + MockMvc).
         </p>
       </Card>
 
@@ -294,8 +368,24 @@ export default function DocumentationPage() {
           <li>• Alertes : <code className="text-xs bg-white px-1 rounded">alerts.read</code> pour consulter, <code className="text-xs bg-white px-1 rounded">alerts.manage</code> pour acquitter / résoudre / ignorer.</li>
           <li>• Paramètres : <code className="text-xs bg-white px-1 rounded">settings.read</code> pour consulter, <code className="text-xs bg-white px-1 rounded">settings.update</code> pour modifier.</li>
           <li>• Import/Export : <code className="text-xs bg-white px-1 rounded">import.read</code>, <code className="text-xs bg-white px-1 rounded">import.create</code>, <code className="text-xs bg-white px-1 rounded">export.read</code>.</li>
-          <li>• Pages sensibles protégées côté frontend : /users, /roles, /alerts, /settings — accès refusé affiché si permission manquante.</li>
+          <li>• POS : <code className="text-xs bg-white px-1 rounded">pos.sale.prepare</code>, <code className="text-xs bg-white px-1 rounded">pos.payment.collect</code>, <code className="text-xs bg-white px-1 rounded">pos.session.open</code>… — rôles SELLER (préparation) et CASHIER (encaissement).</li>
+          <li>• Clients : <code className="text-xs bg-white px-1 rounded">customer.read</code>, <code className="text-xs bg-white px-1 rounded">customer.create</code> (caissier), <code className="text-xs bg-white px-1 rounded">customer.update</code> (manager).</li>
+          <li>• Fidélité : <code className="text-xs bg-white px-1 rounded">loyalty.read</code>, <code className="text-xs bg-white px-1 rounded">loyalty.redeem</code> (caissier), <code className="text-xs bg-white px-1 rounded">loyalty.manage</code> (ajustement points, manager).</li>
+          <li>• Navigation regroupée : Catalogue, Stock, Clients, Administration avec sous-onglets horizontaux.</li>
+          <li>• Pages sensibles protégées côté frontend : /users, /roles, /alerts, /settings, /customers — accès refusé affiché si permission manquante.</li>
           <li>• Erreur HTTP 403 : message « Accès refusé — permission insuffisante ».</li>
+        </ul>
+      </Card>
+
+      <Card className="p-6 mt-6 border-dashed">
+        <h3 className="text-sm font-semibold text-gray-900 mb-2">Règles métier fidélité (résumé)</h3>
+        <ul className="text-sm text-gray-600 space-y-1.5">
+          <li>• Paramètres par défaut : 1 € dépensé = 1 point · 1 point = 0,05 € · minimum 100 points pour utiliser · remise max 50 % du total</li>
+          <li>• Points gagnés uniquement sur vente validée avec client identifié ; fidélité désactivable via <code className="text-xs bg-gray-100 px-1 rounded">loyalty.enabled</code></li>
+          <li>• Points utilisés : réservés sur le panier, débités définitivement au paiement (validation)</li>
+          <li>• Chaque transaction stocke un <code className="text-xs bg-gray-100 px-1 rounded">rule_snapshot</code> — l’historique reste correct si les paramètres changent</li>
+          <li>• Remboursement : retrait des points gagnés + recrédit des points utilisés (transaction REFUND_REVERSAL)</li>
+          <li>• Niveaux recalculés automatiquement après chaque gain (config JSON dans Paramètres → Fidélité)</li>
         </ul>
       </Card>
 
@@ -326,7 +416,8 @@ export default function DocumentationPage() {
         <h3 className="text-sm font-semibold text-amber-900 mb-2">Hors périmètre actuel</h3>
         <p className="text-sm text-amber-800">
           Envoi réel EMAIL/SMS/PUSH/Slack/WhatsApp, interface avancée de configuration des seuils d’alerte par produit,
-          gestion des commandes fournisseur (entité minimale pour les retards)
+          gestion des commandes fournisseur (entité minimale pour les retards),
+          expiration automatique planifiée des points fidélité (champ configuré, job non planifié)
           — non implémentés à ce stade.
         </p>
       </Card>

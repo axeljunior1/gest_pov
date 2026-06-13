@@ -35,6 +35,7 @@ class PackagingControllerTest extends AbstractIntegrationTest {
         product.setNom("Eau minérale");
         product.setSku("EAU-001");
         product.setUnitId(unitId);
+        product.setPrixVente(new BigDecimal("500"));
         product.setStatut(ProductStatus.ACTIF);
         product.setCycleVie(LifecycleStatus.ACTIF);
 
@@ -49,6 +50,7 @@ class PackagingControllerTest extends AbstractIntegrationTest {
         carton.setNom("Carton");
         carton.setSymbole("ctn");
         carton.setQuantiteBase(new BigDecimal("12"));
+        carton.setPrixVente(new BigDecimal("5500"));
         carton.setPrincipal(true);
 
         String packagingResponse = mockMvc.perform(post("/api/products/{id}/packagings", productId)
@@ -56,6 +58,7 @@ class PackagingControllerTest extends AbstractIntegrationTest {
                         .content(objectMapper.writeValueAsString(carton)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.quantiteBase").value(12))
+                .andExpect(jsonPath("$.prixVente").value(5500))
                 .andExpect(jsonPath("$.baseUnitSymbole").value("btl"))
                 .andReturn().getResponse().getContentAsString();
         Long packagingId = objectMapper.readTree(packagingResponse).get("id").asLong();

@@ -1,6 +1,7 @@
 package com.erp.products.domain.entity;
 
 import com.erp.products.domain.enums.PosSessionStatus;
+import com.erp.products.domain.enums.PosSessionType;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -47,6 +48,11 @@ public class PosSession {
     private BigDecimal differenceAmount;
 
     @Enumerated(EnumType.STRING)
+    @Column(name = "session_type", nullable = false, length = 20)
+    @Builder.Default
+    private PosSessionType sessionType = PosSessionType.CASHIER;
+
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     @Builder.Default
     private PosSessionStatus status = PosSessionStatus.OPEN;
@@ -64,6 +70,9 @@ public class PosSession {
     void onCreate() {
         if (openedAt == null) {
             openedAt = Instant.now();
+        }
+        if (sessionType == null) {
+            sessionType = PosSessionType.CASHIER;
         }
     }
 }

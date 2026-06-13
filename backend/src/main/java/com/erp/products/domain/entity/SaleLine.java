@@ -43,6 +43,15 @@ public class SaleLine {
     @Column(name = "unit_price", nullable = false, precision = 19, scale = 4)
     private BigDecimal unitPrice;
 
+    @Column(name = "packaging_name_snapshot")
+    private String packagingNameSnapshot;
+
+    @Column(name = "packaging_quantity_snapshot", precision = 19, scale = 6)
+    private BigDecimal packagingQuantitySnapshot;
+
+    @Column(name = "unit_price_snapshot", precision = 19, scale = 4)
+    private BigDecimal unitPriceSnapshot;
+
     @Column(name = "discount_amount", precision = 19, scale = 4)
     @Builder.Default
     private BigDecimal discountAmount = BigDecimal.ZERO;

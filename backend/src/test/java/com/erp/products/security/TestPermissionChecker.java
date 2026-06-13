@@ -7,8 +7,9 @@ import org.springframework.stereotype.Component;
 
 @Component("permissionChecker")
 @Profile("test")
-public class TestPermissionChecker {
+public class TestPermissionChecker implements PermissionEvaluator {
 
+    @Override
     public boolean has(Authentication authentication, String permission) {
         if (authentication == null || !authentication.isAuthenticated()) {
             return true;

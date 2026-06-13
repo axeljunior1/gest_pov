@@ -38,6 +38,25 @@ public class ProductPackaging {
 
     private String codeBarre;
 
+    /** Prix de vente pour 1 conditionnement (pas le prix unité de base). */
+    @Column(name = "prix_vente", nullable = false, precision = 19, scale = 4)
+    private BigDecimal prixVente;
+
+    @Column(name = "prix_achat", precision = 19, scale = 4)
+    private BigDecimal prixAchat;
+
+    @Column(name = "default_vente", nullable = false)
+    @Builder.Default
+    private Boolean defaultVente = false;
+
+    @Column(name = "default_achat", nullable = false)
+    @Builder.Default
+    private Boolean defaultAchat = false;
+
+    @Column(nullable = false)
+    @Builder.Default
+    private Boolean actif = true;
+
     @Column(nullable = false)
     @Builder.Default
     private Boolean principal = false;

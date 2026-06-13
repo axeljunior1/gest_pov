@@ -81,6 +81,16 @@ public interface StockItemRepository extends JpaRepository<StockItem, Long> {
     List<Object[]> sumAvailableStockPerProduct();
 
     @Query("""
+            SELECT p.id, p.nom, p.sku, COALESCE(SUM(s.quantityOnHand - s.quantityReserved), 0)
+            FROM Product p
+            LEFT JOIN StockItem s ON s.product.id = p.id
+            WHERE p.statut = com.erp.products.domain.enums.ProductStatus.ACTIF
+            GROUP BY p.id, p.nom, p.sku
+            ORDER BY p.nom
+            """)
+    List<Object[]> findProductAvailableQuantities();
+
+    @Query("""
             SELECT s.warehouse.id, s.warehouse.code, s.warehouse.nom,
                    COALESCE(SUM(s.quantityOnHand), 0),
                    COALESCE(SUM(s.quantityOnHand * COALESCE(s.product.prixAchat, 0)), 0)

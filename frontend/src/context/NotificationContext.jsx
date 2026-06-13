@@ -25,7 +25,7 @@ export function NotificationProvider({ children }) {
       {children}
       <div
         aria-live="polite"
-        className="fixed top-4 right-4 z-50 flex flex-col gap-2 max-w-md w-full pointer-events-none"
+        className="fixed bottom-4 left-4 z-50 flex flex-col-reverse gap-2 max-w-md pointer-events-none"
       >
         {toasts.map((toast) => (
           <div

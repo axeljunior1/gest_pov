@@ -98,7 +98,7 @@ public class AuthReferenceDataInitializer implements ApplicationRunner {
 
         saveRole("Administrateur", "ADMIN",
                 "Administration generale", true, filter(all,
-                "products.", "stock.", "stock_entry.", "stock_exit.", "stock_movement.", "inventory.", "alerts.", "dashboard.", "import.", "export.", "settings.", "pos.",
+                "products.", "product_packaging.", "stock.", "stock_entry.", "stock_exit.", "stock_movement.", "inventory.", "alerts.", "dashboard.", "analytics.", "import.", "export.", "settings.", "pos.", "customer.", "loyalty.",
                 "users.read", "users.create", "users.update",
                 "roles.read", "roles.update"));
 
@@ -112,13 +112,24 @@ public class AuthReferenceDataInitializer implements ApplicationRunner {
                 "stock_entry.validate", "stock_entry.cancel",
                 "stock_exit.read", "stock_exit.create", "stock_exit.update",
                 "stock_exit.validate", "stock_exit.cancel",
-                "alerts.read", "alerts.manage", "dashboard.read", "import.read", "import.create", "export.read",
-                "pos.session.open", "pos.session.close", "pos.sale.read", "pos.sale.create", "pos.sale.validate",
-                "pos.sale.cancel", "pos.sale.discount", "pos.sale.refund", "pos.ticket.reprint", "pos.report.read"));
+                "alerts.read", "alerts.manage", "dashboard.read", "analytics.read", "analytics.sales.read", "analytics.stock.read", "analytics.cashier.read", "analytics.export", "import.read", "import.create", "export.read",
+                "pos.session.open", "pos.session.close", "pos.sale.read", "pos.sale.prepare", "pos.sale.create",
+                "pos.payment.collect", "pos.sale.validate",
+                "pos.sale.cancel", "pos.sale.discount", "pos.sale.refund", "pos.ticket.reprint", "pos.report.read",
+                "customer.read", "customer.create", "customer.update", "loyalty.read", "loyalty.redeem", "loyalty.manage"));
 
         saveRole("Caissier", "CASHIER",
-                "Vente en caisse uniquement", true, filter(all,
-                "pos.session.open", "pos.sale.read", "pos.sale.create", "pos.sale.validate", "pos.ticket.reprint"));
+                "Encaissement et session caisse", true, filter(all,
+                "pos.session.open", "pos.session.close", "pos.session.read",
+                "pos.payment.collect", "pos.payment.validate",
+                "pos.sale.read", "pos.ticket.print", "pos.ticket.reprint", "pos.report.read",
+                "customer.read", "loyalty.read"));
+
+        saveRole("Vendeur", "SELLER",
+                "Preparation ventes sans encaissement", true, filter(all,
+                "pos.sale.send_to_payment", "pos.sale.read", "pos.sale.read_own",
+                "pos.sale.create", "pos.sale.update_draft", "pos.sale.discount",
+                "customer.read", "customer.create", "loyalty.read", "loyalty.redeem"));
 
         saveRole("Operateur", "OPERATOR",
                 "Operations quotidiennes", true, filter(all,
@@ -139,7 +150,7 @@ public class AuthReferenceDataInitializer implements ApplicationRunner {
         Map<String, Permission> all = loadAllPermissions();
         grantRolePermissions("SUPER_ADMIN", all.values());
         grantRolePermissions("ADMIN", filter(all,
-                "products.", "stock.", "stock_entry.", "stock_exit.", "stock_movement.", "inventory.", "alerts.", "dashboard.", "import.", "export.", "settings.", "pos.",
+                "products.", "product_packaging.", "stock.", "stock_entry.", "stock_exit.", "stock_movement.", "inventory.", "alerts.", "dashboard.", "analytics.", "import.", "export.", "settings.", "pos.", "customer.", "loyalty.",
                 "users.read", "users.create", "users.update",
                 "roles.read", "roles.update"));
         grantRolePermissions("MANAGER", filter(all,
@@ -151,10 +162,13 @@ public class AuthReferenceDataInitializer implements ApplicationRunner {
                 "stock_entry.validate", "stock_entry.cancel",
                 "stock_exit.read", "stock_exit.create", "stock_exit.update",
                 "stock_exit.validate", "stock_exit.cancel",
-                "alerts.read", "alerts.manage", "dashboard.read", "import.read", "import.create", "export.read",
-                "pos.session.open", "pos.session.close", "pos.sale.read", "pos.sale.create", "pos.sale.validate",
-                "pos.sale.cancel", "pos.sale.discount", "pos.sale.refund", "pos.ticket.reprint", "pos.report.read"));
+                "alerts.read", "alerts.manage", "dashboard.read", "analytics.read", "analytics.sales.read", "analytics.stock.read", "analytics.cashier.read", "analytics.export", "import.read", "import.create", "export.read",
+                "pos.session.open", "pos.session.close", "pos.sale.read", "pos.sale.prepare", "pos.sale.create",
+                "pos.payment.collect", "pos.sale.validate",
+                "pos.sale.cancel", "pos.sale.discount", "pos.sale.refund", "pos.ticket.reprint", "pos.report.read",
+                "customer.read", "customer.create", "customer.update", "loyalty.read", "loyalty.redeem", "loyalty.manage"));
         ensureCashierRolePermissions();
+        ensureSellerRolePermissions();
         grantRolePermissions("OPERATOR", filter(all,
                 "products.read", "stock.read", "stock.adjust",
                 "stock_movement.read",
@@ -165,7 +179,7 @@ public class AuthReferenceDataInitializer implements ApplicationRunner {
         grantRolePermissions("VIEWER", filter(all,
                 "products.read", "stock.read", "stock_entry.read", "stock_exit.read",
                 "stock_movement.read", "inventory.read", "alerts.read", "dashboard.read", "import.read", "export.read",
-                "pos.sale.read", "pos.report.read"));
+                "customer.read", "loyalty.read", "pos.sale.read", "pos.report.read", "analytics.sales.read"));
     }
 
     private void grantRolePermissions(String roleCode, Collection<Permission> expected) {
@@ -217,7 +231,10 @@ public class AuthReferenceDataInitializer implements ApplicationRunner {
     private void ensureCashierRole() {
         Map<String, Permission> all = loadAllPermissions();
         Collection<Permission> cashierPerms = filter(all,
-                "pos.session.open", "pos.sale.read", "pos.sale.create", "pos.sale.validate", "pos.ticket.reprint");
+                "pos.session.open", "pos.session.close", "pos.session.read",
+                "pos.payment.collect", "pos.payment.validate",
+                "pos.sale.read", "pos.ticket.print", "pos.ticket.reprint", "pos.report.read",
+                "customer.read", "loyalty.read", "analytics.sales.read");
 
         roleRepository.findByCode("CASHIER").ifPresentOrElse(
                 role -> {
@@ -233,6 +250,25 @@ public class AuthReferenceDataInitializer implements ApplicationRunner {
 
     private void ensureCashierRolePermissions() {
         ensureCashierRole();
+    }
+
+    private void ensureSellerRolePermissions() {
+        Map<String, Permission> all = loadAllPermissions();
+        Collection<Permission> sellerPerms = filter(all,
+                "pos.sale.send_to_payment", "pos.sale.read", "pos.sale.read_own",
+                "pos.sale.create", "pos.sale.update_draft", "pos.sale.discount",
+                "customer.read", "customer.create", "loyalty.read", "loyalty.redeem");
+
+        roleRepository.findByCode("SELLER").ifPresentOrElse(
+                role -> {
+                    role.setPermissions(new HashSet<>(sellerPerms));
+                    roleRepository.save(role);
+                },
+                () -> {
+                    saveRole("Vendeur", "SELLER", "Preparation ventes sans encaissement", true, sellerPerms);
+                    log.info("Role SELLER cree");
+                }
+        );
     }
 
     private void seedCashierUser() {
@@ -288,6 +324,7 @@ public class AuthReferenceDataInitializer implements ApplicationRunner {
                 p("products.create", "Creer des produits", "MODULE_PRODUCTS"),
                 p("products.update", "Modifier des produits", "MODULE_PRODUCTS"),
                 p("products.delete", "Supprimer des produits", "MODULE_PRODUCTS"),
+                p("product_packaging.update_price", "Modifier le prix de vente des conditionnements", "MODULE_PRODUCTS"),
                 p("stock.read", "Consulter le stock", "MODULE_STOCK"),
                 p("stock.adjust", "Ajuster le stock", "MODULE_STOCK"),
                 p("stock_movement.read", "Consulter l historique des mouvements", "MODULE_STOCK"),
@@ -310,6 +347,11 @@ public class AuthReferenceDataInitializer implements ApplicationRunner {
                 p("alerts.read", "Consulter les alertes", "MODULE_ALERTS"),
                 p("alerts.manage", "Traiter les alertes", "MODULE_ALERTS"),
                 p("dashboard.read", "Consulter le tableau de bord", "MODULE_DASHBOARD"),
+                p("analytics.read", "Consulter analytics complet", "MODULE_ANALYTICS"),
+                p("analytics.sales.read", "Consulter analytics ventes", "MODULE_ANALYTICS"),
+                p("analytics.stock.read", "Consulter analytics stock", "MODULE_ANALYTICS"),
+                p("analytics.cashier.read", "Consulter performance caissiers", "MODULE_ANALYTICS"),
+                p("analytics.export", "Exporter analytics", "MODULE_ANALYTICS"),
                 p("import.read", "Consulter les imports et templates", "MODULE_IMPORT"),
                 p("import.create", "Executer des imports", "MODULE_IMPORT"),
                 p("export.read", "Exporter les donnees", "MODULE_EXPORT"),
@@ -317,14 +359,30 @@ public class AuthReferenceDataInitializer implements ApplicationRunner {
                 p("settings.update", "Modifier les parametres", "MODULE_SETTINGS"),
                 p("pos.session.open", "Ouvrir une session caisse", "MODULE_POS"),
                 p("pos.session.close", "Fermer une session caisse", "MODULE_POS"),
+                p("pos.session.read", "Consulter les sessions caisse", "MODULE_POS"),
                 p("pos.sale.read", "Consulter les ventes POS", "MODULE_POS"),
+                p("pos.sale.read_own", "Consulter ses ventes POS", "MODULE_POS"),
+                p("pos.sale.prepare", "Preparer des ventes POS (legacy)", "MODULE_POS"),
+                p("pos.sale.send_to_payment", "Envoyer une vente a l encaissement", "MODULE_POS"),
                 p("pos.sale.create", "Creer des ventes POS", "MODULE_POS"),
+                p("pos.sale.update_draft", "Modifier un panier brouillon", "MODULE_POS"),
+                p("pos.payment.collect", "Encaisser un paiement POS", "MODULE_POS"),
+                p("pos.payment.validate", "Valider un paiement POS", "MODULE_POS"),
                 p("pos.sale.validate", "Valider des ventes POS", "MODULE_POS"),
                 p("pos.sale.cancel", "Annuler des ventes POS", "MODULE_POS"),
                 p("pos.sale.discount", "Appliquer des remises POS", "MODULE_POS"),
                 p("pos.sale.refund", "Rembourser des ventes POS", "MODULE_POS"),
+                p("pos.ticket.print", "Imprimer un ticket POS", "MODULE_POS"),
                 p("pos.ticket.reprint", "Reimprimer des tickets", "MODULE_POS"),
                 p("pos.report.read", "Consulter les rapports caisse", "MODULE_POS"),
+                p("customer.read", "Consulter les clients", "MODULE_CUSTOMERS"),
+                p("customer.create", "Creer des clients", "MODULE_CUSTOMERS"),
+                p("customer.update", "Modifier des clients", "MODULE_CUSTOMERS"),
+                p("customer.delete", "Supprimer des clients", "MODULE_CUSTOMERS"),
+                p("loyalty.read", "Consulter la fidelite", "MODULE_LOYALTY"),
+                p("loyalty.redeem", "Utiliser points fidelite", "MODULE_LOYALTY"),
+                p("loyalty.manage", "Gerer points fidelite", "MODULE_LOYALTY"),
+                p("loyalty.settings.update", "Parametrer la fidelite", "MODULE_LOYALTY"),
                 p("users.read", "Lire les utilisateurs", "MODULE_USERS"),
                 p("users.create", "Creer des utilisateurs", "MODULE_USERS"),
                 p("users.update", "Modifier des utilisateurs", "MODULE_USERS"),

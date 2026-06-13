@@ -22,20 +22,24 @@ public class PosController {
     private final PosTicketService ticketService;
     private final PosRefundService refundService;
     private final SettingsService settingsService;
+    private final PosConfigService posConfigService;
+    private final CustomerService customerService;
 
     @GetMapping("/context")
     @PreAuthorize("@permissionChecker.has(authentication, 'pos.sale.read')")
     public Map<String, Object> context() {
         Map<String, Object> body = new java.util.LinkedHashMap<>();
         body.put("session", sessionService.getCurrentSessionOrNull());
+        body.put("posConfig", posConfigService.getConfig());
         body.put("registerName", settingsService.getSetting(com.erp.products.settings.SettingKeys.POS_REGISTER_NAME));
         body.put("publicSettings", settingsService.getPublicSettings());
+        body.put("loyaltyConfig", settingsService.getLoyaltyConfig());
         return body;
     }
 
     @PostMapping("/sessions/open")
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("@permissionChecker.has(authentication, 'pos.session.open')")
+    @PreAuthorize("@permissionChecker.hasAny(authentication, 'pos.session.open', 'pos.sale.send_to_payment', 'pos.sale.prepare')")
     public PosSessionResponse openSession(@RequestBody PosSessionOpenRequest request) {
         return sessionService.openSession(request);
     }
@@ -47,7 +51,7 @@ public class PosController {
     }
 
     @PostMapping("/sessions/close")
-    @PreAuthorize("@permissionChecker.has(authentication, 'pos.session.close')")
+    @PreAuthorize("@permissionChecker.hasAny(authentication, 'pos.session.close', 'pos.sale.send_to_payment', 'pos.sale.prepare')")
     public PosSessionReportResponse closeSession(@RequestBody PosSessionCloseRequest request) {
         return sessionService.closeSession(request);
     }
@@ -68,11 +72,19 @@ public class PosController {
 
     @GetMapping("/catalog/search")
     @PreAuthorize("@permissionChecker.has(authentication, 'pos.sale.read')")
-    public List<PosProductResponse> search(
+    public PosSearchResultResponse search(
             @RequestParam String q,
             @RequestParam(required = false) Long warehouseId,
             @RequestParam(required = false) Long categoryId) {
         return catalogService.search(q, warehouseId, categoryId);
+    }
+
+    @GetMapping("/catalog/products/{productId}")
+    @PreAuthorize("@permissionChecker.has(authentication, 'pos.sale.read')")
+    public PosProductResponse getProduct(
+            @PathVariable Long productId,
+            @RequestParam(required = false) Long warehouseId) {
+        return catalogService.getProduct(productId, warehouseId);
     }
 
     @PostMapping("/sales")
@@ -138,8 +150,26 @@ public class PosController {
         return saleService.listHoldSales();
     }
 
+    @GetMapping("/sales/pending-payment")
+    @PreAuthorize("@permissionChecker.has(authentication, 'pos.payment.collect')")
+    public List<SaleResponse> listPendingPayments() {
+        return saleService.listPendingPayments();
+    }
+
+    @PostMapping("/sales/{id}/send-to-payment")
+    @PreAuthorize("@permissionChecker.hasAny(authentication, 'pos.sale.send_to_payment', 'pos.sale.prepare')")
+    public SaleResponse sendToPayment(@PathVariable Long id) {
+        return saleService.sendToPayment(id);
+    }
+
+    @PostMapping("/sales/{id}/submit-payment")
+    @PreAuthorize("@permissionChecker.hasAny(authentication, 'pos.sale.send_to_payment', 'pos.sale.prepare')")
+    public SaleResponse submitForPayment(@PathVariable Long id) {
+        return saleService.submitForPayment(id);
+    }
+
     @PostMapping("/sales/{id}/validate")
-    @PreAuthorize("@permissionChecker.has(authentication, 'pos.sale.validate')")
+    @PreAuthorize("@permissionChecker.hasAny(authentication, 'pos.payment.collect', 'pos.payment.validate', 'pos.sale.validate')")
     public SaleResponse validateSale(@PathVariable Long id, @RequestBody SaleValidateRequest request) {
         return saleService.validateSale(id, request);
     }
@@ -151,7 +181,7 @@ public class PosController {
     }
 
     @GetMapping("/sales/{id}/ticket")
-    @PreAuthorize("@permissionChecker.has(authentication, 'pos.ticket.reprint')")
+    @PreAuthorize("@permissionChecker.hasAny(authentication, 'pos.ticket.print', 'pos.ticket.reprint')")
     public TicketResponse ticket(@PathVariable Long id) {
         return ticketService.buildTicket(id);
     }
@@ -161,5 +191,42 @@ public class PosController {
     @PreAuthorize("@permissionChecker.has(authentication, 'pos.sale.refund')")
     public SaleRefundResponse refund(@PathVariable Long id, @RequestBody SaleRefundRequest request) {
         return refundService.createRefund(id, request);
+    }
+
+    @GetMapping("/customers/search")
+    @PreAuthorize("@permissionChecker.has(authentication, 'customer.read')")
+    public List<CustomerResponse> searchCustomers(@RequestParam String q) {
+        return customerService.search(q);
+    }
+
+    @PostMapping("/customers/quick")
+    @ResponseStatus(HttpStatus.CREATED)
+    @PreAuthorize("@permissionChecker.has(authentication, 'customer.create')")
+    public CustomerResponse quickCreateCustomer(@RequestBody CustomerQuickCreateRequest request) {
+        return customerService.quickCreate(request);
+    }
+
+    @PutMapping("/sales/{id}/customer")
+    @PreAuthorize("@permissionChecker.has(authentication, 'customer.read')")
+    public SaleResponse assignCustomer(@PathVariable Long id, @RequestBody Map<String, Long> body) {
+        return saleService.assignCustomer(id, body.get("customerId"));
+    }
+
+    @DeleteMapping("/sales/{id}/customer")
+    @PreAuthorize("@permissionChecker.has(authentication, 'customer.read')")
+    public SaleResponse removeCustomer(@PathVariable Long id) {
+        return saleService.removeCustomer(id);
+    }
+
+    @PostMapping("/sales/{id}/loyalty/redeem")
+    @PreAuthorize("@permissionChecker.has(authentication, 'loyalty.redeem')")
+    public SaleResponse redeemLoyalty(@PathVariable Long id, @RequestBody LoyaltyRedeemRequest request) {
+        return saleService.applyLoyaltyRedemption(id, request);
+    }
+
+    @DeleteMapping("/sales/{id}/loyalty/redeem")
+    @PreAuthorize("@permissionChecker.has(authentication, 'loyalty.redeem')")
+    public SaleResponse clearLoyaltyRedemption(@PathVariable Long id) {
+        return saleService.clearLoyaltyRedemption(id);
     }
 }

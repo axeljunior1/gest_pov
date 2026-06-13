@@ -21,5 +21,17 @@ public class ProductPackagingRequest {
 
     private String codeBarre;
 
+    /** Prix de vente pour 1 conditionnement. Si absent, défaut = prix unité produit × quantiteBase. */
+    private BigDecimal prixVente;
+
+    private BigDecimal prixAchat;
+
+    private Boolean defaultVente;
+
+    private Boolean defaultAchat;
+
+    private Boolean actif;
+
+    /** Alias legacy : achat principal */
     private Boolean principal;
 }

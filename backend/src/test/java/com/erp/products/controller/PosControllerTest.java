@@ -89,6 +89,16 @@ class PosControllerTest extends com.erp.products.AbstractIntegrationTest {
 
         seedStock(20);
         adminToken = loginToken("admin@erp.local", "ErpAdmin2026!");
+        setPosMode("SELLER_COLLECTS_PAYMENT");
+    }
+
+    private void setPosMode(String mode) throws Exception {
+        mockMvc.perform(put("/api/settings")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "settings", Map.of("pos_sales_flow_mode", mode)))))
+                .andExpect(status().isOk());
     }
 
     @Test
@@ -149,7 +159,7 @@ class PosControllerTest extends com.erp.products.AbstractIntegrationTest {
                         .content(objectMapper.writeValueAsString(Map.of(
                                 "payments", List.of(Map.of("method", "CASH", "amount", totalPay)),
                                 "cashReceived", totalPay + 25))))
-                .andExpect(jsonPath("$.status", is("VALIDATED")));
+                .andExpect(jsonPath("$.status", is("PAID")));
 
         mockMvc.perform(get("/api/stock/available")
                         .param("productId", productId.toString())
@@ -173,8 +183,9 @@ class PosControllerTest extends com.erp.products.AbstractIntegrationTest {
         openSession();
         mockMvc.perform(auth(get("/api/pos/catalog/search")).param("q", productSku).param("warehouseId", warehouseId.toString()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$", hasSize(1)))
-                .andExpect(jsonPath("$[0].sku", is(productSku)));
+                .andExpect(jsonPath("$.matchType", is("EXACT_SKU")))
+                .andExpect(jsonPath("$.products", hasSize(1)))
+                .andExpect(jsonPath("$.products[0].sku", is(productSku)));
     }
 
     @Test
@@ -228,17 +239,41 @@ class PosControllerTest extends com.erp.products.AbstractIntegrationTest {
     }
 
     @Test
-    void shouldDenySessionCloseForCashierWithoutPermission() throws Exception {
-        openSessionAsCashier();
+    void shouldAllowSellerToCloseSalesSessionInCentralMode() throws Exception {
+        setCentralModeForSellerTest();
+        openSalesSessionAsSeller();
         String token = loginToken(
-                TestAuthReferenceDataInitializer.CASHIER_EMAIL,
-                TestAuthReferenceDataInitializer.CASHIER_PASSWORD);
+                TestAuthReferenceDataInitializer.SELLER_EMAIL,
+                TestAuthReferenceDataInitializer.SELLER_PASSWORD);
 
         mockMvc.perform(post("/api/pos/sessions/close")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of("closingCashAmount", 0))))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isOk());
+    }
+
+    private void setCentralModeForSellerTest() throws Exception {
+        mockMvc.perform(put("/api/settings")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "settings", Map.of("pos_sales_flow_mode", "CENTRAL_CASHIER")))))
+                .andExpect(status().isOk());
+    }
+
+    private void openSalesSessionAsSeller() throws Exception {
+        String token = loginToken(
+                TestAuthReferenceDataInitializer.SELLER_EMAIL,
+                TestAuthReferenceDataInitializer.SELLER_PASSWORD);
+        mockMvc.perform(post("/api/pos/sessions/open")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "warehouseId", warehouseId,
+                                "sessionType", "SALES",
+                                "openingCashAmount", 0))))
+                .andExpect(status().isCreated());
     }
 
     @Test
@@ -264,7 +299,7 @@ class PosControllerTest extends com.erp.products.AbstractIntegrationTest {
                                         Map.of("method", "CASH", "amount", half),
                                         Map.of("method", "CARD", "amount", rest))))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status", is("VALIDATED")));
+                .andExpect(jsonPath("$.status", is("PAID")));
     }
 
     private void openSession() throws Exception {
@@ -288,6 +323,19 @@ class PosControllerTest extends com.erp.products.AbstractIntegrationTest {
                                 "warehouseId", warehouseId,
                                 "openingCashAmount", 0))))
                 .andExpect(status().isCreated());
+    }
+
+    @Test
+    void shouldCloseSessionWithEmptyDraftSale() throws Exception {
+        openSession();
+        mockMvc.perform(auth(post("/api/pos/sales")))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(auth(post("/api/pos/sessions/close"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("closingCashAmount", 0))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.saleCount", is(0)));
     }
 
     private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder auth(

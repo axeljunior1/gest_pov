@@ -1,6 +1,7 @@
 package com.erp.products.dto;
 
 import com.erp.products.domain.enums.PosSessionStatus;
+import com.erp.products.domain.enums.PosSessionType;
 import lombok.Builder;
 import lombok.Data;
 
@@ -23,6 +24,7 @@ public class PosSessionResponse {
     private BigDecimal expectedCashAmount;
     private BigDecimal differenceAmount;
     private PosSessionStatus status;
+    private PosSessionType sessionType;
     private Instant openedAt;
     private Instant closedAt;
 }

@@ -52,7 +52,9 @@ export default function ProductDetailPage() {
   const [priceForm, setPriceForm] = useState({ type: 'VENTE', nouveauPrix: '' })
   const [lifecycleForm, setLifecycleForm] = useState({ cycleVie: 'BROUILLON' })
   const [barcodePreview, setBarcodePreview] = useState(null)
-  const [packagingForm, setPackagingForm] = useState({ nom: '', symbole: '', quantiteBase: '', principal: false })
+  const [packagingForm, setPackagingForm] = useState({
+    nom: '', symbole: '', quantiteBase: '', prixVente: '', defaultVente: false, principal: false,
+  })
   const [packagingConvert, setPackagingConvert] = useState({ packagingId: '', quantity: '' })
   const [packagingPreview, setPackagingPreview] = useState(null)
 
@@ -284,17 +286,26 @@ export default function ProductDetailPage() {
       notify.error('Indiquez combien d\'unités de base contient 1 conditionnement (ex: 12).')
       return
     }
+    let prixVente = parseFloat(String(packagingForm.prixVente).replace(',', '.'))
+    if (!packagingForm.prixVente || !Number.isFinite(prixVente)) {
+      const unitPrice = Number(form.prixVente) || 0
+      prixVente = unitPrice * quantiteBase
+    }
     run(
       () => productsApi.addPackaging(id, {
         nom: packagingForm.nom.trim(),
         symbole: packagingForm.symbole || null,
         quantiteBase,
+        prixVente,
+        defaultVente: packagingForm.defaultVente,
         principal: packagingForm.principal,
       }),
       {
         successMessage: 'Conditionnement ajouté',
         onSuccess: () => {
-          setPackagingForm({ nom: '', symbole: '', quantiteBase: '', principal: false })
+          setPackagingForm({
+            nom: '', symbole: '', quantiteBase: '', prixVente: '', defaultVente: false, principal: false,
+          })
           loadProduct()
         },
       },
@@ -509,6 +520,8 @@ export default function ProductDetailPage() {
                   <th className="px-5 py-3">Nom</th>
                   <th className="px-5 py-3">Symbole</th>
                   <th className="px-5 py-3">Contenu (unité de base)</th>
+                  <th className="px-5 py-3">Prix vente</th>
+                  <th className="px-5 py-3">Vente défaut</th>
                   <th className="px-5 py-3">Principal</th>
                   <th className="px-5 py-3"></th>
                 </tr>
@@ -521,6 +534,8 @@ export default function ProductDetailPage() {
                     <td className="px-5 py-3">
                       1 {p.nom} = {p.quantiteBase} {p.baseUnitSymbole || product?.baseUnitSymbole}
                     </td>
+                    <td className="px-5 py-3 font-medium">{p.prixVente != null ? Number(p.prixVente).toLocaleString('fr-FR') : '—'}</td>
+                    <td className="px-5 py-3">{p.defaultVente ? '✓' : ''}</td>
                     <td className="px-5 py-3">{p.principal ? '✓' : ''}</td>
                     <td className="px-5 py-3">
                       <Button variant="ghost" className="text-xs text-red-600" onClick={() => handleDeletePackaging(p.id)}>
@@ -529,7 +544,7 @@ export default function ProductDetailPage() {
                     </td>
                   </tr>
                 )) : (
-                  <tr><td colSpan={5} className="px-5 py-8 text-center text-gray-400">Aucun conditionnement</td></tr>
+                  <tr><td colSpan={7} className="px-5 py-8 text-center text-gray-400">Aucun conditionnement</td></tr>
                 )}
               </tbody>
             </table>
@@ -537,10 +552,21 @@ export default function ProductDetailPage() {
 
           <Card className="p-5">
             <h3 className="text-sm font-medium mb-3">Ajouter un conditionnement</h3>
-            <div className="grid grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <input placeholder="Nom (ex: Carton)" value={packagingForm.nom} onChange={(e) => setPackagingForm({ ...packagingForm, nom: e.target.value })} />
               <input placeholder="Symbole (ex: ctn)" value={packagingForm.symbole} onChange={(e) => setPackagingForm({ ...packagingForm, symbole: e.target.value })} />
-              <input placeholder="Qté unité de base (ex: 12)" type="number" min="0.000001" step="any" value={packagingForm.quantiteBase} onChange={(e) => setPackagingForm({ ...packagingForm, quantiteBase: e.target.value })} />
+              <input placeholder="Qté unité de base (ex: 12)" type="number" min="0.000001" step="any" value={packagingForm.quantiteBase} onChange={(e) => {
+                const quantiteBase = e.target.value
+                const unitPrice = Number(form.prixVente) || 0
+                const q = parseFloat(String(quantiteBase).replace(',', '.'))
+                const suggested = Number.isFinite(q) && q > 0 ? String(unitPrice * q) : packagingForm.prixVente
+                setPackagingForm({ ...packagingForm, quantiteBase, prixVente: suggested })
+              }} />
+              <input placeholder="Prix vente condi." type="number" min="0" step="any" value={packagingForm.prixVente} onChange={(e) => setPackagingForm({ ...packagingForm, prixVente: e.target.value })} />
+              <label className="flex items-center gap-2 text-sm">
+                <input type="checkbox" checked={packagingForm.defaultVente} onChange={(e) => setPackagingForm({ ...packagingForm, defaultVente: e.target.checked })} />
+                Vente par défaut (POS)
+              </label>
               <label className="flex items-center gap-2 text-sm">
                 <input type="checkbox" checked={packagingForm.principal} onChange={(e) => setPackagingForm({ ...packagingForm, principal: e.target.checked })} />
                 Achat principal

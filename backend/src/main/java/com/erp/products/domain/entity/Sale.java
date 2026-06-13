@@ -33,6 +33,14 @@ public class Sale {
     @JoinColumn(name = "pos_session_id", nullable = false)
     private PosSession posSession;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "payment_session_id")
+    private PosSession paymentSession;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "seller_id", nullable = false)
+    private User seller;
+
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "cashier_id", nullable = false)
     private User cashier;
@@ -74,6 +82,22 @@ public class Sale {
     @Builder.Default
     private BigDecimal changeAmount = BigDecimal.ZERO;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "customer_id")
+    private Customer customer;
+
+    @Column(name = "loyalty_discount_amount", precision = 19, scale = 4)
+    @Builder.Default
+    private BigDecimal loyaltyDiscountAmount = BigDecimal.ZERO;
+
+    @Column(name = "loyalty_points_redeemed")
+    @Builder.Default
+    private Integer loyaltyPointsRedeemed = 0;
+
+    @Column(name = "loyalty_points_earned")
+    @Builder.Default
+    private Integer loyaltyPointsEarned = 0;
+
     @Column(name = "hold_label", length = 120)
     private String holdLabel;
 
@@ -82,6 +106,12 @@ public class Sale {
 
     @Column(name = "validated_at")
     private Instant validatedAt;
+
+    @Column(name = "paid_at")
+    private Instant paidAt;
+
+    @Column(name = "submitted_at")
+    private Instant submittedAt;
 
     @Column(name = "cancelled_at")
     private Instant cancelledAt;
@@ -101,6 +131,21 @@ public class Sale {
     void onCreate() {
         if (createdAt == null) {
             createdAt = Instant.now();
+        }
+        syncSellerAndCashier();
+    }
+
+    @PreUpdate
+    void onUpdate() {
+        syncSellerAndCashier();
+    }
+
+    private void syncSellerAndCashier() {
+        if (seller == null && cashier != null) {
+            seller = cashier;
+        }
+        if (cashier == null && seller != null) {
+            cashier = seller;
         }
     }
 }

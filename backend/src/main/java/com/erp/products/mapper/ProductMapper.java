@@ -82,6 +82,11 @@ public class ProductMapper {
                 .symbole(packaging.getSymbole())
                 .quantiteBase(packaging.getQuantiteBase())
                 .codeBarre(packaging.getCodeBarre())
+                .prixVente(packaging.getPrixVente())
+                .prixAchat(packaging.getPrixAchat())
+                .defaultVente(packaging.getDefaultVente())
+                .defaultAchat(packaging.getDefaultAchat())
+                .actif(packaging.getActif())
                 .principal(packaging.getPrincipal())
                 .createdAt(packaging.getCreatedAt())
                 .updatedAt(packaging.getUpdatedAt());

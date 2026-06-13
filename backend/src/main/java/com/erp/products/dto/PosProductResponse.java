@@ -22,4 +22,7 @@ public class PosProductResponse {
     private boolean lowStock;
     private String imageUrl;
     private List<String> barcodes;
+    private List<PosPackagingResponse> packagings;
+    /** Renseigné lors d'un scan code-barres conditionnement. */
+    private Long matchedPackagingId;
 }

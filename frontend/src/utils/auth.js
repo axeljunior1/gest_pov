@@ -12,6 +12,32 @@ export function isPosOnlyUser(user) {
   return perms.every((p) => p.startsWith('pos.'))
 }
 
+export function canCollectPayment(user) {
+  const perms = user?.permissions ?? []
+  return perms.includes('pos.payment.collect') || perms.includes('pos.payment.validate')
+}
+
+export function canPrepareSales(user) {
+  const perms = user?.permissions ?? []
+  return perms.includes('pos.sale.send_to_payment')
+    || perms.includes('pos.sale.prepare')
+    || perms.includes('pos.sale.create')
+}
+
+/** Caissier pur : encaisse uniquement, ne prépare pas de ventes. */
+export function isCashierOnlyUser(user) {
+  if (!user) return false
+  return canCollectPayment(user) && !canPrepareSales(user)
+}
+
+/** Vendeur pur : prépare des ventes, n'encaisse pas. */
+export function isSellerOnlyUser(user) {
+  if (!user) return false
+  return canPrepareSales(user) && !canCollectPayment(user)
+}
+
 export function getDefaultAppPath(user) {
-  return isPosOnlyUser(user) ? '/pos' : '/'
+  if (isCashierOnlyUser(user)) return '/pos/pending'
+  if (isPosOnlyUser(user)) return '/pos'
+  return '/'
 }

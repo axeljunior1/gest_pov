@@ -9,13 +9,19 @@ import com.erp.products.exception.ResourceNotFoundException;
 import com.erp.products.mapper.ProductMapper;
 import com.erp.products.repository.ProductPackagingRepository;
 import com.erp.products.repository.ProductRepository;
+import com.erp.products.security.PermissionEvaluator;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Service
@@ -26,6 +32,7 @@ public class PackagingService {
     private final ProductRepository productRepository;
     private final ProductMapper mapper;
     private final AuditService auditService;
+    private final PermissionEvaluator permissionChecker;
 
     @Transactional(readOnly = true)
     public List<ProductPackagingResponse> listByProduct(Long productId) {
@@ -40,17 +47,30 @@ public class PackagingService {
         Product product = findProduct(productId);
         requireBaseUnit(product);
 
-        if (Boolean.TRUE.equals(request.getPrincipal())) {
-            clearPrincipal(product);
+        boolean defaultVente = Boolean.TRUE.equals(request.getDefaultVente());
+        boolean defaultAchat = Boolean.TRUE.equals(request.getDefaultAchat())
+                || Boolean.TRUE.equals(request.getPrincipal());
+        if (defaultVente) {
+            clearDefaultVente(product);
         }
+        if (defaultAchat) {
+            clearDefaultAchat(product);
+        }
+
+        BigDecimal prixVente = resolvePrixVente(product, request.getQuantiteBase(), request.getPrixVente());
 
         ProductPackaging packaging = ProductPackaging.builder()
                 .product(product)
                 .nom(request.getNom().trim())
                 .symbole(request.getSymbole())
                 .quantiteBase(request.getQuantiteBase())
-                .codeBarre(request.getCodeBarre())
-                .principal(Boolean.TRUE.equals(request.getPrincipal()))
+                .codeBarre(trimToNull(request.getCodeBarre()))
+                .prixVente(prixVente)
+                .prixAchat(request.getPrixAchat())
+                .defaultVente(defaultVente)
+                .defaultAchat(defaultAchat)
+                .principal(defaultAchat)
+                .actif(request.getActif() == null || request.getActif())
                 .build();
 
         ProductPackaging saved = packagingRepository.save(packaging);
@@ -58,7 +78,7 @@ public class PackagingService {
 
         auditService.log("Product", productId, AuditAction.MODIFICATION,
                 "Conditionnement ajouté: " + saved.getNom() + " (1 = " + saved.getQuantiteBase() + " "
-                        + product.getUnit().getSymbole() + ")");
+                        + product.getUnit().getSymbole() + ", prix vente " + saved.getPrixVente() + ")");
 
         return mapper.toPackagingResponse(saved, product);
     }
@@ -68,15 +88,35 @@ public class PackagingService {
         Product product = findProduct(productId);
         ProductPackaging packaging = findPackaging(productId, packagingId);
 
-        if (Boolean.TRUE.equals(request.getPrincipal())) {
-            clearPrincipal(product);
+        BigDecimal newPrixVente = request.getPrixVente() != null
+                ? request.getPrixVente()
+                : resolvePrixVente(product, request.getQuantiteBase(), null);
+        if (newPrixVente.compareTo(packaging.getPrixVente()) != 0 && !canUpdatePackagingPrice()) {
+            throw new BusinessException("Permission requise pour modifier le prix de vente du conditionnement");
+        }
+
+        boolean defaultVente = Boolean.TRUE.equals(request.getDefaultVente());
+        boolean defaultAchat = Boolean.TRUE.equals(request.getDefaultAchat())
+                || Boolean.TRUE.equals(request.getPrincipal());
+        if (defaultVente) {
+            clearDefaultVente(product);
+        }
+        if (defaultAchat) {
+            clearDefaultAchat(product);
         }
 
         packaging.setNom(request.getNom().trim());
         packaging.setSymbole(request.getSymbole());
         packaging.setQuantiteBase(request.getQuantiteBase());
-        packaging.setCodeBarre(request.getCodeBarre());
-        packaging.setPrincipal(Boolean.TRUE.equals(request.getPrincipal()));
+        packaging.setCodeBarre(trimToNull(request.getCodeBarre()));
+        packaging.setPrixVente(newPrixVente);
+        packaging.setPrixAchat(request.getPrixAchat());
+        packaging.setDefaultVente(defaultVente);
+        packaging.setDefaultAchat(defaultAchat);
+        packaging.setPrincipal(defaultAchat);
+        if (request.getActif() != null) {
+            packaging.setActif(request.getActif());
+        }
 
         return mapper.toPackagingResponse(packagingRepository.save(packaging), product);
     }
@@ -124,6 +164,14 @@ public class PackagingService {
                 .build();
     }
 
+    static BigDecimal resolvePrixVente(Product product, BigDecimal quantiteBase, BigDecimal requested) {
+        if (requested != null) {
+            return requested.setScale(4, RoundingMode.HALF_UP);
+        }
+        BigDecimal unitPrice = PosSaleService.resolveUnitPrice(product);
+        return unitPrice.multiply(quantiteBase).setScale(4, RoundingMode.HALF_UP);
+    }
+
     private Product findProduct(Long id) {
         return productRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Produit non trouvé: " + id));
@@ -141,7 +189,27 @@ public class PackagingService {
         }
     }
 
-    private void clearPrincipal(Product product) {
-        product.getConditionnements().forEach(p -> p.setPrincipal(false));
+    private void clearDefaultVente(Product product) {
+        product.getConditionnements().forEach(p -> p.setDefaultVente(false));
+    }
+
+    private void clearDefaultAchat(Product product) {
+        product.getConditionnements().forEach(p -> {
+            p.setDefaultAchat(false);
+            p.setPrincipal(false);
+        });
+    }
+
+    private boolean canUpdatePackagingPrice() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        return permissionChecker.has(auth, "product_packaging.update_price");
+    }
+
+    private static String trimToNull(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 }

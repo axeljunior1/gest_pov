@@ -1,6 +1,8 @@
 package com.erp.products.exception;
 
 import com.fasterxml.jackson.databind.exc.InvalidFormatException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -20,6 +22,8 @@ import java.util.Map;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<Map<String, Object>> handleAccessDenied(AccessDeniedException ex) {
@@ -43,8 +47,36 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<Map<String, Object>> handleDataIntegrity(DataIntegrityViolationException ex) {
-        return buildResponse(HttpStatus.CONFLICT,
-                "Suppression impossible : cette entité est encore utilisée ailleurs.");
+        String detail = ex.getMostSpecificCause() != null
+                ? ex.getMostSpecificCause().getMessage()
+                : ex.getMessage();
+        log.warn("Violation integrite donnees: {}", detail);
+        String message = mapIntegrityMessage(detail);
+        return buildResponse(HttpStatus.CONFLICT, message);
+    }
+
+    private static String mapIntegrityMessage(String detail) {
+        if (detail == null) {
+            return "Operation impossible : contrainte de donnees non respectee.";
+        }
+        String lower = detail.toLowerCase();
+        if (lower.contains("seller_id")
+                || (lower.contains("null value") && lower.contains("not-null"))) {
+            return "Donnees vente incompletes (vendeur manquant). Reessayez ou recreez la vente.";
+        }
+        if (lower.contains("sales_status_check")) {
+            return "Statut de vente non autorise en base — redemarrez le backend pour appliquer la migration POS.";
+        }
+        if (lower.contains("payments") && (lower.contains("cashier_id") || lower.contains("pos_session_id"))) {
+            return "Donnees paiement incompletes. Contactez un administrateur pour resynchroniser le POS.";
+        }
+        if (lower.contains("foreign key") || lower.contains("violates foreign key")) {
+            return "Operation impossible : reference invalide ou entite liee manquante.";
+        }
+        if (lower.contains("still referenced") || lower.contains("delete") || lower.contains("update or delete")) {
+            return "Suppression impossible : cette entite est encore utilisee ailleurs.";
+        }
+        return "Operation impossible : contrainte de donnees non respectee.";
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

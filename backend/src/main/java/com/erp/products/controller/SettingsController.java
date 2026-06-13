@@ -70,4 +70,10 @@ public class SettingsController {
     public AlertConfigResponse alertConfig() {
         return settingsService.getAlertConfig();
     }
+
+    @GetMapping("/config/loyalty")
+    @PreAuthorize("@permissionChecker.hasAny(authentication, 'settings.read', 'loyalty.read', 'loyalty.settings.update')")
+    public LoyaltyConfigResponse loyaltyConfig() {
+        return settingsService.getLoyaltyConfig();
+    }
 }

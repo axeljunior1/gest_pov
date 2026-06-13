@@ -19,7 +19,51 @@ body {
 }
 
 input, select, textarea {
-  @apply border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-gray-900/10 focus:border-gray-300;
+  @apply border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900/10 focus:border-gray-300;
+}
+
+/* Champs sombres POS — priorité sur les styles globaux ci-dessus */
+.pos-theme input,
+.pos-theme select,
+.pos-theme textarea {
+  background-color: #1e293b !important;
+  color: #f8fafc !important;
+  border-color: #475569 !important;
+  color-scheme: dark;
+  -webkit-text-fill-color: #f8fafc;
+}
+
+.pos-theme input::placeholder {
+  color: #94a3b8;
+  opacity: 1;
+}
+
+.pos-theme select option {
+  background-color: #1e293b;
+  color: #f8fafc;
+}
+
+.pos-theme input:-webkit-autofill,
+.pos-theme input:-webkit-autofill:hover,
+.pos-theme input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px #1e293b inset;
+  -webkit-text-fill-color: #f8fafc;
+  caret-color: #f8fafc;
+}
+
+/* Panneaux clairs (ticket après paiement) */
+.pos-theme .pos-light-panel {
+  background-color: #fff;
+  color: #111827;
+}
+
+.pos-theme .pos-light-panel input,
+.pos-theme .pos-light-panel select,
+.pos-theme .pos-light-panel textarea {
+  background-color: #fff !important;
+  color: #111827 !important;
+  border-color: #e5e7eb !important;
+  -webkit-text-fill-color: #111827;
 }
 
 button {

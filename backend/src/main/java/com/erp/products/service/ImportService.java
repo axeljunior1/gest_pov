@@ -281,9 +281,17 @@ public class ImportService {
                 .symbole(emptyToNull(TabularFileHelper.cell(row, 2)))
                 .quantiteBase(parseDecimal(TabularFileHelper.cell(row, 3)))
                 .codeBarre(emptyToNull(TabularFileHelper.cell(row, 4)))
+                .prixVente(PackagingService.resolvePrixVente(
+                        product,
+                        parseDecimal(TabularFileHelper.cell(row, 3)),
+                        parseDecimal(emptyToNull(TabularFileHelper.cell(row, 6)))))
+                .defaultAchat("true".equalsIgnoreCase(TabularFileHelper.cell(row, 5))
+                        || "1".equals(TabularFileHelper.cell(row, 5))
+                        || "oui".equalsIgnoreCase(TabularFileHelper.cell(row, 5)))
                 .principal("true".equalsIgnoreCase(TabularFileHelper.cell(row, 5))
                         || "1".equals(TabularFileHelper.cell(row, 5))
                         || "oui".equalsIgnoreCase(TabularFileHelper.cell(row, 5)))
+                .actif(true)
                 .build());
     }
 
