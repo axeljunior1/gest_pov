@@ -122,6 +122,24 @@ public class ProductController {
     }
 
     @PreAuthorize("@permissionChecker.has(authentication, 'products.update')")
+    @PostMapping("/{id}/lifecycle/submit")
+    public ProductResponse submitForValidation(@PathVariable Long id) {
+        return productService.submitForValidation(id, null);
+    }
+
+    @PreAuthorize("@permissionChecker.has(authentication, 'products.validate')")
+    @PostMapping("/{id}/lifecycle/approve")
+    public ProductResponse approveLifecycle(@PathVariable Long id) {
+        return productService.approveLifecycle(id, null);
+    }
+
+    @PreAuthorize("@permissionChecker.has(authentication, 'products.validate')")
+    @PostMapping("/{id}/lifecycle/reject")
+    public ProductResponse rejectLifecycle(@PathVariable Long id, @RequestBody(required = false) LifecycleRejectRequest request) {
+        return productService.rejectLifecycle(id, request != null ? request : new LifecycleRejectRequest());
+    }
+
+    @PreAuthorize("@permissionChecker.has(authentication, 'products.update')")
     @PatchMapping("/{id}/price")
     public ProductResponse updatePrice(@PathVariable Long id, @Valid @RequestBody PriceUpdateRequest request) {
         return productService.updatePrice(id, request);

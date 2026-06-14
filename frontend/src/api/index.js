@@ -13,6 +13,9 @@ export const productsApi = {
   delete: (id) => api.delete(`/products/${id}`),
   updatePrice: (id, data) => api.patch(`/products/${id}/price`, data).then(r => r.data),
   updateLifecycle: (id, data) => api.patch(`/products/${id}/lifecycle`, data).then(r => r.data),
+  submitLifecycle: (id) => api.post(`/products/${id}/lifecycle/submit`).then(r => r.data),
+  approveLifecycle: (id) => api.post(`/products/${id}/lifecycle/approve`).then(r => r.data),
+  rejectLifecycle: (id, data) => api.post(`/products/${id}/lifecycle/reject`, data || {}).then(r => r.data),
   moveCategory: (id, data) => api.patch(`/products/${id}/category`, data).then(r => r.data),
   getPriceHistory: (id) => api.get(`/products/${id}/price-history`).then(r => r.data),
   getAudit: (id) => api.get(`/products/${id}/audit`).then(r => r.data),
@@ -222,6 +225,21 @@ export const notificationsApi = {
   unreadCount: () =>
     api.get('/notifications/unread-count').then(r => r.data),
   markRead: (id) => api.post(`/notifications/${id}/read`).then(r => r.data),
+}
+
+export const purchaseOrdersApi = {
+  list: (params) => api.get('/purchase-orders', { params }).then(r => r.data),
+  getById: (id) => api.get(`/purchase-orders/${id}`).then(r => r.data),
+  create: (data) => api.post('/purchase-orders', data).then(r => r.data),
+  cancel: (id) => api.post(`/purchase-orders/${id}/cancel`).then(r => r.data),
+  receive: (id, data) => api.post(`/purchase-orders/${id}/receive`, data).then(r => r.data),
+}
+
+export const alertSettingsApi = {
+  list: () => api.get('/alert-settings').then(r => r.data),
+  create: (data) => api.post('/alert-settings', data).then(r => r.data),
+  update: (id, data) => api.put(`/alert-settings/${id}`, data).then(r => r.data),
+  delete: (id) => api.delete(`/alert-settings/${id}`),
 }
 
 export const usersApi = {

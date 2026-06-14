@@ -21,6 +21,7 @@ import BrandsPage from './pages/BrandsPage'
 import SuppliersPage from './pages/SuppliersPage'
 import UnitsPage from './pages/UnitsPage'
 import AttributesPage from './pages/AttributesPage'
+import PurchaseOrdersPage from './pages/PurchaseOrdersPage'
 import StockPage from './pages/StockPage'
 import StockEntriesPage from './pages/StockEntriesPage'
 import StockExitsPage from './pages/StockExitsPage'
@@ -99,6 +100,7 @@ export default function App() {
                   </Route>
                   <Route element={<PermissionRoute permission="stock_entry.read" />}>
                     <Route path="stock/entries" element={<StockEntriesPage />} />
+                    <Route path="purchase-orders" element={<PurchaseOrdersPage />} />
                   </Route>
                   <Route element={<PermissionRoute permission="inventory.read" />}>
                     <Route path="stock/inventories" element={<InventoryCountsPage />} />

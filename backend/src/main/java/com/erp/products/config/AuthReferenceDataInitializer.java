@@ -104,7 +104,7 @@ public class AuthReferenceDataInitializer implements ApplicationRunner {
 
         saveRole("Manager", "MANAGER",
                 "Gestion stock et entrees", true, filter(all,
-                "products.read", "products.update",
+                "products.read", "products.update", "products.validate",
                 "product_variant.read", "product_variant.create", "product_variant.update",
                 "product_variant.manage_stock", "product_variant.manage_packaging",
                 "stock.read", "stock.adjust",
@@ -161,7 +161,7 @@ public class AuthReferenceDataInitializer implements ApplicationRunner {
                 "users.read", "users.create", "users.update",
                 "roles.read", "roles.update"));
         grantRolePermissions("MANAGER", filter(all,
-                "products.read", "products.update",
+                "products.read", "products.update", "products.validate",
                 "product_variant.read", "product_variant.create", "product_variant.update",
                 "product_variant.manage_stock", "product_variant.manage_packaging",
                 "stock.read", "stock.adjust",
@@ -335,6 +335,7 @@ public class AuthReferenceDataInitializer implements ApplicationRunner {
                 p("products.read", "Lire les produits", "MODULE_PRODUCTS"),
                 p("products.create", "Creer des produits", "MODULE_PRODUCTS"),
                 p("products.update", "Modifier des produits", "MODULE_PRODUCTS"),
+                p("products.validate", "Valider le cycle de vie produit", "MODULE_PRODUCTS"),
                 p("products.delete", "Supprimer des produits", "MODULE_PRODUCTS"),
                 p("product_variant.read", "Lire les variantes produit", "MODULE_PRODUCTS"),
                 p("product_variant.create", "Creer des variantes produit", "MODULE_PRODUCTS"),

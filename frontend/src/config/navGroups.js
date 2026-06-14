@@ -67,6 +67,7 @@ export const navGroups = [
     items: [
       { to: '/stock', label: 'Consultation', permission: 'stock.read', isActive: (p) => p === '/stock' },
       { to: '/stock/entries', label: 'Entrées', permission: 'stock_entry.read' },
+      { to: '/purchase-orders', label: 'Commandes fourn.', permission: 'stock_entry.read' },
       { to: '/stock/exits', label: 'Sorties', permission: 'stock_exit.read' },
       { to: '/stock/movements', label: 'Mouvements', permissions: ['stock_movement.read', 'stock.read'] },
       { to: '/stock/inventories', label: 'Inventaires', permission: 'inventory.read' },

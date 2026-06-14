@@ -56,6 +56,7 @@ public class TestAuthReferenceDataInitializer implements ApplicationRunner {
                 new String[]{"products.read", "Lire les produits", "MODULE_PRODUCTS"},
                 new String[]{"products.create", "Creer des produits", "MODULE_PRODUCTS"},
                 new String[]{"products.update", "Modifier des produits", "MODULE_PRODUCTS"},
+                new String[]{"products.validate", "Valider le cycle de vie produit", "MODULE_PRODUCTS"},
                 new String[]{"products.delete", "Supprimer des produits", "MODULE_PRODUCTS"},
                 new String[]{"product_variant.read", "Lire les variantes produit", "MODULE_PRODUCTS"},
                 new String[]{"product_variant.create", "Creer des variantes produit", "MODULE_PRODUCTS"},
@@ -155,7 +156,7 @@ public class TestAuthReferenceDataInitializer implements ApplicationRunner {
         saveRole("Super administrateur", "SUPER_ADMIN", all.values());
         saveRole("Manager", "MANAGER", filter(all,
                 "inventory.read", "inventory.create", "inventory.update", "inventory.validate", "inventory.cancel",
-                "stock.read", "stock.adjust", "stock_entry.read", "stock_exit.read", "products.read", "products.update",
+                "stock.read", "stock.adjust", "stock_entry.read", "stock_exit.read", "products.read", "products.update", "products.validate",
                 "dashboard.read", "analytics.read", "analytics.sales.read", "analytics.stock.read", "analytics.cashier.read", "analytics.export", "sales.cancellations.read", "sales.cancellations.detail", "sales.cancellations.audit", "import.read", "import.create", "export.read",
                 "pos.session.open", "pos.session.close", "pos.sale.read", "pos.sale.prepare", "pos.sale.create",
                 "pos.payment.collect", "pos.sale.validate",

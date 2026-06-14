@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { settingsApi } from '../api'
 import SectionSubNav from './SectionSubNav'
+import NotificationBell from './NotificationBell'
 import { filterVisibleGroups, isNavItemActive, navGroups } from '../config/navGroups'
 
 function NavItem({ item, pathname }) {
@@ -135,6 +136,9 @@ export default function Layout() {
           className="w-full mx-auto px-6 sm:px-8 lg:px-10 xl:px-12 py-8"
           style={{ maxWidth: 'var(--layout-content-max-width)' }}
         >
+          <div className="flex justify-end mb-4">
+            <NotificationBell />
+          </div>
           <SectionSubNav />
           <Outlet />
         </div>

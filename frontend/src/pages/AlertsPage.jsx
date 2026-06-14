@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import AlertThresholdsPanel from '../components/AlertThresholdsPanel'
 import { alertsApi, notificationsApi, productsApi } from '../api'
 import { useAuth } from '../context/AuthContext'
 import { PageHeader, Card, Button, Loading, Tabs, Badge, EmptyState } from '../components/ui'
@@ -135,6 +136,7 @@ export default function AlertsPage() {
           { id: 'open', label: 'Alertes ouvertes' },
           { id: 'all', label: 'Historique' },
           { id: 'notifications', label: 'Notifications' },
+          { id: 'thresholds', label: 'Seuils' },
         ]}
         active={tab}
         onChange={(id) => {
@@ -213,6 +215,8 @@ export default function AlertsPage() {
             </ul>
           )}
         </Card>
+      ) : tab === 'thresholds' ? (
+        <AlertThresholdsPanel />
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
           <Card className="p-6 lg:col-span-2">

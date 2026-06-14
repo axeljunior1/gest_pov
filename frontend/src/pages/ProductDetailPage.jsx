@@ -7,6 +7,7 @@ import { PageHeader, Card, Button, Badge, Tabs, Loading, Alert } from '../compon
 import ProductBarcodesGallery from '../components/ProductBarcodesGallery'
 import { useAsyncAction } from '../hooks/useAsyncAction'
 import { useNotification } from '../context/NotificationContext'
+import { useAuth } from '../context/AuthContext'
 import { getErrorMessage } from '../utils/errors'
 import { buildProductPayload, buildVariantPayload } from '../utils/payload'
 import {
@@ -36,6 +37,7 @@ export default function ProductDetailPage() {
   const { id } = useParams()
   const navigate = useNavigate()
   const notify = useNotification()
+  const { hasPermission } = useAuth()
   const { run, submitting } = useAsyncAction()
   const isNew = id === 'new'
 
@@ -280,6 +282,30 @@ export default function ProductDetailPage() {
       { successMessage: 'Cycle de vie mis à jour', onSuccess: loadProduct },
     )
   }
+
+  const handleSubmitLifecycle = () => {
+    run(
+      () => productsApi.submitLifecycle(id),
+      { successMessage: 'Produit soumis à validation', onSuccess: loadProduct },
+    )
+  }
+
+  const handleApproveLifecycle = () => {
+    run(
+      () => productsApi.approveLifecycle(id),
+      { successMessage: 'Produit validé et activé au catalogue', onSuccess: loadProduct },
+    )
+  }
+
+  const handleRejectLifecycle = () => {
+    const reason = window.prompt('Motif du rejet (optionnel) :') || ''
+    run(
+      () => productsApi.rejectLifecycle(id, { reason }),
+      { successMessage: 'Produit renvoyé en brouillon', onSuccess: loadProduct },
+    )
+  }
+
+  const canValidate = hasPermission('products.validate')
 
   const handleImageUpload = async (e) => {
     const file = e.target.files?.[0]
@@ -1002,21 +1028,40 @@ export default function ProductDetailPage() {
       )}
 
       {tab === 'lifecycle' && !isNew && (
-        <Card className="p-5">
-          <div className="flex items-end gap-4">
+        <Card className="p-5 space-y-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge tone="info">{lifecycleLabel[product?.cycleVie] || product?.cycleVie}</Badge>
+            {product?.cycleVie === 'BROUILLON' && hasPermission('products.update') && (
+              <Button onClick={handleSubmitLifecycle} disabled={submitting}>Soumettre à validation</Button>
+            )}
+            {product?.cycleVie === 'EN_ATTENTE_VALIDATION' && canValidate && (
+              <>
+                <Button onClick={handleApproveLifecycle} disabled={submitting}>Valider & activer</Button>
+                <Button variant="secondary" onClick={handleRejectLifecycle} disabled={submitting}>Rejeter</Button>
+              </>
+            )}
+          </div>
+          <p className="text-sm text-gray-500">
+            Flux : Brouillon → Soumis → Validé (actif POS). L&apos;activation directe au statut « Actif » passe par la validation.
+          </p>
+          <div className="flex items-end gap-4 border-t pt-4">
             <div>
-              <label className="block text-xs text-gray-500 mb-1">État du cycle de vie</label>
+              <label className="block text-xs text-gray-500 mb-1">Changement manuel (hors activation)</label>
               <select value={lifecycleForm.cycleVie} onChange={(e) => setLifecycleForm({ ...lifecycleForm, cycleVie: e.target.value })} className="min-w-48">
-                {LIFECYCLE_STATUS.map((s) => <option key={s} value={s}>{lifecycleLabel[s]}</option>)}
+                {LIFECYCLE_STATUS.filter((s) => s !== 'ACTIF').map((s) => (
+                  <option key={s} value={s}>{lifecycleLabel[s]}</option>
+                ))}
               </select>
             </div>
-            <Button onClick={handleUpdateLifecycle} disabled={submitting}>Mettre à jour</Button>
+            {hasPermission('products.update') && (
+              <Button variant="secondary" onClick={handleUpdateLifecycle} disabled={submitting}>Mettre à jour</Button>
+            )}
           </div>
-          <div className="mt-6 flex items-center gap-2 text-xs text-gray-400">
+          <div className="mt-4 flex items-center gap-2 text-xs text-gray-400 flex-wrap">
             {LIFECYCLE_STATUS.map((s, i) => (
               <span key={s} className="flex items-center gap-2">
                 {i > 0 && '→'}
-                <span className={lifecycleForm.cycleVie === s ? 'text-gray-900 font-medium' : ''}>{lifecycleLabel[s]}</span>
+                <span className={product?.cycleVie === s ? 'text-gray-900 font-medium' : ''}>{lifecycleLabel[s]}</span>
               </span>
             ))}
           </div>

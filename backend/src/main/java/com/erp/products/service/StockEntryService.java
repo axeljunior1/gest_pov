@@ -110,6 +110,11 @@ public class StockEntryService {
         return mapper.toEntryResponse(findEntry(id));
     }
 
+    @Transactional(readOnly = true)
+    public StockEntry findEntity(Long id) {
+        return findEntry(id);
+    }
+
     @Transactional
     public StockEntryResponse validate(Long id, String user) {
         StockEntry entry = entryRepository.findByIdForUpdate(id)

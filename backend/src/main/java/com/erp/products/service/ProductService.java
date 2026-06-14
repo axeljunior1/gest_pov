@@ -206,13 +206,82 @@ public class ProductService {
     public ProductResponse updateLifecycle(Long id, LifecycleUpdateRequest request) {
         Product product = findProduct(id);
         LifecycleStatus old = product.getCycleVie();
-        product.setCycleVie(request.getCycleVie());
+        LifecycleStatus target = request.getCycleVie();
+
+        if (target == LifecycleStatus.ACTIF) {
+            throw new BusinessException("Utilisez l'action « Valider » pour activer le produit au catalogue");
+        }
+        if (target == LifecycleStatus.EN_ATTENTE_VALIDATION && old != LifecycleStatus.BROUILLON) {
+            throw new BusinessException("Seul un brouillon peut être soumis à validation");
+        }
+
+        product.setCycleVie(target);
         Product saved = productRepository.save(product);
 
         auditService.log("Product", saved.getId(), AuditAction.CHANGEMENT_CYCLE_VIE,
-                "Cycle de vie: " + old + " -> " + request.getCycleVie(), request.getUtilisateur());
+                "Cycle de vie: " + old + " -> " + target, request.getUtilisateur());
 
         return mapper.toProductResponse(findProduct(saved.getId()), barcodeService, true);
+    }
+
+    @Transactional
+    public ProductResponse submitForValidation(Long id, String utilisateur) {
+        Product product = findProduct(id);
+        if (product.getCycleVie() != LifecycleStatus.BROUILLON) {
+            throw new BusinessException("Seul un produit brouillon peut être soumis");
+        }
+        assertProductCompleteness(product);
+        product.setCycleVie(LifecycleStatus.EN_ATTENTE_VALIDATION);
+        Product saved = productRepository.save(product);
+        auditService.log("Product", saved.getId(), AuditAction.CHANGEMENT_CYCLE_VIE,
+                "Soumis à validation", utilisateur);
+        return mapper.toProductResponse(findProduct(saved.getId()), barcodeService, true);
+    }
+
+    @Transactional
+    public ProductResponse approveLifecycle(Long id, String utilisateur) {
+        Product product = findProduct(id);
+        if (product.getCycleVie() != LifecycleStatus.EN_ATTENTE_VALIDATION) {
+            throw new BusinessException("Seul un produit en attente de validation peut être approuvé");
+        }
+        assertProductCompleteness(product);
+        product.setCycleVie(LifecycleStatus.ACTIF);
+        product.setStatut(ProductStatus.ACTIF);
+        Product saved = productRepository.save(product);
+        auditService.log("Product", saved.getId(), AuditAction.CHANGEMENT_CYCLE_VIE,
+                "Produit validé et activé", utilisateur);
+        return mapper.toProductResponse(findProduct(saved.getId()), barcodeService, true);
+    }
+
+    @Transactional
+    public ProductResponse rejectLifecycle(Long id, LifecycleRejectRequest request) {
+        Product product = findProduct(id);
+        if (product.getCycleVie() != LifecycleStatus.EN_ATTENTE_VALIDATION) {
+            throw new BusinessException("Seul un produit en attente peut être rejeté");
+        }
+        product.setCycleVie(LifecycleStatus.BROUILLON);
+        Product saved = productRepository.save(product);
+        String details = request.getReason() != null && !request.getReason().isBlank()
+                ? "Rejeté: " + request.getReason().trim()
+                : "Rejeté — retour brouillon";
+        auditService.log("Product", saved.getId(), AuditAction.CHANGEMENT_CYCLE_VIE,
+                details, request.getUtilisateur());
+        return mapper.toProductResponse(findProduct(saved.getId()), barcodeService, true);
+    }
+
+    private void assertProductCompleteness(Product product) {
+        if (product.getNom() == null || product.getNom().isBlank()) {
+            throw new BusinessException("Nom produit obligatoire");
+        }
+        if (product.getSku() == null || product.getSku().isBlank()) {
+            throw new BusinessException("SKU obligatoire");
+        }
+        if (product.getUnit() == null) {
+            throw new BusinessException("Unité de base obligatoire");
+        }
+        if (product.getPrixVente() == null) {
+            throw new BusinessException("Prix de vente obligatoire");
+        }
     }
 
     @Transactional
