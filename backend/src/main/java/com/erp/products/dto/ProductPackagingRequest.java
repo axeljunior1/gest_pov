@@ -30,6 +30,12 @@ public class ProductPackagingRequest {
 
     private Boolean defaultAchat;
 
+    /** Utilisable à la vente (POS). */
+    private Boolean usableForSale;
+
+    /** Utilisable à l'achat / entrées stock. */
+    private Boolean usableForPurchase;
+
     private Boolean actif;
 
     /** Alias legacy : achat principal */

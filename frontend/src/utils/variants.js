@@ -37,6 +37,8 @@ export function duplicatePackagingForm(source, defaultVariantId = '') {
     symbole: source.symbole || '',
     quantiteBase: source.quantiteBase != null ? String(source.quantiteBase) : '',
     prixVente: source.prixVente != null ? String(source.prixVente) : '',
+    usableForSale: source.usableForSale !== false,
+    usableForPurchase: source.usableForPurchase !== false,
     defaultVente: false,
     principal: false,
     variantId: source.variantId ? String(source.variantId) : defaultVariantId,

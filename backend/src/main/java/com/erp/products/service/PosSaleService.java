@@ -666,6 +666,7 @@ public class PosSaleService {
             if (!Boolean.TRUE.equals(packaging.getActif())) {
                 throw new BusinessException("Conditionnement inactif");
             }
+            PackagingService.assertUsableForSale(packaging);
             if (packaging.getVariant() != null && variant != null
                     && !packaging.getVariant().getId().equals(variant.getId())) {
                 throw new BusinessException("Conditionnement invalide pour cette variante");
@@ -673,12 +674,12 @@ public class PosSaleService {
             return packaging;
         }
         Long variantId = variant != null ? variant.getId() : null;
-        return packagingRepository.findByProductIdAndActifTrueOrderByNomAsc(product.getId()).stream()
+        return packagingRepository.findByProductIdAndActifTrueAndUsableForSaleTrueOrderByNomAsc(product.getId()).stream()
                 .filter(p -> p.getVariant() == null
                         || (variantId != null && p.getVariant().getId().equals(variantId)))
                 .filter(p -> Boolean.TRUE.equals(p.getDefaultVente()))
                 .findFirst()
-                .or(() -> packagingRepository.findByProductIdAndActifTrueOrderByNomAsc(product.getId()).stream()
+                .or(() -> packagingRepository.findByProductIdAndActifTrueAndUsableForSaleTrueOrderByNomAsc(product.getId()).stream()
                         .filter(p -> p.getVariant() == null
                                 || (variantId != null && p.getVariant().getId().equals(variantId)))
                         .findFirst())
@@ -815,7 +816,9 @@ public class PosSaleService {
         if (packagingId == null) {
             return null;
         }
-        return packagingRepository.findByIdAndProductId(packagingId, productId)
+        ProductPackaging packaging = packagingRepository.findByIdAndProductId(packagingId, productId)
                 .orElseThrow(() -> new ResourceNotFoundException("Conditionnement non trouve"));
+        PackagingService.assertUsableForSale(packaging);
+        return packaging;
     }
 }

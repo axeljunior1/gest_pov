@@ -2,11 +2,11 @@ import { useState } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useNotification } from '../context/NotificationContext'
-import { getDefaultAppPath, isPosOnlyUser } from '../utils/auth'
+import { getDefaultAppPath } from '../utils/auth'
 import { getErrorMessage } from '../utils/errors'
 
 export default function LoginPage() {
-  const { login, isAuthenticated, user } = useAuth()
+  const { login, isAuthenticated, user, hasPermission } = useAuth()
   const notify = useNotification()
   const location = useLocation()
   const [email, setEmail] = useState('admin@erp.local')
@@ -15,7 +15,8 @@ export default function LoginPage() {
 
   if (isAuthenticated) {
     const from = location.state?.from?.pathname
-    const redirect = from && !isPosOnlyUser(user) ? from : getDefaultAppPath(user)
+    const defaultPath = getDefaultAppPath(user, hasPermission)
+    const redirect = from && from !== '/' && from !== '/login' ? from : defaultPath
     return <Navigate to={redirect} replace />
   }
 

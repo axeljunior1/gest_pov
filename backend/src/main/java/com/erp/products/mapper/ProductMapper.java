@@ -88,6 +88,8 @@ public class ProductMapper {
                 .prixAchat(packaging.getPrixAchat())
                 .defaultVente(packaging.getDefaultVente())
                 .defaultAchat(packaging.getDefaultAchat())
+                .usableForSale(packaging.getUsableForSale())
+                .usableForPurchase(packaging.getUsableForPurchase())
                 .actif(packaging.getActif())
                 .principal(packaging.getPrincipal())
                 .createdAt(packaging.getCreatedAt())

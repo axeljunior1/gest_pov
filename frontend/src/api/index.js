@@ -40,7 +40,7 @@ export const productsApi = {
   },
   deleteImage: (id, imageId) => api.delete(`/products/${id}/images/${imageId}`),
   deleteDocument: (id, documentId) => api.delete(`/products/${id}/documents/${documentId}`),
-  getPackagings: (id) => api.get(`/products/${id}/packagings`).then(r => r.data),
+  getPackagings: (id, params) => api.get(`/products/${id}/packagings`, { params }).then(r => r.data),
   addPackaging: (id, data) => api.post(`/products/${id}/packagings`, data).then(r => r.data),
   updatePackaging: (id, packagingId, data) => api.put(`/products/${id}/packagings/${packagingId}`, data).then(r => r.data),
   deletePackaging: (id, packagingId) => api.delete(`/products/${id}/packagings/${packagingId}`),

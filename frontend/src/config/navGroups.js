@@ -3,19 +3,36 @@ export const navGroups = [
     id: 'overview',
     items: [
       { to: '/dashboard', label: 'Tableau de bord', permission: 'dashboard.read' },
-      { to: '/analytics', label: 'Analytics', permissions: ['analytics.read', 'analytics.sales.read'] },
       { to: '/pos', label: 'Caisse POS', permission: 'pos.sale.read' },
+    ],
+  },
+  {
+    id: 'analytics',
+    label: 'Analytics',
+    items: [
+      {
+        to: '/analytics',
+        label: 'Vue d’ensemble',
+        permissions: ['analytics.read', 'analytics.sales.read'],
+        isActive: (p) => p === '/analytics' || (p.startsWith('/analytics/') && !p.startsWith('/analytics/cancellations')),
+      },
+      {
+        to: '/analytics/cancellations',
+        label: 'Ventes annulées',
+        permissions: ['sales.cancellations.read', 'analytics.read', 'analytics.sales.read'],
+        isActive: (p) => p === '/analytics/cancellations' || p.startsWith('/analytics/cancellations/'),
+      },
     ],
   },
   {
     id: 'catalog',
     label: 'Catalogue',
     items: [
-      { to: '/', label: 'Produits', isActive: (p) => p === '/' || p.startsWith('/products/') },
-      { to: '/categories', label: 'Catégories' },
-      { to: '/suppliers', label: 'Fournisseurs' },
-      { to: '/units', label: 'Unités' },
-      { to: '/attributes', label: 'Attributs' },
+      { to: '/', label: 'Produits', permission: 'products.read', isActive: (p) => p === '/' || p.startsWith('/products/') },
+      { to: '/categories', label: 'Catégories', permission: 'products.read' },
+      { to: '/suppliers', label: 'Fournisseurs', permission: 'products.read' },
+      { to: '/units', label: 'Unités', permission: 'products.read' },
+      { to: '/attributes', label: 'Attributs', permission: 'products.read' },
     ],
   },
   {
@@ -29,10 +46,10 @@ export const navGroups = [
     id: 'stock',
     label: 'Stock',
     items: [
-      { to: '/stock', label: 'Consultation', isActive: (p) => p === '/stock' },
-      { to: '/stock/entries', label: 'Entrées' },
+      { to: '/stock', label: 'Consultation', permission: 'stock.read', isActive: (p) => p === '/stock' },
+      { to: '/stock/entries', label: 'Entrées', permission: 'stock_entry.read' },
       { to: '/stock/exits', label: 'Sorties', permission: 'stock_exit.read' },
-      { to: '/stock/movements', label: 'Mouvements', permission: 'stock_movement.read' },
+      { to: '/stock/movements', label: 'Mouvements', permissions: ['stock_movement.read', 'stock.read'] },
       { to: '/stock/inventories', label: 'Inventaires', permission: 'inventory.read' },
       { to: '/alerts', label: 'Alertes', permission: 'alerts.read' },
     ],
@@ -65,19 +82,46 @@ export function findActiveGroup(pathname, groups) {
   return groups.find((g) => g.label && g.items.some((item) => isNavItemActive(pathname, item)))
 }
 
-export function filterVisibleGroups(groups, hasPermission, options = {}) {
+export function canSeeNavItem(item, hasPermission, options = {}) {
   const { isDev = import.meta.env.DEV, userRoles = [] } = options
+  if (item.devOnly && !isDev) return false
+  if (item.roles?.length && !item.roles.some((r) => userRoles.includes(r))) return false
+  if (item.permissions?.length) {
+    return item.permissions.some((p) => hasPermission(p))
+  }
+  return !item.permission || hasPermission(item.permission)
+}
+
+export function filterVisibleGroups(groups, hasPermission, options = {}) {
   return groups
     .map((group) => ({
       ...group,
-      items: group.items.filter((item) => {
-        if (item.devOnly && !isDev) return false
-        if (item.roles?.length && !item.roles.some((r) => userRoles.includes(r))) return false
-        if (item.permissions?.length) {
-          return item.permissions.some((p) => hasPermission(p))
-        }
-        return !item.permission || hasPermission(item.permission)
-      }),
+      items: group.items.filter((item) => canSeeNavItem(item, hasPermission, options)),
     }))
     .filter((group) => group.items.length > 0)
+}
+
+/** Première route accessible dans le menu (ordre sidebar). */
+export function getFirstAccessibleNavPath(hasPermission, options = {}) {
+  for (const group of filterVisibleGroups(navGroups, hasPermission, options)) {
+    for (const item of group.items) {
+      if (item.to) return item.to
+    }
+  }
+  return null
+}
+
+/** Première route back-office (hors POS). */
+export function getBackOfficeEntryPath(hasPermission, options = {}) {
+  for (const group of filterVisibleGroups(navGroups, hasPermission, options)) {
+    for (const item of group.items) {
+      if (item.to && item.to !== '/pos') return item.to
+    }
+  }
+  return null
+}
+
+/** L'utilisateur voit au moins un écran back-office (hors POS). */
+export function hasBackOfficeMenuAccess(hasPermission, options = {}) {
+  return getBackOfficeEntryPath(hasPermission, options) != null
 }

@@ -2,6 +2,7 @@ package com.erp.products.controller;
 
 import com.erp.products.domain.enums.DocumentType;
 import com.erp.products.domain.enums.LifecycleStatus;
+import com.erp.products.domain.enums.PackagingUsageContext;
 import com.erp.products.domain.enums.ProductStatus;
 import com.erp.products.dto.*;
 import com.erp.products.service.PackagingService;
@@ -218,8 +219,10 @@ public class ProductController {
 
     @PreAuthorize("@permissionChecker.has(authentication, 'products.read')")
     @GetMapping("/{id}/packagings")
-    public List<ProductPackagingResponse> listPackagings(@PathVariable Long id) {
-        return packagingService.listByProduct(id);
+    public List<ProductPackagingResponse> listPackagings(
+            @PathVariable Long id,
+            @RequestParam(required = false) PackagingUsageContext context) {
+        return packagingService.listByProduct(id, context);
     }
 
     @PreAuthorize("@permissionChecker.has(authentication, 'products.create')")

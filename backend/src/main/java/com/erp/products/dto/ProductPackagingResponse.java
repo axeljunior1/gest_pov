@@ -22,6 +22,8 @@ public class ProductPackagingResponse {
     private BigDecimal prixAchat;
     private Boolean defaultVente;
     private Boolean defaultAchat;
+    private Boolean usableForSale;
+    private Boolean usableForPurchase;
     private Boolean actif;
     private Boolean principal;
     private String baseUnitSymbole;

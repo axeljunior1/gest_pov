@@ -2,14 +2,17 @@ import { Outlet, Link } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import { settingsApi } from '../api'
 import { useAuth } from '../context/AuthContext'
-import { isPosOnlyUser, getPosRoleLabel } from '../utils/auth'
+import { getBackOfficeEntryPath } from '../config/navGroups'
+import { getPosRoleLabel } from '../utils/auth'
 import PosWorkspaceNav from './pos/PosWorkspaceNav'
 
 export default function POSLayout() {
-  const { user, logout } = useAuth()
+  const { user, logout, hasPermission } = useAuth()
   const [companyName, setCompanyName] = useState('ERP')
-  const posOnly = isPosOnlyUser(user)
   const roleLabel = getPosRoleLabel(user)
+  const navOptions = { userRoles: user?.roles ?? [] }
+  const backOfficePath = getBackOfficeEntryPath(hasPermission, navOptions)
+  const showBackOffice = backOfficePath != null
 
   useEffect(() => {
     settingsApi.getPublic()
@@ -31,9 +34,9 @@ export default function POSLayout() {
           <span className="px-2.5 py-1 rounded-md bg-slate-800 border border-slate-700 text-slate-200 text-xs font-medium">
             {roleLabel}
           </span>
-          {!posOnly && (
+          {showBackOffice && (
             <Link
-              to="/"
+              to={backOfficePath}
               className="px-3 py-1.5 rounded-lg border border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white transition-colors"
             >
               ← Back-office

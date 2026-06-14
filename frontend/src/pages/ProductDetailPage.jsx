@@ -57,7 +57,9 @@ export default function ProductDetailPage() {
   const [lifecycleForm, setLifecycleForm] = useState({ cycleVie: 'BROUILLON' })
   const [barcodePreview, setBarcodePreview] = useState(null)
   const [packagingForm, setPackagingForm] = useState({
-    nom: '', symbole: '', quantiteBase: '', prixVente: '', defaultVente: false, principal: false, variantId: '',
+    nom: '', symbole: '', quantiteBase: '', prixVente: '',
+    usableForSale: true, usableForPurchase: true,
+    defaultVente: false, principal: false, variantId: '',
   })
   const [packagingConvert, setPackagingConvert] = useState({ packagingId: '', quantity: '' })
   const [packagingPreview, setPackagingPreview] = useState(null)
@@ -375,6 +377,9 @@ export default function ProductDetailPage() {
         quantiteBase,
         prixVente,
         defaultVente: packagingForm.defaultVente,
+        defaultAchat: packagingForm.principal,
+        usableForSale: packagingForm.usableForSale,
+        usableForPurchase: packagingForm.usableForPurchase,
         principal: packagingForm.principal,
         variantId: variants.length > 0
           ? Number(packagingForm.variantId || variants[0].id)
@@ -385,7 +390,9 @@ export default function ProductDetailPage() {
         onSuccess: () => {
           const defaultVariantId = variants.length === 1 ? String(variants[0].id) : packagingForm.variantId
           setPackagingForm({
-            nom: '', symbole: '', quantiteBase: '', prixVente: '', defaultVente: false, principal: false, variantId: defaultVariantId,
+            nom: '', symbole: '', quantiteBase: '', prixVente: '',
+            usableForSale: true, usableForPurchase: true,
+            defaultVente: false, principal: false, variantId: defaultVariantId,
           })
           loadProduct()
         },
@@ -608,8 +615,9 @@ export default function ProductDetailPage() {
       {tab === 'packagings' && !isNew && (
         <div className="space-y-4">
           <Card className="p-4 bg-amber-50 border-amber-100 text-sm text-amber-900">
-            Les conditionnements sont propres à ce produit. Ex: Eau → 1 carton = 12 bouteilles ;
-            Soda → 1 carton = 24 canettes. À la réception, le système convertit en unité de base.
+            Les conditionnements sont propres à ce produit. Indiquez pour chacun s&apos;il sert à la{' '}
+            <strong>vente</strong> (POS), à l&apos;<strong>achat</strong> (réception stock) ou aux deux.
+            Le stock reste toujours exprimé en unité de base ; le conditionnement sert uniquement à la saisie.
           </Card>
 
           {!form.unitId && (
@@ -629,8 +637,10 @@ export default function ProductDetailPage() {
                   <th className="px-5 py-3">Symbole</th>
                   <th className="px-5 py-3">Contenu (unité de base)</th>
                   <th className="px-5 py-3">Prix vente</th>
-                  <th className="px-5 py-3">Vente défaut</th>
-                  <th className="px-5 py-3">Principal</th>
+                  <th className="px-5 py-3">Vente</th>
+                  <th className="px-5 py-3">Achat</th>
+                  <th className="px-5 py-3">Déf. vente</th>
+                  <th className="px-5 py-3">Déf. achat</th>
                   <th className="px-5 py-3"></th>
                 </tr>
               </thead>
@@ -644,8 +654,10 @@ export default function ProductDetailPage() {
                       1 {p.nom} = {p.quantiteBase} {p.baseUnitSymbole || product?.baseUnitSymbole}
                     </td>
                     <td className="px-5 py-3 font-medium">{p.prixVente != null ? Number(p.prixVente).toLocaleString('fr-FR') : '—'}</td>
+                    <td className="px-5 py-3">{p.usableForSale !== false ? '✓' : '—'}</td>
+                    <td className="px-5 py-3">{p.usableForPurchase !== false ? '✓' : '—'}</td>
                     <td className="px-5 py-3">{p.defaultVente ? '✓' : ''}</td>
-                    <td className="px-5 py-3">{p.principal ? '✓' : ''}</td>
+                    <td className="px-5 py-3">{p.defaultAchat || p.principal ? '✓' : ''}</td>
                     <td className="px-5 py-3">
                       <div className="flex gap-1">
                         <Button variant="ghost" className="text-xs" onClick={() => handleDuplicatePackaging(p)}>
@@ -658,7 +670,7 @@ export default function ProductDetailPage() {
                     </td>
                   </tr>
                 )) : (
-                  <tr><td colSpan={8} className="px-5 py-8 text-center text-gray-400">Aucun conditionnement</td></tr>
+                  <tr><td colSpan={10} className="px-5 py-8 text-center text-gray-400">Aucun conditionnement</td></tr>
                 )}
               </tbody>
             </table>
@@ -690,12 +702,20 @@ export default function ProductDetailPage() {
               }} />
               <input placeholder="Prix vente condi." type="number" min="0" step="any" value={packagingForm.prixVente} onChange={(e) => setPackagingForm({ ...packagingForm, prixVente: e.target.value })} />
               <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" checked={packagingForm.defaultVente} onChange={(e) => setPackagingForm({ ...packagingForm, defaultVente: e.target.checked })} />
+                <input type="checkbox" checked={packagingForm.usableForSale} onChange={(e) => setPackagingForm({ ...packagingForm, usableForSale: e.target.checked })} />
+                Utilisable à la vente
+              </label>
+              <label className="flex items-center gap-2 text-sm">
+                <input type="checkbox" checked={packagingForm.usableForPurchase} onChange={(e) => setPackagingForm({ ...packagingForm, usableForPurchase: e.target.checked })} />
+                Utilisable à l&apos;achat
+              </label>
+              <label className="flex items-center gap-2 text-sm">
+                <input type="checkbox" checked={packagingForm.defaultVente} disabled={!packagingForm.usableForSale} onChange={(e) => setPackagingForm({ ...packagingForm, defaultVente: e.target.checked })} />
                 Vente par défaut (POS)
               </label>
               <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" checked={packagingForm.principal} onChange={(e) => setPackagingForm({ ...packagingForm, principal: e.target.checked })} />
-                Achat principal
+                <input type="checkbox" checked={packagingForm.principal} disabled={!packagingForm.usableForPurchase} onChange={(e) => setPackagingForm({ ...packagingForm, principal: e.target.checked })} />
+                Achat par défaut
               </label>
             </div>
             <Button className="mt-3" onClick={handleAddPackaging} disabled={submitting || !form.unitId}>Ajouter</Button>
@@ -708,7 +728,7 @@ export default function ProductDetailPage() {
                 <label className="block text-xs text-gray-500 mb-1">Conditionnement</label>
                 <select value={packagingConvert.packagingId} onChange={(e) => setPackagingConvert({ ...packagingConvert, packagingId: e.target.value })} className="min-w-40">
                   <option value="">—</option>
-                  {product?.conditionnements?.map((p) => (
+                  {product?.conditionnements?.filter((p) => p.usableForPurchase !== false).map((p) => (
                     <option key={p.id} value={p.id}>{p.nom} (1 = {p.quantiteBase} {p.baseUnitSymbole})</option>
                   ))}
                 </select>

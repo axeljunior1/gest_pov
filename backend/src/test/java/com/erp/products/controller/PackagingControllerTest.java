@@ -115,4 +115,66 @@ class PackagingControllerTest extends AbstractIntegrationTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value(containsString("unité de base")));
     }
+
+    @Test
+    void shouldFilterPackagingsByUsageContext() throws Exception {
+        UnitOfMeasureRequest bouteille = new UnitOfMeasureRequest();
+        bouteille.setNom("Piece");
+        bouteille.setSymbole("pc");
+
+        String unitResponse = mockMvc.perform(post("/api/units")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(bouteille)))
+                .andReturn().getResponse().getContentAsString();
+        Long unitId = objectMapper.readTree(unitResponse).get("id").asLong();
+
+        ProductRequest product = new ProductRequest();
+        product.setNom("Produit test condi");
+        product.setSku("CONDI-CTX-001");
+        product.setUnitId(unitId);
+        product.setPrixVente(new BigDecimal("10"));
+        product.setStatut(ProductStatus.ACTIF);
+        product.setCycleVie(LifecycleStatus.ACTIF);
+
+        String productResponse = mockMvc.perform(post("/api/products")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(product)))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        Long productId = objectMapper.readTree(productResponse).get("id").asLong();
+
+        ProductPackagingRequest purchaseOnly = new ProductPackagingRequest();
+        purchaseOnly.setNom("Palette");
+        purchaseOnly.setQuantiteBase(new BigDecimal("100"));
+        purchaseOnly.setUsableForSale(false);
+        purchaseOnly.setUsableForPurchase(true);
+        purchaseOnly.setPrincipal(true);
+
+        ProductPackagingRequest saleOnly = new ProductPackagingRequest();
+        saleOnly.setNom("Unite client");
+        saleOnly.setQuantiteBase(new BigDecimal("1"));
+        saleOnly.setUsableForSale(true);
+        saleOnly.setUsableForPurchase(false);
+        saleOnly.setDefaultVente(true);
+
+        mockMvc.perform(post("/api/products/{id}/packagings", productId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(purchaseOnly)))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(post("/api/products/{id}/packagings", productId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(saleOnly)))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(get("/api/products/{id}/packagings", productId).param("context", "SALE"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].nom").value("Unite client"));
+
+        mockMvc.perform(get("/api/products/{id}/packagings", productId).param("context", "PURCHASE"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].nom").value("Palette"));
+    }
 }

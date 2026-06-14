@@ -369,7 +369,9 @@ public class StockExitService {
         if (packagingId == null) {
             return null;
         }
-        return packagingRepository.findByIdAndProductId(packagingId, productId)
+        ProductPackaging packaging = packagingRepository.findByIdAndProductId(packagingId, productId)
                 .orElseThrow(() -> new ResourceNotFoundException("Conditionnement non trouvé"));
+        PackagingService.assertUsableForPurchase(packaging);
+        return packaging;
     }
 }

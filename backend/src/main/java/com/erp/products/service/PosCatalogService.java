@@ -86,7 +86,7 @@ public class PosCatalogService {
         }
 
         Optional<ProductPackaging> byPackagingBarcode = packagingRepository.findActiveByCodeBarre(trimmed);
-        if (byPackagingBarcode.isPresent()) {
+        if (byPackagingBarcode.isPresent() && Boolean.TRUE.equals(byPackagingBarcode.get().getUsableForSale())) {
             ProductPackaging packaging = byPackagingBarcode.get();
             Product product = packaging.getProduct();
             if (productEligibilityService.isCommerciallyActive(product)) {
@@ -278,7 +278,7 @@ public class PosCatalogService {
                 .filter(Objects::nonNull)
                 .filter(b -> !b.isBlank())
                 .toList());
-        packagingRepository.findByProductIdAndActifTrueOrderByNomAsc(product.getId()).stream()
+        packagingRepository.findByProductIdAndActifTrueAndUsableForSaleTrueOrderByNomAsc(product.getId()).stream()
                 .map(ProductPackaging::getCodeBarre)
                 .filter(Objects::nonNull)
                 .filter(b -> !b.isBlank())
@@ -288,7 +288,7 @@ public class PosCatalogService {
                 ? product.getImages().get(0).getFilePath() : null;
 
         List<PosPackagingResponse> packagings = packagingRepository
-                .findByProductIdAndActifTrueOrderByNomAsc(product.getId()).stream()
+                .findByProductIdAndActifTrueAndUsableForSaleTrueOrderByNomAsc(product.getId()).stream()
                 .map(this::toPosPackaging)
                 .toList();
 
@@ -348,7 +348,7 @@ public class PosCatalogService {
                 .toList();
 
         List<PosPackagingResponse> packagings = packagingRepository
-                .findByProductIdAndActifTrueOrderByNomAsc(product.getId()).stream()
+                .findByProductIdAndActifTrueAndUsableForSaleTrueOrderByNomAsc(product.getId()).stream()
                 .filter(p -> p.getVariant() == null || p.getVariant().getId().equals(variant.getId()))
                 .map(this::toPosPackaging)
                 .toList();

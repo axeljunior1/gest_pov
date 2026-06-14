@@ -1,9 +1,10 @@
 import { Navigate, Outlet } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { isPosOnlyUser } from '../utils/auth'
+import { hasBackOfficeMenuAccess } from '../config/navGroups'
+import { getDefaultAppPath, isPosOnlyUser } from '../utils/auth'
 
 export default function BackOfficeRoute() {
-  const { user, loading } = useAuth()
+  const { user, loading, hasPermission } = useAuth()
 
   if (loading) {
     return (
@@ -14,6 +15,11 @@ export default function BackOfficeRoute() {
   }
 
   if (isPosOnlyUser(user)) {
+    return <Navigate to={getDefaultAppPath(user, hasPermission)} replace />
+  }
+
+  const navOptions = { userRoles: user?.roles ?? [] }
+  if (!hasBackOfficeMenuAccess(hasPermission, navOptions) && hasPermission('pos.sale.read')) {
     return <Navigate to="/pos" replace />
   }
 

@@ -57,6 +57,16 @@ public class ProductPackaging {
     @Builder.Default
     private Boolean defaultAchat = false;
 
+    /** Conditionnement proposé à la vente (POS). */
+    @Column(name = "usable_for_sale", nullable = false)
+    @Builder.Default
+    private Boolean usableForSale = true;
+
+    /** Conditionnement proposé à l'achat / réception stock. */
+    @Column(name = "usable_for_purchase", nullable = false)
+    @Builder.Default
+    private Boolean usableForPurchase = true;
+
     @Column(nullable = false)
     @Builder.Default
     private Boolean actif = true;

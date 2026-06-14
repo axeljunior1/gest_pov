@@ -5,12 +5,12 @@ import { findActiveGroup, filterVisibleGroups, isNavItemActive, navGroups } from
 
 export default function SectionSubNav() {
   const { pathname } = useLocation()
-  const { hasPermission } = useAuth()
+  const { user, hasPermission } = useAuth()
 
   const activeGroup = useMemo(() => {
-    const visible = filterVisibleGroups(navGroups, hasPermission)
+    const visible = filterVisibleGroups(navGroups, hasPermission, { userRoles: user?.roles ?? [] })
     return findActiveGroup(pathname, visible)
-  }, [pathname, hasPermission])
+  }, [pathname, hasPermission, user?.roles])
 
   if (!activeGroup) return null
 

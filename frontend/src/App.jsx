@@ -10,7 +10,7 @@ import LoginPage from './pages/LoginPage'
 import DashboardPage from './pages/DashboardPage'
 import AnalyticsPage from './pages/AnalyticsPage'
 import CancelledSalesPage from './pages/CancelledSalesPage'
-import ProductsPage from './pages/ProductsPage'
+import HomeRedirect from './components/HomeRedirect'
 import ProductDetailPage from './pages/ProductDetailPage'
 import CategoriesPage from './pages/CategoriesPage'
 import SuppliersPage from './pages/SuppliersPage'
@@ -28,7 +28,6 @@ import ImportExportPage from './pages/ImportExportPage'
 import SettingsPage from './pages/SettingsPage'
 import DevToolsPage from './pages/DevToolsPage'
 import SuperAdminRoute from './components/SuperAdminRoute'
-import DocumentationPage from './pages/DocumentationPage'
 import CustomersPage from './pages/CustomersPage'
 import POSPage from './pages/POSPage'
 import PosPendingPaymentsPage from './pages/PosPendingPaymentsPage'
@@ -72,14 +71,20 @@ export default function App() {
                     <Route path="analytics" element={<AnalyticsPage />} />
                     <Route path="analytics/cancellations" element={<CancelledSalesPage />} />
                   </Route>
-                  <Route index element={<ProductsPage />} />
-                  <Route path="products/:id" element={<ProductDetailPage />} />
-                  <Route path="categories" element={<CategoriesPage />} />
-                  <Route path="suppliers" element={<SuppliersPage />} />
-                  <Route path="units" element={<UnitsPage />} />
-                  <Route path="attributes" element={<AttributesPage />} />
-                  <Route path="stock" element={<StockPage />} />
-                  <Route path="stock/entries" element={<StockEntriesPage />} />
+                  <Route element={<PermissionRoute permission="products.read" />}>
+                    <Route index element={<HomeRedirect />} />
+                    <Route path="products/:id" element={<ProductDetailPage />} />
+                    <Route path="categories" element={<CategoriesPage />} />
+                    <Route path="suppliers" element={<SuppliersPage />} />
+                    <Route path="units" element={<UnitsPage />} />
+                    <Route path="attributes" element={<AttributesPage />} />
+                  </Route>
+                  <Route element={<PermissionRoute permission="stock.read" />}>
+                    <Route path="stock" element={<StockPage />} />
+                  </Route>
+                  <Route element={<PermissionRoute permission="stock_entry.read" />}>
+                    <Route path="stock/entries" element={<StockEntriesPage />} />
+                  </Route>
                   <Route element={<PermissionRoute permission="inventory.read" />}>
                     <Route path="stock/inventories" element={<InventoryCountsPage />} />
                   </Route>

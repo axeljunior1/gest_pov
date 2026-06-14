@@ -110,7 +110,7 @@ export default function StockExitsPage() {
     })
     if (productId && !packagings[productId]) {
       try {
-        const pkgs = await productsApi.getPackagings(productId)
+        const pkgs = await productsApi.getPackagings(productId, { context: 'PURCHASE' })
         setPackagings((p) => ({ ...p, [productId]: pkgs }))
       } catch { /* ignore */ }
     }

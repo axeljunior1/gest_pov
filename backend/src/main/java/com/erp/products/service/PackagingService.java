@@ -4,6 +4,7 @@ import com.erp.products.domain.entity.Product;
 import com.erp.products.domain.entity.ProductPackaging;
 import com.erp.products.domain.entity.ProductVariant;
 import com.erp.products.domain.enums.AuditAction;
+import com.erp.products.domain.enums.PackagingUsageContext;
 import com.erp.products.dto.*;
 import com.erp.products.exception.BusinessException;
 import com.erp.products.exception.ResourceNotFoundException;
@@ -13,8 +14,6 @@ import com.erp.products.repository.ProductRepository;
 import com.erp.products.repository.ProductVariantRepository;
 import com.erp.products.security.PermissionEvaluator;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -41,8 +40,14 @@ public class PackagingService {
 
     @Transactional(readOnly = true)
     public List<ProductPackagingResponse> listByProduct(Long productId) {
+        return listByProduct(productId, null);
+    }
+
+    @Transactional(readOnly = true)
+    public List<ProductPackagingResponse> listByProduct(Long productId, PackagingUsageContext context) {
         Product product = findProduct(productId);
         return packagingRepository.findByProductIdOrderByNomAsc(productId).stream()
+                .filter(p -> matchesContext(p, context))
                 .map(p -> mapper.toPackagingResponse(p, product))
                 .collect(Collectors.toList());
     }
@@ -56,6 +61,10 @@ public class PackagingService {
         boolean defaultVente = Boolean.TRUE.equals(request.getDefaultVente());
         boolean defaultAchat = Boolean.TRUE.equals(request.getDefaultAchat())
                 || Boolean.TRUE.equals(request.getPrincipal());
+        boolean usableForSale = resolveUsableForSale(request, defaultVente);
+        boolean usableForPurchase = resolveUsableForPurchase(request, defaultAchat);
+        assertUsageConsistency(defaultVente, defaultAchat, usableForSale, usableForPurchase);
+
         if (defaultVente) {
             clearDefaultVente(product);
         }
@@ -76,6 +85,8 @@ public class PackagingService {
                 .prixAchat(request.getPrixAchat())
                 .defaultVente(defaultVente)
                 .defaultAchat(defaultAchat)
+                .usableForSale(usableForSale)
+                .usableForPurchase(usableForPurchase)
                 .principal(defaultAchat)
                 .actif(request.getActif() == null || request.getActif())
                 .build();
@@ -108,6 +119,10 @@ public class PackagingService {
         boolean defaultVente = Boolean.TRUE.equals(request.getDefaultVente());
         boolean defaultAchat = Boolean.TRUE.equals(request.getDefaultAchat())
                 || Boolean.TRUE.equals(request.getPrincipal());
+        boolean usableForSale = resolveUsableForSale(request, defaultVente);
+        boolean usableForPurchase = resolveUsableForPurchase(request, defaultAchat);
+        assertUsageConsistency(defaultVente, defaultAchat, usableForSale, usableForPurchase);
+
         if (defaultVente) {
             clearDefaultVente(product);
         }
@@ -124,6 +139,8 @@ public class PackagingService {
         packaging.setVariant(variant);
         packaging.setDefaultVente(defaultVente);
         packaging.setDefaultAchat(defaultAchat);
+        packaging.setUsableForSale(usableForSale);
+        packaging.setUsableForPurchase(usableForPurchase);
         packaging.setPrincipal(defaultAchat);
         if (request.getActif() != null) {
             packaging.setActif(request.getActif());
@@ -230,14 +247,72 @@ public class PackagingService {
     }
 
     private void clearDefaultVente(Product product) {
-        product.getConditionnements().forEach(p -> p.setDefaultVente(false));
+        product.getConditionnements().forEach(p -> {
+            if (Boolean.TRUE.equals(p.getUsableForSale())) {
+                p.setDefaultVente(false);
+            }
+        });
     }
 
     private void clearDefaultAchat(Product product) {
         product.getConditionnements().forEach(p -> {
-            p.setDefaultAchat(false);
-            p.setPrincipal(false);
+            if (Boolean.TRUE.equals(p.getUsableForPurchase())) {
+                p.setDefaultAchat(false);
+                p.setPrincipal(false);
+            }
         });
+    }
+
+    static boolean resolveUsableForSale(ProductPackagingRequest request, boolean defaultVente) {
+        if (request.getUsableForSale() != null) {
+            return Boolean.TRUE.equals(request.getUsableForSale());
+        }
+        return true;
+    }
+
+    static boolean resolveUsableForPurchase(ProductPackagingRequest request, boolean defaultAchat) {
+        if (request.getUsableForPurchase() != null) {
+            return Boolean.TRUE.equals(request.getUsableForPurchase());
+        }
+        return true;
+    }
+
+    static void assertUsageConsistency(
+            boolean defaultVente,
+            boolean defaultAchat,
+            boolean usableForSale,
+            boolean usableForPurchase) {
+        if (defaultVente && !usableForSale) {
+            throw new BusinessException("Un conditionnement vente par defaut doit etre utilisable a la vente");
+        }
+        if (defaultAchat && !usableForPurchase) {
+            throw new BusinessException("Un conditionnement achat par defaut doit etre utilisable a l'achat");
+        }
+        if (!usableForSale && !usableForPurchase) {
+            throw new BusinessException("Le conditionnement doit etre utilisable en vente et/ou en achat");
+        }
+    }
+
+    static boolean matchesContext(ProductPackaging packaging, PackagingUsageContext context) {
+        if (context == null) {
+            return true;
+        }
+        return switch (context) {
+            case SALE -> Boolean.TRUE.equals(packaging.getUsableForSale());
+            case PURCHASE -> Boolean.TRUE.equals(packaging.getUsableForPurchase());
+        };
+    }
+
+    public static void assertUsableForSale(ProductPackaging packaging) {
+        if (packaging != null && !Boolean.TRUE.equals(packaging.getUsableForSale())) {
+            throw new BusinessException("Ce conditionnement n'est pas utilisable a la vente");
+        }
+    }
+
+    public static void assertUsableForPurchase(ProductPackaging packaging) {
+        if (packaging != null && !Boolean.TRUE.equals(packaging.getUsableForPurchase())) {
+            throw new BusinessException("Ce conditionnement n'est pas utilisable a l'achat");
+        }
     }
 
     private boolean canUpdatePackagingPrice() {

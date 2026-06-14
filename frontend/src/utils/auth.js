@@ -1,3 +1,5 @@
+import { getFirstAccessibleNavPath, hasBackOfficeMenuAccess } from '../config/navGroups'
+
 const BACK_OFFICE_ROLES = new Set(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OPERATOR', 'VIEWER'])
 
 /** Utilisateur limité à la caisse (rôle CASHIER sans autre rôle back-office). */
@@ -9,7 +11,12 @@ export function isPosOnlyUser(user) {
   }
   const perms = user.permissions ?? []
   if (perms.length === 0) return false
-  return perms.every((p) => p.startsWith('pos.'))
+  const nonPos = perms.filter((p) => !p.startsWith('pos.') && !p.startsWith('loyalty.'))
+  if (nonPos.length === 0) return true
+  if (nonPos.every((p) => p.startsWith('customer.'))) {
+    return !roles.some((r) => BACK_OFFICE_ROLES.has(r))
+  }
+  return false
 }
 
 export function canCollectPayment(user) {
@@ -53,8 +60,23 @@ export function getPosRoleLabel(user) {
   return 'POS'
 }
 
-export function getDefaultAppPath(user) {
+export function getDefaultAppPath(user, hasPermission) {
+  if (!user || !hasPermission) return '/login'
+
+  const navOptions = { userRoles: user.roles ?? [] }
+
   if (isCashierOnlyUser(user)) return '/pos/pending'
-  if (isPosOnlyUser(user)) return '/pos'
-  return '/'
+
+  if (hasPermission('dashboard.read')) return '/dashboard'
+  if (hasPermission('products.read')) return '/'
+  if (canPrepareSales(user) && hasPermission('pos.sale.read')) return '/pos'
+  if (hasPermission('customer.read') && !hasBackOfficeMenuAccess(hasPermission, navOptions)) {
+    return '/pos'
+  }
+
+  const first = getFirstAccessibleNavPath(hasPermission, navOptions)
+  if (first) return first
+
+  if (hasPermission('pos.sale.read')) return '/pos'
+  return '/documentation'
 }

@@ -275,6 +275,9 @@ public class ImportService {
         Product product = productRepository.findBySku(TabularFileHelper.cell(row, 0))
                 .orElseThrow(() -> new BusinessException("Produit inconnu"));
         String nom = TabularFileHelper.cell(row, 1);
+        boolean defaultAchat = "true".equalsIgnoreCase(TabularFileHelper.cell(row, 5))
+                || "1".equals(TabularFileHelper.cell(row, 5))
+                || "oui".equalsIgnoreCase(TabularFileHelper.cell(row, 5));
         packagingRepository.save(ProductPackaging.builder()
                 .product(product)
                 .nom(nom)
@@ -285,12 +288,11 @@ public class ImportService {
                         product,
                         parseDecimal(TabularFileHelper.cell(row, 3)),
                         parseDecimal(emptyToNull(TabularFileHelper.cell(row, 6)))))
-                .defaultAchat("true".equalsIgnoreCase(TabularFileHelper.cell(row, 5))
-                        || "1".equals(TabularFileHelper.cell(row, 5))
-                        || "oui".equalsIgnoreCase(TabularFileHelper.cell(row, 5)))
-                .principal("true".equalsIgnoreCase(TabularFileHelper.cell(row, 5))
-                        || "1".equals(TabularFileHelper.cell(row, 5))
-                        || "oui".equalsIgnoreCase(TabularFileHelper.cell(row, 5)))
+                .defaultAchat(defaultAchat)
+                .defaultVente(false)
+                .usableForSale(true)
+                .usableForPurchase(true)
+                .principal(defaultAchat)
                 .actif(true)
                 .build());
     }
