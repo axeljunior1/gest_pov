@@ -18,7 +18,7 @@ export function buildProductPayload(form, { isNew = false, hasVariants = false }
   const payload = {
     nom: form.nom?.trim(),
     description: form.description?.trim() || null,
-    marque: form.marque?.trim() || null,
+    marqueId: toId(form.marqueId),
     categorieId: toId(form.categorieId),
     fournisseurPrincipalId: toId(form.fournisseurPrincipalId),
     unitId: toId(form.unitId),

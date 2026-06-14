@@ -55,6 +55,14 @@ export const categoriesApi = {
   delete: (id) => api.delete(`/categories/${id}`),
 }
 
+export const brandsApi = {
+  getAll: () => api.get('/brands').then(r => r.data),
+  search: (nom) => api.get('/brands/search', { params: { nom } }).then(r => r.data),
+  create: (data) => api.post('/brands', data).then(r => r.data),
+  update: (id, data) => api.put(`/brands/${id}`, data).then(r => r.data),
+  delete: (id) => api.delete(`/brands/${id}`),
+}
+
 export const suppliersApi = {
   getAll: () => api.get('/suppliers').then(r => r.data),
   search: (nom) => api.get('/suppliers/search', { params: { nom } }).then(r => r.data),

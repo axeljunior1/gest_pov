@@ -34,7 +34,9 @@ public class Product {
     @Column(length = 2000)
     private String description;
 
-    private String marque;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "marque_id")
+    private Brand brand;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "categorie_id")

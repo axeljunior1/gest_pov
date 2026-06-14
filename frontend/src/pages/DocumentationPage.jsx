@@ -8,7 +8,7 @@ const modules = [
     status: 'En place',
     tone: 'success',
     route: '/',
-    pages: ['Produits', 'Catégories', 'Fournisseurs', 'Unités', 'Attributs'],
+    pages: ['Produits', 'Catégories', 'Marques', 'Fournisseurs', 'Unités', 'Attributs'],
     features: [
       'Fiches produits : nom, SKU, description, marque, statut, cycle de vie',
       'Variantes (SKU, stock, prix, code-barres)',
@@ -28,6 +28,7 @@ const modules = [
       'GET/POST /api/products',
       'GET /api/products/{id}',
       'GET/POST /api/categories',
+      'GET/POST /api/brands',
       'GET/POST /api/suppliers',
       'GET/POST /api/units',
       'GET/POST /api/attributes',

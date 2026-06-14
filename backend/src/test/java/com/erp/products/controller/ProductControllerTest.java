@@ -22,6 +22,7 @@ class ProductControllerTest extends AbstractIntegrationTest {
 
     private Long categoryId;
     private Long supplierId;
+    private Long brandId;
 
     @BeforeEach
     void setUp() throws Exception {
@@ -40,6 +41,14 @@ class ProductControllerTest extends AbstractIntegrationTest {
                         .content(objectMapper.writeValueAsString(supplier)))
                 .andReturn().getResponse().getContentAsString();
         supplierId = objectMapper.readTree(supResponse).get("id").asLong();
+
+        BrandRequest brand = new BrandRequest();
+        brand.setNom("Nike Sport");
+        String brandResponse = mockMvc.perform(post("/api/brands")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(brand)))
+                .andReturn().getResponse().getContentAsString();
+        brandId = objectMapper.readTree(brandResponse).get("id").asLong();
     }
 
     @Test
@@ -294,7 +303,7 @@ class ProductControllerTest extends AbstractIntegrationTest {
         request.setNom("Chaussure Running Pro");
         request.setSku("RUN-PRO-001");
         request.setDescription("Chaussure de running haute performance");
-        request.setMarque("Nike");
+        request.setMarqueId(brandId);
         request.setCategorieId(categoryId);
         request.setPrixAchat(new BigDecimal("45.00"));
         request.setPrixVente(new BigDecimal("99.99"));

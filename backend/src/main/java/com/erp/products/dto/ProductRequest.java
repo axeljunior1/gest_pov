@@ -22,7 +22,7 @@ public class ProductRequest {
     private Boolean generateBarcode;
 
     private String description;
-    private String marque;
+    private Long marqueId;
     private Long categorieId;
     private BigDecimal prixAchat;
     private BigDecimal prixVente;

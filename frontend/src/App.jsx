@@ -17,6 +17,7 @@ import ReturnDetailPage from './pages/ReturnDetailPage'
 import HomeRedirect from './components/HomeRedirect'
 import ProductDetailPage from './pages/ProductDetailPage'
 import CategoriesPage from './pages/CategoriesPage'
+import BrandsPage from './pages/BrandsPage'
 import SuppliersPage from './pages/SuppliersPage'
 import UnitsPage from './pages/UnitsPage'
 import AttributesPage from './pages/AttributesPage'
@@ -88,6 +89,7 @@ export default function App() {
                     <Route index element={<HomeRedirect />} />
                     <Route path="products/:id" element={<ProductDetailPage />} />
                     <Route path="categories" element={<CategoriesPage />} />
+                    <Route path="brands" element={<BrandsPage />} />
                     <Route path="suppliers" element={<SuppliersPage />} />
                     <Route path="units" element={<UnitsPage />} />
                     <Route path="attributes" element={<AttributesPage />} />

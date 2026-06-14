@@ -57,6 +57,15 @@ public class ProductMapper {
                 .build();
     }
 
+    public BrandResponse toBrandResponse(Brand brand) {
+        return BrandResponse.builder()
+                .id(brand.getId())
+                .nom(brand.getNom())
+                .createdAt(brand.getCreatedAt())
+                .updatedAt(brand.getUpdatedAt())
+                .build();
+    }
+
     public UnitOfMeasureResponse toUnitResponse(UnitOfMeasure unit) {
         return UnitOfMeasureResponse.builder()
                 .id(unit.getId())
@@ -184,7 +193,6 @@ public class ProductMapper {
                 .sku(product.getSku())
                 .codeBarre(product.getCodeBarre())
                 .description(product.getDescription())
-                .marque(product.getMarque())
                 .prixAchat(product.getPrixAchat())
                 .prixVente(product.getPrixVente())
                 .prixPromotionnel(product.getPrixPromotionnel())
@@ -208,6 +216,11 @@ public class ProductMapper {
             builder.categorieId(product.getCategorie().getId())
                     .categorieNom(product.getCategorie().getNom())
                     .categoriePath(buildCategoryPath(product.getCategorie()));
+        }
+
+        if (product.getBrand() != null) {
+            builder.marqueId(product.getBrand().getId())
+                    .marque(product.getBrand().getNom());
         }
 
         if (product.getFournisseurPrincipal() != null) {

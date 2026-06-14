@@ -37,6 +37,8 @@ public interface ProductRepository extends JpaRepository<Product, Long>, JpaSpec
 
     long countByCategorieId(Long categorieId);
 
+    long countByBrand_Id(Long brandId);
+
     long countByStatutAndCycleVie(ProductStatus statut, LifecycleStatus cycleVie);
 
     long countByFournisseurPrincipalId(Long fournisseurPrincipalId);

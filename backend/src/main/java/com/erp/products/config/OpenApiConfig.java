@@ -55,7 +55,7 @@ public class OpenApiConfig {
         return GroupedOpenApi.builder()
                 .group("catalog")
                 .displayName("Catalogue & stock")
-                .pathsToMatch("/api/products/**", "/api/categories/**", "/api/stock/**", "/api/warehouses/**")
+                .pathsToMatch("/api/products/**", "/api/categories/**", "/api/brands/**", "/api/stock/**", "/api/warehouses/**")
                 .build();
     }
 }

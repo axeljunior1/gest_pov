@@ -20,6 +20,7 @@ public class ProductResponse {
     private String sku;
     private String codeBarre;
     private String description;
+    private Long marqueId;
     private String marque;
     private Long categorieId;
     private String categorieNom;

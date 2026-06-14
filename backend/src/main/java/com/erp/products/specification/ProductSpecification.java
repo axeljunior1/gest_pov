@@ -17,13 +17,15 @@ public final class ProductSpecification {
     public static Specification<Product> fromCriteria(ProductSearchCriteria criteria) {
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
+            Join<Object, Object> brandJoin = null;
 
             if (criteria.getQuery() != null && !criteria.getQuery().isBlank()) {
                 String pattern = "%" + criteria.getQuery().toLowerCase() + "%";
+                brandJoin = root.join("brand", JoinType.LEFT);
                 predicates.add(cb.or(
                         cb.like(cb.lower(root.get("nom")), pattern),
                         cb.like(cb.lower(root.get("sku")), pattern),
-                        cb.like(cb.lower(root.get("marque")), pattern)
+                        cb.like(cb.lower(brandJoin.get("nom")), pattern)
                 ));
             }
 
@@ -32,7 +34,10 @@ public final class ProductSpecification {
             }
 
             if (criteria.getMarque() != null && !criteria.getMarque().isBlank()) {
-                predicates.add(cb.like(cb.lower(root.get("marque")), "%" + criteria.getMarque().toLowerCase() + "%"));
+                if (brandJoin == null) {
+                    brandJoin = root.join("brand", JoinType.LEFT);
+                }
+                predicates.add(cb.like(cb.lower(brandJoin.get("nom")), "%" + criteria.getMarque().toLowerCase() + "%"));
             }
 
             if (criteria.getCategorieId() != null) {

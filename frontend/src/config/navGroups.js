@@ -48,6 +48,7 @@ export const navGroups = [
     items: [
       { to: '/', label: 'Produits', permission: 'products.read', isActive: (p) => p === '/' || p.startsWith('/products/') },
       { to: '/categories', label: 'Catégories', permission: 'products.read' },
+      { to: '/brands', label: 'Marques', permission: 'products.read' },
       { to: '/suppliers', label: 'Fournisseurs', permission: 'products.read' },
       { to: '/units', label: 'Unités', permission: 'products.read' },
       { to: '/attributes', label: 'Attributs', permission: 'products.read' },

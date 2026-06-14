@@ -40,6 +40,7 @@ public class ProductService {
     private final CustomAttributeDefinitionRepository attributeDefinitionRepository;
     private final CategoryService categoryService;
     private final SupplierService supplierService;
+    private final BrandService brandService;
     private final ProductMapper mapper;
     private final AuditService auditService;
     private final CurrentUserService currentUserService;
@@ -92,7 +93,6 @@ public class ProductService {
                 .nom(request.getNom())
                 .sku(sku)
                 .description(request.getDescription())
-                .marque(request.getMarque())
                 .prixAchat(request.getPrixAchat())
                 .prixVente(request.getPrixVente())
                 .prixPromotionnel(request.getPrixPromotionnel())
@@ -147,7 +147,6 @@ public class ProductService {
             product.setSku(request.getSku().trim());
         }
         product.setDescription(request.getDescription());
-        product.setMarque(request.getMarque());
         product.setPrixAchat(request.getPrixAchat());
         product.setPrixVente(request.getPrixVente());
         product.setPrixPromotionnel(request.getPrixPromotionnel());
@@ -418,6 +417,12 @@ public class ProductService {
             product.setCategorie(categoryService.findCategory(request.getCategorieId()));
         } else {
             product.setCategorie(null);
+        }
+
+        if (request.getMarqueId() != null) {
+            product.setBrand(brandService.findBrand(request.getMarqueId()));
+        } else {
+            product.setBrand(null);
         }
 
         if (request.getFournisseurPrincipalId() != null) {

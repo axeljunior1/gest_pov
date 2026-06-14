@@ -34,6 +34,7 @@ public class ImportService {
     private final ProductRepository productRepository;
     private final ProductVariantRepository variantRepository;
     private final CategoryRepository categoryRepository;
+    private final BrandRepository brandRepository;
     private final UnitOfMeasureRepository unitRepository;
     private final ProductPackagingRepository packagingRepository;
     private final WarehouseRepository warehouseRepository;
@@ -191,6 +192,7 @@ public class ImportService {
         String sku = TabularFileHelper.cell(row, 0);
         Optional<Product> existing = productRepository.findBySku(sku);
         Category category = resolveCategory(TabularFileHelper.cell(row, 4));
+        Brand brand = resolveBrand(TabularFileHelper.cell(row, 3));
         UnitOfMeasure unit = unitRepository.findBySymbole(TabularFileHelper.cell(row, 5))
                 .orElseThrow(() -> new BusinessException("Unite inconnue"));
         ProductStatus statut = parseEnum(TabularFileHelper.cell(row, 8), ProductStatus.class, ProductStatus.ACTIF);
@@ -203,7 +205,7 @@ public class ImportService {
             Product product = existing.get();
             product.setNom(TabularFileHelper.cell(row, 1));
             product.setDescription(emptyToNull(TabularFileHelper.cell(row, 2)));
-            product.setMarque(emptyToNull(TabularFileHelper.cell(row, 3)));
+            product.setBrand(brand);
             product.setCategorie(category);
             product.setUnit(unit);
             product.setPrixAchat(parseDecimal(TabularFileHelper.cell(row, 6)));
@@ -216,7 +218,7 @@ public class ImportService {
                     .nom(TabularFileHelper.cell(row, 1))
                     .sku(sku)
                     .description(emptyToNull(TabularFileHelper.cell(row, 2)))
-                    .marque(emptyToNull(TabularFileHelper.cell(row, 3)))
+                    .brand(brand)
                     .categorie(category)
                     .unit(unit)
                     .prixAchat(parseDecimal(TabularFileHelper.cell(row, 6)))
@@ -509,6 +511,13 @@ public class ImportService {
             return null;
         }
         return categoryRepository.findFirstByNomIgnoreCase(nom.trim()).orElse(null);
+    }
+
+    private Brand resolveBrand(String nom) {
+        if (nom == null || nom.isBlank()) {
+            return null;
+        }
+        return brandRepository.findFirstByNomIgnoreCase(nom.trim()).orElse(null);
     }
 
     private BigDecimal parseDecimal(String value) {

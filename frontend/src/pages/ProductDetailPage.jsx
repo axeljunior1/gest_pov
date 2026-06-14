@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, Link } from 'react-router-dom'
 import {
-  productsApi, categoriesApi, suppliersApi, unitsApi, attributesApi,
+  productsApi, categoriesApi, brandsApi, suppliersApi, unitsApi, attributesApi,
 } from '../api'
 import { PageHeader, Card, Button, Badge, Tabs, Loading, Alert } from '../components/ui'
 import ProductBarcodesGallery from '../components/ProductBarcodesGallery'
@@ -24,7 +24,7 @@ const emptyVariant = () => ({
 })
 
 const initialForm = () => ({
-  nom: '', sku: '', codeBarre: '', generateBarcode: true, description: '', marque: '',
+  nom: '', sku: '', codeBarre: '', generateBarcode: true, description: '', marqueId: '',
   categorieId: '', fournisseurPrincipalId: '', unitId: '',
   prixAchat: '', prixVente: '', prixPromotionnel: '',
   statut: 'ACTIF', cycleVie: 'BROUILLON',
@@ -44,6 +44,7 @@ export default function ProductDetailPage() {
   const [pageError, setPageError] = useState('')
   const [product, setProduct] = useState(null)
   const [categories, setCategories] = useState([])
+  const [brands, setBrands] = useState([])
   const [suppliers, setSuppliers] = useState([])
   const [units, setUnits] = useState([])
   const [attrDefs, setAttrDefs] = useState([])
@@ -67,11 +68,13 @@ export default function ProductDetailPage() {
   useEffect(() => {
     Promise.all([
       categoriesApi.getTree(),
+      brandsApi.getAll(),
       suppliersApi.getAll(),
       unitsApi.getAll(),
       attributesApi.getAll(),
-    ]).then(([cats, sups, uns, attrs]) => {
+    ]).then(([cats, brs, sups, uns, attrs]) => {
       setCategories(cats)
+      setBrands(brs)
       setSuppliers(sups)
       setUnits(uns)
       setAttrDefs(attrs)
@@ -100,7 +103,7 @@ export default function ProductDetailPage() {
       setForm({
         nom: data.nom, sku: data.sku, codeBarre: data.codeBarre || '', generateBarcode: false,
         description: data.description || '',
-        marque: data.marque || '', categorieId: data.categorieId || '',
+        marqueId: data.marqueId || '', categorieId: data.categorieId || '',
         fournisseurPrincipalId: data.fournisseurPrincipalId || '',
         unitId: data.unitId || '', prixAchat: data.prixAchat || '',
         prixVente: data.prixVente || '', prixPromotionnel: data.prixPromotionnel || '',
@@ -508,7 +511,13 @@ export default function ProductDetailPage() {
             )}
             <div>
               <label className="block text-xs font-medium text-gray-500 mb-1">Marque</label>
-              <input value={form.marque} onChange={(e) => setField('marque', e.target.value)} className="w-full" />
+              <select value={form.marqueId} onChange={(e) => setField('marqueId', e.target.value)} className="w-full">
+                <option value="">—</option>
+                {brands.map((b) => <option key={b.id} value={b.id}>{b.nom}</option>)}
+              </select>
+              <p className="text-xs text-gray-400 mt-1">
+                <Link to="/brands" className="text-emerald-600 hover:underline">Gérer les marques</Link>
+              </p>
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-500 mb-1">Catégorie</label>
