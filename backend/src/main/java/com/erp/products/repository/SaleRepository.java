@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import jakarta.persistence.LockModeType;
+import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -124,4 +125,56 @@ public interface SaleRepository extends JpaRepository<Sale, Long> {
             @Param("statuses") Collection<SaleStatus> statuses,
             @Param("q") String q,
             org.springframework.data.domain.Pageable pageable);
+
+    @Query("""
+            SELECT s FROM Sale s
+            LEFT JOIN s.customer c
+            WHERE (:filterStatus = false OR s.status = :status)
+            AND (:filterQ = false
+                 OR LOWER(s.saleNumber) LIKE CONCAT('%', :q, '%')
+                 OR LOWER(c.firstName) LIKE CONCAT('%', :q, '%')
+                 OR LOWER(c.lastName) LIKE CONCAT('%', :q, '%')
+                 OR LOWER(c.customerNumber) LIKE CONCAT('%', :q, '%'))
+            AND (:filterDateFrom = false OR COALESCE(s.paidAt, s.validatedAt, s.createdAt) >= :dateFrom)
+            AND (:filterDateTo = false OR COALESCE(s.paidAt, s.validatedAt, s.createdAt) <= :dateTo)
+            AND (:filterUserId = false OR s.seller.id = :userId OR s.cashier.id = :userId)
+            ORDER BY COALESCE(s.paidAt, s.validatedAt, s.createdAt) DESC, s.id DESC
+            """)
+    List<Sale> searchBrowseSales(
+            @Param("filterStatus") boolean filterStatus,
+            @Param("status") SaleStatus status,
+            @Param("filterQ") boolean filterQ,
+            @Param("q") String q,
+            @Param("filterDateFrom") boolean filterDateFrom,
+            @Param("dateFrom") Instant dateFrom,
+            @Param("filterDateTo") boolean filterDateTo,
+            @Param("dateTo") Instant dateTo,
+            @Param("filterUserId") boolean filterUserId,
+            @Param("userId") Long userId,
+            org.springframework.data.domain.Pageable pageable);
+
+    @Query("""
+            SELECT COUNT(s) FROM Sale s
+            LEFT JOIN s.customer c
+            WHERE (:filterStatus = false OR s.status = :status)
+            AND (:filterQ = false
+                 OR LOWER(s.saleNumber) LIKE CONCAT('%', :q, '%')
+                 OR LOWER(c.firstName) LIKE CONCAT('%', :q, '%')
+                 OR LOWER(c.lastName) LIKE CONCAT('%', :q, '%')
+                 OR LOWER(c.customerNumber) LIKE CONCAT('%', :q, '%'))
+            AND (:filterDateFrom = false OR COALESCE(s.paidAt, s.validatedAt, s.createdAt) >= :dateFrom)
+            AND (:filterDateTo = false OR COALESCE(s.paidAt, s.validatedAt, s.createdAt) <= :dateTo)
+            AND (:filterUserId = false OR s.seller.id = :userId OR s.cashier.id = :userId)
+            """)
+    long countBrowseSales(
+            @Param("filterStatus") boolean filterStatus,
+            @Param("status") SaleStatus status,
+            @Param("filterQ") boolean filterQ,
+            @Param("q") String q,
+            @Param("filterDateFrom") boolean filterDateFrom,
+            @Param("dateFrom") Instant dateFrom,
+            @Param("filterDateTo") boolean filterDateTo,
+            @Param("dateTo") Instant dateTo,
+            @Param("filterUserId") boolean filterUserId,
+            @Param("userId") Long userId);
 }

@@ -2,6 +2,10 @@ import { getFirstAccessibleNavPath, hasBackOfficeMenuAccess } from '../config/na
 
 const BACK_OFFICE_ROLES = new Set(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'OPERATOR', 'VIEWER'])
 
+export function isSuperAdmin(user) {
+  return (user?.roles ?? []).includes('SUPER_ADMIN')
+}
+
 /** Utilisateur limité à la caisse (rôle CASHIER sans autre rôle back-office). */
 export function isPosOnlyUser(user) {
   if (!user) return false

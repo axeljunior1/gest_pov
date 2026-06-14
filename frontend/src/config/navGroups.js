@@ -7,6 +7,24 @@ export const navGroups = [
     ],
   },
   {
+    id: 'sales',
+    label: 'Ventes',
+    items: [
+      {
+        to: '/sales',
+        label: 'Consultation ventes',
+        permissions: ['pos.sale.read', 'pos.sale.read_own', 'analytics.sales.read', 'pos.report.read'],
+        isActive: (p) => p === '/sales' || (p.startsWith('/sales/') && !p.startsWith('/sales/cancellations')),
+      },
+      {
+        to: '/returns',
+        label: 'Retours',
+        permissions: ['pos.return.read', 'analytics.sales.read', 'pos.report.read'],
+        isActive: (p) => p === '/returns' || p.startsWith('/returns/'),
+      },
+    ],
+  },
+  {
     id: 'analytics',
     label: 'Analytics',
     items: [

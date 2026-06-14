@@ -6,6 +6,7 @@ import { useNotification } from '../context/NotificationContext'
 import { getErrorMessage } from '../utils/errors'
 import { formatPosMoney } from '../utils/posMoney'
 import { saleStatusLabel } from '../utils/saleStatus'
+import { canBrowseSalesBackOffice } from '../utils/saleDisplay'
 import {
   canCollectPayment,
   canPrepareSales,
@@ -42,7 +43,7 @@ function matchesDateRange(sale, dateFrom, dateTo) {
 }
 
 export default function PosSalesHistoryPage() {
-  const { user, hasPermission } = useAuth()
+  const { user, hasPermission, hasAnyPermission } = useAuth()
   const notify = useNotification()
   const [session, setSession] = useState(null)
   const [sales, setSales] = useState([])
@@ -57,6 +58,7 @@ export default function PosSalesHistoryPage() {
   const [printing, setPrinting] = useState(null)
   const [currency, setCurrency] = useState('EUR')
   const canPrint = hasPermission('pos.ticket.print') || hasPermission('pos.ticket.reprint')
+  const canOpenBackOfficeSale = canBrowseSalesBackOffice(hasPermission, hasAnyPermission)
   const roleLabel = getPosRoleLabel(user)
   const scopeHint = canPrepareSales(user) && canCollectPayment(user)
     ? 'Ventes où vous êtes vendeur ou caissier'
@@ -135,6 +137,14 @@ export default function PosSalesHistoryPage() {
         </div>
         {session && <PosSessionChip session={session} centralMode />}
         <div className="ml-auto flex flex-wrap items-center gap-2">
+          {canOpenBackOfficeSale && (
+            <Link
+              to="/sales"
+              className="px-3 py-2 rounded-lg border border-emerald-700/50 text-sm text-emerald-300 hover:bg-emerald-950/40"
+            >
+              Consultation ventes →
+            </Link>
+          )}
           <Link
             to={session?.sessionType === 'CASHIER' ? '/pos/pending' : '/pos'}
             className="px-3 py-2 rounded-lg border border-slate-600 text-sm text-slate-300 hover:bg-slate-800"
@@ -263,7 +273,7 @@ export default function PosSalesHistoryPage() {
                     <th className="py-2 pr-4">Caissier</th>
                     <th className="py-2 pr-4">Statut</th>
                     <th className="py-2 pr-4">Montant</th>
-                    <th className="py-2">Impression</th>
+                    <th className="py-2">{canOpenBackOfficeSale ? 'Actions' : 'Impression'}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -302,6 +312,14 @@ export default function PosSalesHistoryPage() {
                         </td>
                         <td className="py-3">
                           <div className="flex flex-wrap gap-2">
+                            {canOpenBackOfficeSale && (
+                              <Link
+                                to={`/sales/${s.id}`}
+                                className="px-3 py-1.5 bg-emerald-900/40 border border-emerald-700/50 hover:bg-emerald-900/60 rounded-lg text-xs text-emerald-200"
+                              >
+                                Fiche vente
+                              </Link>
+                            )}
                             <button
                               type="button"
                               disabled={printing === s.id}

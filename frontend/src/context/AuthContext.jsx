@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import api from '../api/client'
+import { isSuperAdmin } from '../utils/auth'
 
 const TOKEN_KEY = 'erp_auth_token'
 const USER_KEY = 'erp_auth_user'
@@ -76,10 +77,20 @@ export function AuthProvider({ children }) {
     return () => { cancelled = true }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
+  useEffect(() => {
+    if (!token) return undefined
+    const refreshOnFocus = () => {
+      refreshUser().catch(() => {})
+    }
+    window.addEventListener('focus', refreshOnFocus)
+    return () => window.removeEventListener('focus', refreshOnFocus)
+  }, [token, refreshUser])
+
   const value = useMemo(() => {
     const permissions = user?.permissions ?? []
-    const hasPermission = (code) => permissions.includes(code)
-    const hasAnyPermission = (...codes) => codes.some(hasPermission)
+    const superAdmin = isSuperAdmin(user)
+    const hasPermission = (code) => superAdmin || permissions.includes(code)
+    const hasAnyPermission = (...codes) => superAdmin || codes.some(hasPermission)
 
     return {
       token,

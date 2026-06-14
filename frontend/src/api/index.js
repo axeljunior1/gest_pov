@@ -183,6 +183,21 @@ export const saleCancellationsApi = {
   reasons: () => api.get('/sales/cancellations/reasons').then(r => r.data),
 }
 
+export const salesBrowseApi = {
+  list: (params) => api.get('/sales/browse', { params }).then(r => r.data),
+  detail: (id) => api.get(`/sales/${id}`).then(r => r.data),
+  listReturns: (params) => api.get('/sales/returns/browse', { params }).then(r => r.data),
+  returnDetail: (id) => api.get(`/sales/returns/${id}`).then(r => r.data),
+  exportSales: (params) => api.get('/sales/browse/export', { params, responseType: 'blob' }).then(r => {
+    downloadBlob(r.data, 'ventes.csv', r.headers['content-type'])
+    return r.data
+  }),
+  exportReturns: (params) => api.get('/sales/returns/browse/export', { params, responseType: 'blob' }).then(r => {
+    downloadBlob(r.data, 'retours.csv', r.headers['content-type'])
+    return r.data
+  }),
+}
+
 export const alertsApi = {
   list: (params) => api.get('/alerts', { params }).then(r => r.data),
   getById: (id) => api.get(`/alerts/${id}`).then(r => r.data),

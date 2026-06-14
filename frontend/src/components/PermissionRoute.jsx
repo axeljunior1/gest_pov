@@ -1,7 +1,8 @@
 import { Link, Navigate, Outlet } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { Card, Button } from './ui'
-import { getDefaultAppPath } from '../utils/auth'
+import { getDefaultAppPath, isSuperAdmin } from '../utils/auth'
+import { resolvePermissionAccess } from '../utils/permissions'
 
 export default function PermissionRoute({ permission, anyOf, redirect }) {
   const { loading, user, hasPermission, hasAnyPermission } = useAuth()
@@ -14,16 +15,20 @@ export default function PermissionRoute({ permission, anyOf, redirect }) {
     )
   }
 
-  const allowed = anyOf?.length
-    ? hasAnyPermission(...anyOf)
-    : hasPermission(permission)
+  const { allowed, requiredLabel } = resolvePermissionAccess({
+    permission,
+    anyOf: anyOf ?? [],
+    hasPermission,
+    hasAnyPermission,
+    isSuperAdmin: isSuperAdmin(user),
+  })
 
   if (!allowed) {
     if (redirect !== false) {
       const fallback = getDefaultAppPath(user, hasPermission)
       return <Navigate to={fallback} replace />
     }
-    const label = anyOf?.join(' | ') || permission
+    const label = requiredLabel
     return (
       <div className="min-h-[50vh] flex items-center justify-center">
         <Card className="p-8 max-w-md text-center">

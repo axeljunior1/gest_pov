@@ -2,7 +2,7 @@ package com.erp.products.controller;
 
 import com.erp.products.config.AdminDevProperties;
 import com.erp.products.exception.BusinessException;
-import com.erp.products.service.DemoDataSeeder;
+import com.erp.products.service.DemoDatasetSeeder;
 import com.erp.products.service.DemoResetService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Profile;
@@ -19,7 +19,7 @@ public class AdminDevController {
 
     private final AdminDevProperties adminDevProperties;
     private final DemoResetService demoResetService;
-    private final DemoDataSeeder demoDataSeeder;
+    private final DemoDatasetSeeder demoDatasetSeeder;
 
     @GetMapping("/dev-tools/status")
     @PreAuthorize("@permissionChecker.has(authentication, 'ROLE_SUPER_ADMIN')")
@@ -43,11 +43,13 @@ public class AdminDevController {
     @PreAuthorize("@permissionChecker.has(authentication, 'ROLE_SUPER_ADMIN')")
     public Map<String, Object> seedDemo(@RequestHeader(value = "X-Reset-Token", required = false) String token) {
         assertDevResetAllowed(token);
-        DemoDataSeeder.DemoSeedResult result = demoDataSeeder.seed();
+        DemoDatasetSeeder.DemoSeedResult result = demoDatasetSeeder.seed();
         return Map.of(
                 "status", result.status(),
-                "productId", result.productId(),
-                "productSku", result.productSku());
+                "productSku", result.markerSku(),
+                "products", result.products(),
+                "customers", result.customers(),
+                "sales", result.sales());
     }
 
     private void assertDevResetAllowed(String token) {

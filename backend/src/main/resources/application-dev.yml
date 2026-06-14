@@ -7,3 +7,24 @@ spring:
 app:
   admin:
     reset-enabled: true
+
+springdoc:
+  api-docs:
+    enabled: true
+    path: /v3/api-docs
+  swagger-ui:
+    enabled: true
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
+
+management:
+  endpoint:
+    health:
+      show-details: always
+
+info:
+  app:
+    name: ERP Produits
+    description: Module gestion produits + POS
+    version: '1.0.0'

@@ -19,15 +19,8 @@ import { PosSessionChip, PosSessionTypeBadge, PosWrongSessionPanel } from '../co
 import ResumeSalesModal from '../components/pos/ResumeSalesModal'
 import ModalOverlay from '../components/ui/ModalOverlay'
 import { PosTicketModal } from '../components/pos/PosPrintModals'
-
-function formatMoney(value, currency = 'EUR') {
-  if (value == null) return '—'
-  try {
-    return new Intl.NumberFormat('fr-FR', { style: 'currency', currency }).format(Number(value))
-  } catch {
-    return `${Number(value).toFixed(2)} ${currency}`
-  }
-}
+import PosSearchResults, { resolvePosVariantId } from '../components/pos/PosSearchResults'
+import { formatPosMoney } from '../utils/posMoney'
 
 function flatCategories(nodes, depth = 0) {
   if (!nodes) return []
@@ -35,111 +28,6 @@ function flatCategories(nodes, depth = 0) {
     { id: n.id, nom: n.nom, depth },
     ...flatCategories(n.enfants || n.children, depth + 1),
   ])
-}
-
-function resolvePosVariantId(product, variantId) {
-  if (variantId) return variantId
-  if (product?.matchedVariantId) return product.matchedVariantId
-  if (product?.variants?.length === 1) return product.variants[0].id
-  return null
-}
-
-function expandPosSearchResults(results, matchType) {
-  if (!results?.length) return []
-  if (matchType !== 'TEXT') {
-    return results.map((p) => ({
-      key: `${p.id}`,
-      product: p,
-      variantId: resolvePosVariantId(p),
-      label: p.nom,
-      unitPrice: p.unitPrice,
-      stockAvailable: p.stockAvailable,
-      outOfStock: p.outOfStock,
-      lowStock: p.lowStock,
-    }))
-  }
-  const rows = []
-  for (const p of results) {
-    if (p.hasVariants && p.variants?.length > 0) {
-      for (const v of p.variants) {
-        rows.push({
-          key: `${p.id}-${v.id}`,
-          product: p,
-          variantId: v.id,
-          label: `${p.nom} — ${v.label || v.sku}`,
-          unitPrice: v.unitPrice,
-          stockAvailable: v.stockAvailable,
-          outOfStock: v.outOfStock,
-          lowStock: v.lowStock,
-        })
-      }
-    } else {
-      rows.push({
-        key: `${p.id}`,
-        product: p,
-        variantId: resolvePosVariantId(p),
-        label: p.nom,
-        unitPrice: p.unitPrice,
-        stockAvailable: p.stockAvailable,
-        outOfStock: p.outOfStock,
-        lowStock: p.lowStock,
-      })
-    }
-  }
-  return rows
-}
-
-function PosSearchResults({ results, matchType, highlightIndex, currency, onPick, message }) {
-  if (results === null) return null
-
-  const rows = expandPosSearchResults(results, matchType)
-
-  if (rows.length === 0) {
-    const text = matchType === 'BARCODE_NOT_FOUND'
-      ? (message || 'Aucun produit trouvé pour ce code-barres')
-      : matchType === 'BARCODE_AMBIGUOUS'
-        ? (message || 'Plusieurs articles correspondent — contactez un administrateur')
-        : 'Aucun produit trouvé'
-    return <p className="text-red-400 text-sm mt-2 px-1 font-medium">{text}</p>
-  }
-
-  const hint = matchType === 'TEXT'
-    ? `${rows.length} résultat(s) — cliquez ou Entrée pour ajouter`
-    : null
-
-  return (
-    <div className="mt-2 bg-slate-800 rounded-xl border border-slate-700 shadow-lg overflow-hidden">
-      {hint && (
-        <p className="text-xs text-slate-400 px-4 py-2 border-b border-slate-700">{hint}</p>
-      )}
-      <ul className="max-h-56 overflow-auto">
-        {rows.map((row, index) => (
-          <li key={row.key}>
-            <button
-              type="button"
-              onClick={() => onPick(row)}
-              className={`w-full text-left px-4 py-3 text-sm flex items-center justify-between gap-3 ${
-                index === highlightIndex ? 'bg-emerald-600/30 ring-1 ring-inset ring-emerald-500' : 'hover:bg-slate-700'
-              }`}
-            >
-              <span className="min-w-0">
-                <span className="font-medium block truncate">{row.label}</span>
-                <span className="text-xs text-slate-400">{row.product.sku}{row.product.categoryNom ? ` · ${row.product.categoryNom}` : ''}</span>
-              </span>
-              <span className="shrink-0 text-right">
-                <span className="text-emerald-400 font-medium">{formatMoney(row.unitPrice ?? row.product.unitPrice, currency)}</span>
-                {row.outOfStock
-                  ? <span className="block text-[10px] text-red-400">Rupture</span>
-                  : row.lowStock
-                    ? <span className="block text-[10px] text-orange-400">Stock faible ({Number(row.stockAvailable).toFixed(0)})</span>
-                    : <span className="block text-[10px] text-slate-500">Stock {Number(row.stockAvailable ?? row.product.stockAvailable).toFixed(0)}</span>}
-              </span>
-            </button>
-          </li>
-        ))}
-      </ul>
-    </div>
-  )
 }
 
 function PaymentModal({ sale, currency, onClose, onPaid }) {
@@ -172,7 +60,7 @@ function PaymentModal({ sale, currency, onClose, onPaid }) {
   return (
     <ModalOverlay open onClose={onClose}>
       <div className="bg-slate-900 border border-slate-700 rounded-xl w-full max-w-lg p-6">
-        <h3 className="text-lg font-semibold mb-4">Paiement — {formatMoney(total, currency)}</h3>
+        <h3 className="text-lg font-semibold mb-4">Paiement — {formatPosMoney(total, currency)}</h3>
         {payments.map((p, i) => (
           <div key={i} className="flex gap-2 mb-2">
             <select
@@ -219,7 +107,7 @@ function PaymentModal({ sale, currency, onClose, onPaid }) {
             placeholder="Optionnel"
           />
           {change > 0 && (
-            <p className="text-emerald-400 text-sm mt-2">Monnaie à rendre : {formatMoney(change, currency)}</p>
+            <p className="text-emerald-400 text-sm mt-2">Monnaie à rendre : {formatPosMoney(change, currency)}</p>
           )}
         </div>
         <div className="flex gap-2 justify-end">
@@ -261,7 +149,7 @@ function VariantPickerModal({ product, qty, currency, onClose, onPick }) {
               <span className="text-xs text-slate-400 ml-2">({v.stockAvailable ?? 0} dispo.)</span>
               {v.outOfStock && <span className="text-[10px] bg-red-900 text-red-300 px-1.5 py-0.5 rounded ml-2">Rupture</span>}
               {v.lowStock && !v.outOfStock && <span className="text-[10px] bg-orange-900 text-orange-300 px-1.5 py-0.5 rounded ml-2">Stock faible</span>}
-              <span className="float-right text-emerald-400 font-semibold">{formatMoney(v.unitPrice, currency)}</span>
+              <span className="float-right text-emerald-400 font-semibold">{formatPosMoney(v.unitPrice, currency)}</span>
               {v.packagings?.length > 0 && (
                 <span className="block text-[10px] text-slate-500 mt-1">
                   {v.packagings.slice(0, 2).map((p) => p.nom).join(' · ')}
@@ -303,7 +191,7 @@ function PackagingPickerModal({ product, qty, currency, onClose, onPick, packagi
               {p.quantiteBase > 1 && (
                 <span className="text-xs text-slate-400 ml-2">({p.quantiteBase} u.)</span>
               )}
-              <span className="float-right text-emerald-400 font-semibold">{formatMoney(p.salePrice, currency)}</span>
+              <span className="float-right text-emerald-400 font-semibold">{formatPosMoney(p.salePrice, currency)}</span>
             </button>
           ))}
         </div>
@@ -321,7 +209,7 @@ function ProductPackagingHints({ packagings, currency }) {
   return (
     <div className="text-[10px] text-slate-400 mt-1 space-y-0.5">
       {active.slice(0, 3).map((p) => (
-        <div key={p.id}>{p.nom} : {formatMoney(p.salePrice, currency)}</div>
+        <div key={p.id}>{p.nom} : {formatPosMoney(p.salePrice, currency)}</div>
       ))}
     </div>
   )
@@ -1201,7 +1089,7 @@ export default function POSPage() {
                     {p.variants.map((v) => v.label || v.sku).join(' · ')}
                   </p>
                 )}
-                <p className="text-emerald-400 font-semibold mt-2">{formatMoney(p.unitPrice, currency)}</p>
+                <p className="text-emerald-400 font-semibold mt-2">{formatPosMoney(p.unitPrice, currency)}</p>
                 <ProductPackagingHints packagings={p.packagings} currency={currency} />
                 <div className="flex gap-1 mt-1 flex-wrap">
                   {p.promotional && <span className="text-[10px] bg-amber-900 text-amber-300 px-1.5 py-0.5 rounded">PROMO</span>}
@@ -1239,7 +1127,7 @@ export default function POSPage() {
                       <span className="block text-xs text-slate-400 font-normal">{l.packagingNameSnapshot}</span>
                     )}
                   </span>
-                  <span>{formatMoney(l.lineTotal, currency)}</span>
+                  <span>{formatPosMoney(l.lineTotal, currency)}</span>
                 </div>
                 {l.stockInsufficient && (
                   <p className="text-xs text-red-400 mt-1">
@@ -1276,7 +1164,7 @@ export default function POSPage() {
                   >
                     +
                   </button>
-                  <span className="text-xs ml-auto">{formatMoney(l.unitPrice, currency)}/cond.</span>
+                  <span className="text-xs ml-auto">{formatPosMoney(l.unitPrice, currency)}/cond.</span>
                   <button
                     type="button"
                     className="text-red-400 text-xs hover:text-red-300 px-1"
@@ -1289,13 +1177,13 @@ export default function POSPage() {
             ))}
           </ul>
           <div className="p-4 border-t border-slate-800 space-y-1 text-sm">
-            <div className="flex justify-between text-slate-400"><span>Sous-total</span><span>{formatMoney(sale?.subtotal, currency)}</span></div>
-            <div className="flex justify-between text-slate-400"><span>Remise</span><span>{formatMoney(sale?.discountTotal, currency)}</span></div>
+            <div className="flex justify-between text-slate-400"><span>Sous-total</span><span>{formatPosMoney(sale?.subtotal, currency)}</span></div>
+            <div className="flex justify-between text-slate-400"><span>Remise</span><span>{formatPosMoney(sale?.discountTotal, currency)}</span></div>
             {(sale?.loyaltyDiscountAmount > 0) && (
-              <div className="flex justify-between text-amber-400"><span>Fidélité</span><span>-{formatMoney(sale.loyaltyDiscountAmount, currency)}</span></div>
+              <div className="flex justify-between text-amber-400"><span>Fidélité</span><span>-{formatPosMoney(sale.loyaltyDiscountAmount, currency)}</span></div>
             )}
-            <div className="flex justify-between text-slate-400"><span>Taxes</span><span>{formatMoney(sale?.taxTotal, currency)}</span></div>
-            <div className="flex justify-between text-lg font-bold pt-2"><span>Total</span><span className="text-emerald-400">{formatMoney(sale?.total, currency)}</span></div>
+            <div className="flex justify-between text-slate-400"><span>Taxes</span><span>{formatPosMoney(sale?.taxTotal, currency)}</span></div>
+            <div className="flex justify-between text-lg font-bold pt-2"><span>Total</span><span className="text-emerald-400">{formatPosMoney(sale?.total, currency)}</span></div>
             {canSendToCashier && (
               <button
                 type="button"

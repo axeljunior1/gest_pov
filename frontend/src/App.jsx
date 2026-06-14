@@ -10,6 +10,10 @@ import LoginPage from './pages/LoginPage'
 import DashboardPage from './pages/DashboardPage'
 import AnalyticsPage from './pages/AnalyticsPage'
 import CancelledSalesPage from './pages/CancelledSalesPage'
+import SalesPage from './pages/SalesPage'
+import SaleDetailPage from './pages/SaleDetailPage'
+import ReturnsPage from './pages/ReturnsPage'
+import ReturnDetailPage from './pages/ReturnDetailPage'
 import HomeRedirect from './components/HomeRedirect'
 import ProductDetailPage from './pages/ProductDetailPage'
 import CategoriesPage from './pages/CategoriesPage'
@@ -71,6 +75,14 @@ export default function App() {
                   <Route element={<PermissionRoute anyOf={['analytics.read', 'analytics.sales.read', 'sales.cancellations.read']} />}>
                     <Route path="analytics" element={<AnalyticsPage />} />
                     <Route path="analytics/cancellations" element={<CancelledSalesPage />} />
+                  </Route>
+                  <Route element={<PermissionRoute anyOf={['pos.sale.read', 'pos.sale.read_own', 'analytics.sales.read', 'pos.report.read']} />}>
+                    <Route path="sales" element={<SalesPage />} />
+                    <Route path="sales/:id" element={<SaleDetailPage />} />
+                  </Route>
+                  <Route element={<PermissionRoute anyOf={['pos.return.read', 'analytics.sales.read', 'pos.report.read']} />}>
+                    <Route path="returns" element={<ReturnsPage />} />
+                    <Route path="returns/:id" element={<ReturnDetailPage />} />
                   </Route>
                   <Route element={<PermissionRoute permission="products.read" />}>
                     <Route index element={<HomeRedirect />} />

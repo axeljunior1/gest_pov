@@ -402,6 +402,32 @@ export default function DocumentationPage() {
         </ul>
       </Card>
 
+      <Card className="p-6 mt-6 border-dashed">
+        <h3 className="text-sm font-semibold text-gray-900 mb-2">API & monitoring (dev)</h3>
+        <ul className="text-sm text-gray-600 space-y-1.5">
+          <li>
+            • Documentation OpenAPI (profil <code className="text-xs bg-gray-100 px-1 rounded">dev</code>) :{' '}
+            <a
+              href="http://localhost:8080/swagger-ui.html"
+              target="_blank"
+              rel="noreferrer"
+              className="text-emerald-600 hover:underline"
+            >
+              Swagger UI
+            </a>
+            {' '}— ~44 endpoints POS et modules catalogués automatiquement.
+          </li>
+          <li>
+            • Santé applicative :{' '}
+            <a href="http://localhost:8080/actuator/health" target="_blank" rel="noreferrer" className="text-emerald-600 hover:underline">
+              /actuator/health
+            </a>
+            {' '}(readiness inclut la sonde PostgreSQL).
+          </li>
+          <li>• Liveness / readiness publics pour orchestration ou sonde externe.</li>
+        </ul>
+      </Card>
+
       <Card className="p-6 mt-6 bg-amber-50 border-amber-100">
         <h3 className="text-sm font-semibold text-amber-900 mb-2">Stabilité du serveur (dépannage)</h3>
         <ul className="text-sm text-amber-800 space-y-1.5">
