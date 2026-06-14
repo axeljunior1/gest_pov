@@ -176,6 +176,13 @@ export const analyticsApi = {
   exportCsv: (params) => api.get('/analytics/export', { params, responseType: 'blob' }).then(r => r.data),
 }
 
+export const saleCancellationsApi = {
+  list: (params) => api.get('/sales/cancellations', { params }).then(r => r.data),
+  detail: (id) => api.get(`/sales/cancellations/${id}`).then(r => r.data),
+  analytics: (params) => api.get('/sales/cancellations/analytics', { params }).then(r => r.data),
+  reasons: () => api.get('/sales/cancellations/reasons').then(r => r.data),
+}
+
 export const alertsApi = {
   list: (params) => api.get('/alerts', { params }).then(r => r.data),
   getById: (id) => api.get(`/alerts/${id}`).then(r => r.data),
@@ -332,7 +339,7 @@ export const posApi = {
   recallFromPayment: (id) => api.post(`/pos/sales/${id}/recall-from-payment`).then(r => r.data),
   listPendingPayments: () => api.get('/pos/sales/pending-payment').then(r => r.data),
   listCompletedSales: (params) => api.get('/pos/sales/completed', { params }).then(r => r.data),
-  cancelSale: (id) => api.post(`/pos/sales/${id}/cancel`).then(r => r.data),
+  cancelSale: (id, payload) => api.post(`/pos/sales/${id}/cancel`, payload || {}).then(r => r.data),
   ticket: (id) => api.get(`/pos/sales/${id}/ticket`).then(r => r.data),
   invoice: (id) => api.get(`/pos/sales/${id}/invoice`).then(r => r.data),
   refund: (id, data) => api.post(`/pos/sales/${id}/refund`, data).then(r => r.data),

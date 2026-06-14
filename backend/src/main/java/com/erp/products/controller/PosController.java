@@ -222,8 +222,8 @@ public class PosController {
 
     @PostMapping("/sales/{id}/cancel")
     @PreAuthorize("@permissionChecker.has(authentication, 'pos.sale.cancel')")
-    public SaleResponse cancelSale(@PathVariable Long id) {
-        return saleService.cancelSale(id);
+    public SaleResponse cancelSale(@PathVariable Long id, @RequestBody(required = false) CancelSaleRequest request) {
+        return saleService.cancelSale(id, request);
     }
 
     @GetMapping("/sales/{id}/ticket")

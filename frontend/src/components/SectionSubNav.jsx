@@ -15,11 +15,11 @@ export default function SectionSubNav() {
   if (!activeGroup) return null
 
   return (
-    <div className="mb-6 pb-4 border-b border-gray-200">
-      <p className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-3">
+    <div className="mb-7 pb-5 border-b border-gray-200">
+      <p className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-3.5">
         {activeGroup.label}
       </p>
-      <nav className="flex flex-wrap gap-1">
+      <nav className="flex flex-wrap gap-1.5">
         {activeGroup.items.map((item) => {
           const active = isNavItemActive(pathname, item)
           return (
@@ -28,7 +28,7 @@ export default function SectionSubNav() {
               to={item.to}
               end={item.to === '/'}
               className={() =>
-                `px-3 py-1.5 rounded-lg text-sm transition-colors ${
+                `px-4 py-2 rounded-lg text-sm transition-colors whitespace-nowrap ${
                   active
                     ? 'bg-gray-900 text-white font-medium'
                     : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'

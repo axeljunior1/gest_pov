@@ -11,6 +11,7 @@ import { saleStatusLabel } from '../utils/saleStatus'
 import { formatPosMoney } from '../utils/posMoney'
 import CashSessionCloseModal from '../components/pos/CashSessionCloseModal'
 import CashSessionOpenModal from '../components/pos/CashSessionOpenModal'
+import CancelSaleModal from '../components/pos/CancelSaleModal'
 import ModalOverlay from '../components/ui/ModalOverlay'
 import { PosSessionChip, PosSessionTypeBadge, PosWrongSessionPanel } from '../components/pos/PosWorkspaceNav'
 import { PosTicketModal } from '../components/pos/PosPrintModals'
@@ -139,6 +140,8 @@ export default function PosPendingPaymentsPage() {
   const [selected, setSelected] = useState(null)
   const [detail, setDetail] = useState(null)
   const [ticket, setTicket] = useState(null)
+  const [cancelTarget, setCancelTarget] = useState(null)
+  const [cancelling, setCancelling] = useState(false)
 
   const currency = context?.publicSettings?.currency || 'EUR'
   const isCentralCashier = context?.posConfig?.salesFlowMode === 'CENTRAL_CASHIER'
@@ -211,16 +214,20 @@ export default function PosPendingPaymentsPage() {
     }
   }
 
-  const cancelPending = async (saleId) => {
-    if (!window.confirm('Annuler cette vente en attente ?')) return
+  const cancelPending = async (payload) => {
+    if (!cancelTarget) return
+    setCancelling(true)
     try {
-      await posApi.cancelSale(saleId)
+      await posApi.cancelSale(cancelTarget, payload)
       notify.success('Vente annulée')
+      setCancelTarget(null)
       setDetail(null)
       await refresh()
       notifyPosSaleStateChanged()
     } catch (e) {
       notify.error(getErrorMessage(e))
+    } finally {
+      setCancelling(false)
     }
   }
 
@@ -403,7 +410,7 @@ export default function PosPendingPaymentsPage() {
                           </button>
                         )}
                         {hasPermission('pos.sale.cancel') && (
-                          <button type="button" onClick={() => cancelPending(s.id)}
+                          <button type="button" onClick={() => setCancelTarget(s.id)}
                             className="px-3 py-1.5 bg-red-900/50 border border-red-800 rounded-lg text-xs">
                             Annuler
                           </button>
@@ -457,6 +464,14 @@ export default function PosPendingPaymentsPage() {
           loading={openingSession}
           onClose={() => setShowOpenModal(false)}
           onConfirm={openCashierSession}
+        />
+      )}
+      {cancelTarget && (
+        <CancelSaleModal
+          saleNumber={pending.find((s) => s.id === cancelTarget)?.saleNumber}
+          loading={cancelling}
+          onClose={() => !cancelling && setCancelTarget(null)}
+          onConfirm={cancelPending}
         />
       )}
       {showCloseModal && session && (

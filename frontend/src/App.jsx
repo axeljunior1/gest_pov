@@ -9,6 +9,7 @@ import POSLayout from './components/POSLayout'
 import LoginPage from './pages/LoginPage'
 import DashboardPage from './pages/DashboardPage'
 import AnalyticsPage from './pages/AnalyticsPage'
+import CancelledSalesPage from './pages/CancelledSalesPage'
 import ProductsPage from './pages/ProductsPage'
 import ProductDetailPage from './pages/ProductDetailPage'
 import CategoriesPage from './pages/CategoriesPage'
@@ -67,8 +68,9 @@ export default function App() {
                   <Route element={<PermissionRoute permission="dashboard.read" />}>
                     <Route path="dashboard" element={<DashboardPage />} />
                   </Route>
-                  <Route element={<PermissionRoute anyOf={['analytics.read', 'analytics.sales.read']} />}>
+                  <Route element={<PermissionRoute anyOf={['analytics.read', 'analytics.sales.read', 'sales.cancellations.read']} />}>
                     <Route path="analytics" element={<AnalyticsPage />} />
+                    <Route path="analytics/cancellations" element={<CancelledSalesPage />} />
                   </Route>
                   <Route index element={<ProductsPage />} />
                   <Route path="products/:id" element={<ProductDetailPage />} />

@@ -102,6 +102,46 @@ public class StockAnalyticsService {
                     .build());
         }
 
+        var today = filterService.dayRange(java.time.LocalDate.now(java.time.ZoneId.of("Europe/Paris")));
+        long todayCancellations = analyticsRepository.countCancelledSales(today.from(), today.to(), filter);
+        if (todayCancellations >= 10) {
+            items.add(AnalyticsBusinessAlertRow.builder()
+                    .code("HIGH_CANCELLATIONS_TODAY")
+                    .severity("critical")
+                    .title("Trop d'annulations aujourd'hui")
+                    .message(todayCancellations + " ventes annulées aujourd'hui")
+                    .value(BigDecimal.valueOf(todayCancellations))
+                    .build());
+        }
+
+        BigDecimal cancelledAmount = analyticsRepository.sumCancelledAmount(filter.getFrom(), filter.getTo(), filter);
+        if (cancelledAmount.compareTo(BigDecimal.valueOf(5000)) > 0) {
+            items.add(AnalyticsBusinessAlertRow.builder()
+                    .code("HIGH_CANCELLED_AMOUNT")
+                    .severity("warning")
+                    .title("Montant annulé élevé")
+                    .message("Montant total annulé sur la période : " + cancelledAmount.stripTrailingZeros().toPlainString())
+                    .value(cancelledAmount)
+                    .build());
+        }
+
+        var topCancellers = analyticsRepository.findTopCancellationSellers(filter.getFrom(), filter.getTo(), filter, 1);
+        if (!topCancellers.isEmpty()) {
+            Object[] row = topCancellers.get(0);
+            long userCount = AnalyticsConstants.longValue(row[3]);
+            if (userCount >= 5) {
+                items.add(AnalyticsBusinessAlertRow.builder()
+                        .code("USER_HIGH_CANCELLATIONS")
+                        .severity("warning")
+                        .title("Utilisateur avec beaucoup d'annulations")
+                        .message((row[1] + " " + row[2]).trim() + " — " + userCount + " annulations")
+                        .value(BigDecimal.valueOf(userCount))
+                        .entityType("USER")
+                        .entityId(((Number) row[0]).longValue())
+                        .build());
+            }
+        }
+
         BigDecimal refunds = analyticsRepository.aggregateRefunds(filter.getFrom(), filter.getTo(), filter);
         var sales = analyticsRepository.aggregateSales(filter.getFrom(), filter.getTo(), filter);
         if (sales.revenue().compareTo(BigDecimal.ZERO) > 0

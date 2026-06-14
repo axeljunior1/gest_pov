@@ -23,7 +23,7 @@ const emptyVariant = () => ({
 })
 
 const initialForm = () => ({
-  nom: '', sku: '', codeBarre: '', generateBarcode: false, description: '', marque: '',
+  nom: '', sku: '', codeBarre: '', generateBarcode: true, description: '', marque: '',
   categorieId: '', fournisseurPrincipalId: '', unitId: '',
   prixAchat: '', prixVente: '', prixPromotionnel: '',
   statut: 'ACTIF', cycleVie: 'BROUILLON',
@@ -504,7 +504,7 @@ export default function ProductDetailPage() {
                     checked={form.generateBarcode}
                     onChange={(e) => setField('generateBarcode', e.target.checked)}
                   />
-                  Générer un EAN-13 à l&apos;enregistrement
+                  Générer un EAN-13 à l&apos;enregistrement (activé par défaut)
                 </label>
               </div>
             )}

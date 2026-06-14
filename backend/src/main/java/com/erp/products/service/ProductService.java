@@ -501,39 +501,44 @@ public class ProductService {
             }
             return;
         }
-        if (Boolean.TRUE.equals(request.getGenerateBarcode())) {
-            product.setCodeBarre(barcodeService.allocateEan13(barcodeRegistryService::isTaken));
+        if (request.getCodeBarre() != null && !request.getCodeBarre().isBlank()) {
+            String code = request.getCodeBarre().trim();
+            barcodeRegistryService.assertAvailable(code, product.getId(), null, null);
+            product.setCodeBarre(code);
             return;
         }
-        if (request.getCodeBarre() == null) {
-            return;
-        }
-        if (request.getCodeBarre().isBlank()) {
+        if (request.getCodeBarre() != null && request.getCodeBarre().isBlank()) {
             product.setCodeBarre(null);
             return;
         }
-        String code = request.getCodeBarre().trim();
-        barcodeRegistryService.assertAvailable(code, product.getId(), null, null);
-        product.setCodeBarre(code);
+        if (Boolean.FALSE.equals(request.getGenerateBarcode())) {
+            return;
+        }
+        if (Boolean.TRUE.equals(request.getGenerateBarcode()) || product.getCodeBarre() == null) {
+            product.setCodeBarre(barcodeService.allocateEan13(barcodeRegistryService::isTaken));
+        }
     }
 
     private void applyBarcode(ProductVariant variant, ProductVariantRequest request) {
-        if (Boolean.TRUE.equals(request.getGenerateBarcode())) {
-            BarcodeType type = request.getBarcodeType() != null ? request.getBarcodeType() : BarcodeType.EAN13;
-            variant.setBarcodeType(type);
-            if (request.getCodeBarre() != null && !request.getCodeBarre().isBlank()) {
-                variant.setCodeBarre(request.getCodeBarre().trim());
-            } else if (type == BarcodeType.EAN13) {
-                variant.setCodeBarre(barcodeService.allocateEan13(barcodeRegistryService::isTaken));
-            } else {
-                variant.setCodeBarre(variant.getSku());
-            }
-        } else if (request.getCodeBarre() != null && !request.getCodeBarre().isBlank()) {
+        if (request.getCodeBarre() != null && !request.getCodeBarre().isBlank()) {
             variant.setCodeBarre(request.getCodeBarre().trim());
             variant.setBarcodeType(request.getBarcodeType() != null ? request.getBarcodeType() : BarcodeType.EAN13);
-        } else if (request.getCodeBarre() != null) {
+            return;
+        }
+        if (request.getCodeBarre() != null && request.getCodeBarre().isBlank()) {
             variant.setCodeBarre(null);
             variant.setBarcodeType(null);
+            return;
+        }
+        if (Boolean.FALSE.equals(request.getGenerateBarcode())) {
+            return;
+        }
+        BarcodeType type = request.getBarcodeType() != null ? request.getBarcodeType() : BarcodeType.EAN13;
+        variant.setBarcodeType(type);
+        if (type == BarcodeType.EAN13) {
+            variant.setCodeBarre(barcodeService.allocateEan13(barcodeRegistryService::isTaken));
+        } else {
+            variant.setCodeBarre(variant.getSku());
         }
     }
 

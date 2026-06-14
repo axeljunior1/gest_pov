@@ -37,8 +37,11 @@ export function buildProductPayload(form, { isNew = false, hasVariants = false }
     && form.variantes.some((v) => v.sku?.trim() || v.couleur?.trim() || v.taille?.trim() || toNumber(v.prix) != null)
 
   if (!hasVariants && !hasInitialVariants) {
-    if (form.codeBarre != null) payload.codeBarre = form.codeBarre.trim()
-    if (form.generateBarcode) payload.generateBarcode = true
+    if (form.codeBarre?.trim()) {
+      payload.codeBarre = form.codeBarre.trim()
+    } else if (isNew || form.generateBarcode) {
+      payload.generateBarcode = true
+    }
   }
 
   const attributs = form.attributs || {}
@@ -60,9 +63,11 @@ export function buildProductPayload(form, { isNew = false, hasVariants = false }
           stock: Number(v.stock) || 0,
         }
         if (v.sku?.trim()) variant.sku = v.sku.trim()
-        if (v.generateBarcode) variant.generateBarcode = true
-        if (isValidBarcodeType(v.barcodeType)) variant.barcodeType = v.barcodeType
         if (v.codeBarre?.trim()) variant.codeBarre = v.codeBarre.trim()
+        if (v.generateBarcode !== false && !v.codeBarre?.trim()) variant.generateBarcode = true
+        else if (v.generateBarcode) variant.generateBarcode = true
+        if (isValidBarcodeType(v.barcodeType)) variant.barcodeType = v.barcodeType
+        else if (variant.generateBarcode) variant.barcodeType = 'EAN13'
         return variant
       })
 
@@ -88,9 +93,10 @@ export function buildVariantPayload(variant) {
     payload.costPrice = toNumber(variant.costPrice)
   }
   if (variant.sku?.trim()) payload.sku = variant.sku.trim()
-  if (variant.generateBarcode) payload.generateBarcode = true
-  if (!payload.barcodeType && variant.generateBarcode) payload.barcodeType = 'EAN13'
-  if (isValidBarcodeType(variant.barcodeType)) payload.barcodeType = variant.barcodeType
   if (variant.codeBarre?.trim()) payload.codeBarre = variant.codeBarre.trim()
+  if (variant.generateBarcode !== false && !variant.codeBarre?.trim()) payload.generateBarcode = true
+  else if (variant.generateBarcode) payload.generateBarcode = true
+  if (isValidBarcodeType(variant.barcodeType)) payload.barcodeType = variant.barcodeType
+  else if (payload.generateBarcode) payload.barcodeType = 'EAN13'
   return payload
 }

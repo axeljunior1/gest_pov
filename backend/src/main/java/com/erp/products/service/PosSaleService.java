@@ -51,6 +51,8 @@ public class PosSaleService {
     private final ProductVariantPolicyService variantPolicyService;
     private final StockExitService stockExitService;
     private final BarcodeLookupService barcodeLookupService;
+    private final SaleCancellationService saleCancellationService;
+    private final SaleEventService saleEventService;
 
     @Transactional
     public SaleResponse createSale() {
@@ -63,13 +65,17 @@ public class PosSaleService {
                 .posSession(session)
                 .seller(seller)
                 .cashier(seller)
+                .createdBy(seller)
+                .updatedBy(seller)
                 .warehouse(session.getWarehouse())
                 .location(location)
                 .status(SaleStatus.DRAFT)
                 .lignes(new ArrayList<>())
                 .payments(new ArrayList<>())
                 .build();
-        return mapper.toSaleResponse(saleRepository.save(sale));
+        Sale saved = saleRepository.save(sale);
+        saleEventService.record(saved, SaleEventType.CREATED, "Création vente");
+        return mapper.toSaleResponse(saved);
     }
 
     @Transactional(readOnly = true)
@@ -107,7 +113,9 @@ public class PosSaleService {
         ensureSellerAndCashier(sale);
         sale.setStatus(SaleStatus.PENDING_PAYMENT);
         sale.setSubmittedAt(Instant.now());
+        touchUpdatedBy(sale);
         Sale saved = saleRepository.save(sale);
+        saleEventService.record(saved, SaleEventType.SENT_TO_CASHIER, "Envoi caisse");
         auditService.log("Sale", saved.getId(), AuditAction.MODIFICATION,
                 "Vente transferee a la caisse (a encaisser) " + saved.getSaleNumber(),
                 resolveSellerEmail(saved));
@@ -127,7 +135,9 @@ public class PosSaleService {
         sale.setStatus(SaleStatus.HOLD);
         sale.setHoldLabel("Retour caisse — " + sale.getSaleNumber());
         sale.setSubmittedAt(null);
+        touchUpdatedBy(sale);
         Sale saved = saleRepository.save(sale);
+        saleEventService.record(saved, SaleEventType.RECALLED_FROM_CASHIER, "Retour vendeur");
         auditService.log("Sale", saved.getId(), AuditAction.MODIFICATION,
                 "Vente renvoyee en attente vendeur " + saved.getSaleNumber(),
                 currentUserService.requireCurrentUser().getEmail());
@@ -245,8 +255,9 @@ public class PosSaleService {
         Optional<SaleLine> existing = sale.getLignes().stream()
                 .filter(l -> sameLine(l, product.getId(), variant, packaging, unitPrice, discount))
                 .findFirst();
+        boolean lineUpdated = existing.isPresent();
 
-        if (existing.isPresent()) {
+        if (lineUpdated) {
             SaleLine line = existing.get();
             line.setQuantityInput(line.getQuantityInput().add(qtyInput));
             line.setQuantityInBaseUnit(line.getQuantityInBaseUnit().add(qtyBase));
@@ -273,7 +284,15 @@ public class PosSaleService {
         }
 
         recalculateTotals(sale);
-        return mapper.toSaleResponse(saleRepository.save(sale));
+        touchUpdatedBy(sale);
+        Sale saved = saleRepository.save(sale);
+        saleEventService.record(saved, lineUpdated ? SaleEventType.LINE_UPDATED : SaleEventType.LINE_ADDED,
+                product.getNom(), "Qté " + qtyInput, null);
+        return mapper.toSaleResponse(saved);
+    }
+
+    private void touchUpdatedBy(Sale sale) {
+        sale.setUpdatedBy(currentUserService.requireCurrentUser());
     }
 
     @Transactional
@@ -365,7 +384,10 @@ public class PosSaleService {
         }
         sale.setStatus(SaleStatus.HOLD);
         sale.setHoldLabel(label != null && !label.isBlank() ? label : "Vente en attente");
-        return mapper.toSaleResponse(saleRepository.save(sale));
+        touchUpdatedBy(sale);
+        Sale saved = saleRepository.save(sale);
+        saleEventService.record(saved, SaleEventType.HOLD, "Mise en pause");
+        return mapper.toSaleResponse(saved);
     }
 
     @Transactional
@@ -375,7 +397,10 @@ public class PosSaleService {
             throw new BusinessException("Seule une vente en attente peut etre reprise");
         }
         sale.setStatus(SaleStatus.DRAFT);
-        return mapper.toSaleResponse(saleRepository.save(sale));
+        touchUpdatedBy(sale);
+        Sale saved = saleRepository.save(sale);
+        saleEventService.record(saved, SaleEventType.RESUMED, "Reprise vente");
+        return mapper.toSaleResponse(saved);
     }
 
     @Transactional
@@ -540,19 +565,9 @@ public class PosSaleService {
     }
 
     @Transactional
-    public SaleResponse cancelSale(Long saleId) {
+    public SaleResponse cancelSale(Long saleId, CancelSaleRequest request) {
         Sale sale = findSaleForUpdate(saleId);
-        if (sale.getStatus() == SaleStatus.CANCELLED) {
-            throw new BusinessException("Vente deja annulee");
-        }
-        if (SaleStatuses.isPaid(sale.getStatus())
-                || sale.getStatus() == SaleStatus.REFUNDED
-                || sale.getStatus() == SaleStatus.PARTIALLY_REFUNDED) {
-            throw new BusinessException("Une vente payee doit etre remboursee, pas annulee");
-        }
-        sale.setStatus(SaleStatus.CANCELLED);
-        sale.setCancelledAt(Instant.now());
-        return mapper.toSaleResponse(saleRepository.save(sale));
+        return saleCancellationService.cancel(sale, request, null, false);
     }
 
     private void postStockMovement(Sale sale, SaleLine line, Long stockExitId) {

@@ -1,5 +1,6 @@
 package com.erp.products.domain.entity;
 
+import com.erp.products.domain.enums.SaleCancellationReason;
 import com.erp.products.domain.enums.SaleStatus;
 import jakarta.persistence.*;
 import lombok.*;
@@ -115,6 +116,25 @@ public class Sale {
 
     @Column(name = "cancelled_at")
     private Instant cancelledAt;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "created_by_id")
+    private User createdBy;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "updated_by_id")
+    private User updatedBy;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "cancelled_by_id")
+    private User cancelledBy;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "cancellation_reason", length = 50)
+    private SaleCancellationReason cancellationReason;
+
+    @Column(name = "cancellation_comment", length = 2000)
+    private String cancellationComment;
 
     @Version
     private Long version;

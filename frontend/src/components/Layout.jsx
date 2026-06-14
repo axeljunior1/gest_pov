@@ -12,7 +12,7 @@ function NavItem({ item, pathname }) {
       to={item.to}
       end={item.to === '/'}
       className={() =>
-        `block px-3 py-1.5 rounded-lg text-sm transition-colors ${
+        `block px-3.5 py-2 rounded-lg text-sm transition-colors whitespace-nowrap ${
           active
             ? 'bg-gray-900 text-white font-medium'
             : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
@@ -66,12 +66,15 @@ export default function Layout() {
 
   return (
     <div className="min-h-screen flex">
-      <aside className="w-56 bg-white border-r border-gray-200 flex flex-col shrink-0">
-        <div className="px-5 py-6 border-b border-gray-100">
-          <h1 className="text-lg font-semibold tracking-tight">{companyName}</h1>
+      <aside
+        className="layout-sidebar bg-white border-r border-gray-200 flex flex-col shrink-0 sticky top-0 h-screen overflow-hidden"
+        style={{ width: 'var(--layout-sidebar-width)' }}
+      >
+        <div className="px-5 py-6 border-b border-gray-100 shrink-0 min-w-0">
+          <h1 className="text-lg font-semibold tracking-tight leading-snug truncate" title={companyName}>{companyName}</h1>
           <p className="text-xs text-gray-500 mt-0.5">Gestion produits & stock</p>
         </div>
-        <nav className="flex-1 p-3 space-y-3 overflow-y-auto">
+        <nav className="layout-sidebar-nav flex-1 p-3.5 space-y-3 min-h-0">
           {visibleGroups.map((group) => {
             if (!group.label) {
               return (
@@ -93,11 +96,11 @@ export default function Layout() {
                 <button
                   type="button"
                   onClick={() => toggleGroup(group.id)}
-                  className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-xs font-semibold uppercase tracking-wide transition-colors ${
+                  className={`w-full flex items-center justify-between px-3.5 py-2 rounded-lg text-xs font-semibold uppercase tracking-wide transition-colors ${
                     groupActive ? 'text-gray-900' : 'text-gray-400 hover:text-gray-600'
                   }`}
                 >
-                  <span>{group.label}</span>
+                  <span className="whitespace-nowrap">{group.label}</span>
                   <span className="text-[10px]">{isOpen ? '▾' : '▸'}</span>
                 </button>
                 {isOpen && (
@@ -113,7 +116,7 @@ export default function Layout() {
             )
           })}
         </nav>
-        <div className="p-4 border-t border-gray-100">
+        <div className="p-4 border-t border-gray-100 shrink-0 min-w-0">
           <p className="text-xs text-gray-500 truncate" title={user?.email}>
             {user?.firstName} {user?.lastName}
           </p>
@@ -127,8 +130,11 @@ export default function Layout() {
           </button>
         </div>
       </aside>
-      <main className="flex-1 overflow-auto">
-        <div className="max-w-6xl mx-auto px-8 py-8">
+      <main className="flex-1 overflow-auto min-w-0">
+        <div
+          className="w-full mx-auto px-6 sm:px-8 lg:px-10 xl:px-12 py-8"
+          style={{ maxWidth: 'var(--layout-content-max-width)' }}
+        >
           <SectionSubNav />
           <Outlet />
         </div>

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import {
   Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart,
   Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
@@ -201,6 +202,21 @@ export default function AnalyticsPage() {
             <p className="text-xs font-medium text-gray-500 uppercase">Marge brute est.</p>
             <p className="text-2xl font-semibold mt-1 text-emerald-700">{formatMoney(overview.grossProfitEstimate, currency)}</p>
           </Card>
+          {(hasPermission('sales.cancellations.read') || hasPermission('analytics.read')) && (
+            <Link to="/analytics/cancellations" className="block">
+              <Card className="p-4 hover:border-red-300 hover:shadow-sm transition-all h-full">
+                <p className="text-xs font-medium text-gray-500 uppercase">Ventes annulées</p>
+                <p className="text-2xl font-semibold mt-1 text-red-600">
+                  {overview.cancelledCountPeriod?.current ?? 0}
+                </p>
+                <p className="text-xs text-gray-500 mt-1">
+                  {formatMoney(overview.cancelledAmountTotal, currency)} annulés
+                </p>
+                <TrendBadge metric={overview.cancelledCountPeriod} />
+                <p className="text-xs text-emerald-600 mt-2">Voir le détail →</p>
+              </Card>
+            </Link>
+          )}
         </div>
       )}
 

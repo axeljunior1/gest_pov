@@ -58,6 +58,22 @@ class ProductControllerTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void shouldCreateSimpleProductWithAutoEan() throws Exception {
+        ProductRequest request = new ProductRequest();
+        request.setNom("Cahier A4");
+        request.setPrixVente(new BigDecimal("3.50"));
+        request.setStatut(ProductStatus.ACTIF);
+        request.setCycleVie(LifecycleStatus.BROUILLON);
+
+        mockMvc.perform(post("/api/products")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.codeBarre").exists())
+                .andExpect(jsonPath("$.codeBarre").value(matchesPattern("\\d{13}")));
+    }
+
+    @Test
     void shouldSearchProductsByQueryAndFilters() throws Exception {
         mockMvc.perform(post("/api/products")
                         .contentType(MediaType.APPLICATION_JSON)

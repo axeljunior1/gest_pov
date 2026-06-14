@@ -6,6 +6,9 @@
   --color-border: #e5e7eb;
   --color-muted: #6b7280;
   --color-accent: #111827;
+  /* Layout back-office : +20 % par rapport à w-56 (14rem) et max-w-6xl (72rem) */
+  --layout-sidebar-width: 16.8rem;
+  --layout-content-max-width: 86.4rem;
 }
 
 body {
@@ -68,6 +71,36 @@ input, select, textarea {
 
 button {
   @apply cursor-pointer;
+}
+
+/* Menu latéral — ascenseurs vertical et horizontal */
+.layout-sidebar-nav {
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #d1d5db transparent;
+}
+
+.layout-sidebar-nav::-webkit-scrollbar {
+  width: 6px;
+  height: 8px;
+}
+
+.layout-sidebar-nav::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.layout-sidebar-nav::-webkit-scrollbar-thumb {
+  background-color: #d1d5db;
+  border-radius: 9999px;
+}
+
+.layout-sidebar-nav::-webkit-scrollbar-thumb:hover {
+  background-color: #9ca3af;
+}
+
+.layout-sidebar-nav::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
 /* Impression ticket / facture POS */

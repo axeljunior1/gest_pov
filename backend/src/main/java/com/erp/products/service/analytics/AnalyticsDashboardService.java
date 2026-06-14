@@ -46,6 +46,11 @@ public class AnalyticsDashboardService {
         BigDecimal refunds = analyticsRepository.aggregateRefunds(filter.getFrom(), filter.getTo(), filter);
         BigDecimal prevRefunds = analyticsRepository.aggregateRefunds(filter.getCompareFrom(), filter.getCompareTo(), filter);
 
+        long cancelledCount = analyticsRepository.countCancelledSales(filter.getFrom(), filter.getTo(), filter);
+        BigDecimal cancelledAmount = analyticsRepository.sumCancelledAmount(filter.getFrom(), filter.getTo(), filter);
+        long prevCancelledCount = analyticsRepository.countCancelledSales(filter.getCompareFrom(), filter.getCompareTo(), filter);
+        BigDecimal prevCancelledAmount = analyticsRepository.sumCancelledAmount(filter.getCompareFrom(), filter.getCompareTo(), filter);
+
         String currency = settingsService.getPublicSettings().getCurrency();
 
         return AnalyticsOverviewResponse.builder()
@@ -62,6 +67,9 @@ public class AnalyticsDashboardService {
                 .discountsPeriod(filterService.compare(
                         periodMetrics.discounts().add(periodMetrics.loyaltyDiscounts()),
                         prevPeriodMetrics.discounts().add(prevPeriodMetrics.loyaltyDiscounts())))
+                .cancelledCountPeriod(filterService.compare(cancelledCount, prevCancelledCount))
+                .cancelledAmountPeriod(filterService.compare(cancelledAmount, prevCancelledAmount))
+                .cancelledAmountTotal(cancelledAmount)
                 .periodLabel(request.getPeriod() != null ? request.getPeriod() : "THIS_MONTH")
                 .currency(currency)
                 .build();

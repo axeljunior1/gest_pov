@@ -52,6 +52,7 @@ public class PosSessionService {
     private final PermissionEvaluator permissionChecker;
     private final PasswordEncoder passwordEncoder;
     private final PosMapper mapper;
+    private final SaleCancellationService saleCancellationService;
 
     @Transactional
     public PosSessionResponse openSession(PosSessionOpenRequest request) {
@@ -529,8 +530,6 @@ public class PosSessionService {
     }
 
     private void cancelDraftSale(Sale sale) {
-        sale.setStatus(SaleStatus.CANCELLED);
-        sale.setCancelledAt(Instant.now());
-        saleRepository.save(sale);
+        saleCancellationService.cancel(sale, null, null, true);
     }
 }

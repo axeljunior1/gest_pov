@@ -103,6 +103,110 @@ public class AnalyticsRepository {
         return AnalyticsConstants.longValue(singleRow(jpql.toString(), params)[0]);
     }
 
+    public BigDecimal sumCancelledAmount(Instant from, Instant to, ResolvedAnalyticsFilter filter) {
+        StringBuilder jpql = new StringBuilder("""
+                SELECT COALESCE(SUM(s.total), 0)
+                FROM Sale s
+                WHERE s.status = :cancelled
+                  AND s.cancelledAt >= :from AND s.cancelledAt < :to
+                """);
+        Map<String, Object> params = new HashMap<>();
+        params.put("cancelled", SaleStatus.CANCELLED);
+        params.put("from", from);
+        params.put("to", to);
+        appendSaleFilters(filter, jpql, params, false);
+        return AnalyticsConstants.decimalValue(singleRow(jpql.toString(), params)[0]);
+    }
+
+    @SuppressWarnings("unchecked")
+    public List<Object[]> findTopCancellationReasons(Instant from, Instant to, ResolvedAnalyticsFilter filter, int limit) {
+        StringBuilder jpql = new StringBuilder("""
+                SELECT s.cancellationReason, COUNT(s), COALESCE(SUM(s.total), 0)
+                FROM Sale s
+                WHERE s.status = :cancelled
+                  AND s.cancelledAt >= :from AND s.cancelledAt < :to
+                  AND s.cancellationReason IS NOT NULL
+                """);
+        Map<String, Object> params = new HashMap<>();
+        params.put("cancelled", SaleStatus.CANCELLED);
+        params.put("from", from);
+        params.put("to", to);
+        appendSaleFilters(filter, jpql, params, false);
+        jpql.append(" GROUP BY s.cancellationReason ORDER BY COUNT(s) DESC");
+        Query q = em.createQuery(jpql.toString());
+        params.forEach(q::setParameter);
+        q.setMaxResults(limit);
+        return q.getResultList();
+    }
+
+    @SuppressWarnings("unchecked")
+    public List<Object[]> findTopCancellationSellers(Instant from, Instant to, ResolvedAnalyticsFilter filter, int limit) {
+        StringBuilder jpql = new StringBuilder("""
+                SELECT s.seller.id, s.seller.firstName, s.seller.lastName, COUNT(s), COALESCE(SUM(s.total), 0)
+                FROM Sale s
+                WHERE s.status = :cancelled
+                  AND s.cancelledAt >= :from AND s.cancelledAt < :to
+                """);
+        Map<String, Object> params = new HashMap<>();
+        params.put("cancelled", SaleStatus.CANCELLED);
+        params.put("from", from);
+        params.put("to", to);
+        appendSaleFilters(filter, jpql, params, false);
+        jpql.append(" GROUP BY s.seller.id, s.seller.firstName, s.seller.lastName ORDER BY COUNT(s) DESC");
+        Query q = em.createQuery(jpql.toString());
+        params.forEach(q::setParameter);
+        q.setMaxResults(limit);
+        return q.getResultList();
+    }
+
+    @SuppressWarnings("unchecked")
+    public List<Object[]> findTopCancellationCashiers(Instant from, Instant to, ResolvedAnalyticsFilter filter, int limit) {
+        StringBuilder jpql = new StringBuilder("""
+                SELECT s.cashier.id, s.cashier.firstName, s.cashier.lastName, COUNT(s), COALESCE(SUM(s.total), 0)
+                FROM Sale s
+                WHERE s.status = :cancelled
+                  AND s.cancelledAt >= :from AND s.cancelledAt < :to
+                """);
+        Map<String, Object> params = new HashMap<>();
+        params.put("cancelled", SaleStatus.CANCELLED);
+        params.put("from", from);
+        params.put("to", to);
+        appendSaleFilters(filter, jpql, params, false);
+        jpql.append(" GROUP BY s.cashier.id, s.cashier.firstName, s.cashier.lastName ORDER BY COUNT(s) DESC");
+        Query q = em.createQuery(jpql.toString());
+        params.forEach(q::setParameter);
+        q.setMaxResults(limit);
+        return q.getResultList();
+    }
+
+    public long countCancelledSalesToday(Instant from, Instant to) {
+        String jpql = """
+                SELECT COUNT(s) FROM Sale s
+                WHERE s.status = :cancelled
+                  AND s.cancelledAt >= :from AND s.cancelledAt < :to
+                """;
+        Map<String, Object> params = new HashMap<>();
+        params.put("cancelled", SaleStatus.CANCELLED);
+        params.put("from", from);
+        params.put("to", to);
+        return AnalyticsConstants.longValue(singleRow(jpql, params)[0]);
+    }
+
+    public BigDecimal sumCancelledAmountByUser(Instant from, Instant to, Long userId) {
+        String jpql = """
+                SELECT COALESCE(SUM(s.total), 0) FROM Sale s
+                WHERE s.status = :cancelled
+                  AND s.cancelledAt >= :from AND s.cancelledAt < :to
+                  AND (s.cancelledBy.id = :userId OR s.seller.id = :userId OR s.cashier.id = :userId)
+                """;
+        Map<String, Object> params = new HashMap<>();
+        params.put("cancelled", SaleStatus.CANCELLED);
+        params.put("from", from);
+        params.put("to", to);
+        params.put("userId", userId);
+        return AnalyticsConstants.decimalValue(singleRow(jpql, params)[0]);
+    }
+
     @SuppressWarnings("unchecked")
     public List<Object[]> findTimelineSales(Instant from, Instant to, ResolvedAnalyticsFilter filter) {
         StringBuilder jpql = new StringBuilder("""

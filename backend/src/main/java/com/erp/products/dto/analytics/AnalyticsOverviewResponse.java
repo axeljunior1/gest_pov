@@ -24,6 +24,10 @@ public class AnalyticsOverviewResponse {
     private AnalyticsComparisonMetric refundsPeriod;
     private AnalyticsComparisonMetric discountsPeriod;
 
+    private AnalyticsComparisonMetric cancelledCountPeriod;
+    private AnalyticsComparisonMetric cancelledAmountPeriod;
+    private BigDecimal cancelledAmountTotal;
+
     private String periodLabel;
     private String currency;
 }
