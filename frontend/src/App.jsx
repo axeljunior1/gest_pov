@@ -32,6 +32,8 @@ import CustomersPage from './pages/CustomersPage'
 import POSPage from './pages/POSPage'
 import PosPendingPaymentsPage from './pages/PosPendingPaymentsPage'
 import PosSalesHistoryPage from './pages/PosSalesHistoryPage'
+import PosSessionReportsPage from './pages/PosSessionReportsPage'
+import PosReturnsPage from './pages/PosReturnsPage'
 
 export default function App() {
   return (
@@ -51,6 +53,12 @@ export default function App() {
                   </Route>
                   <Route element={<PermissionRoute anyOf={['pos.ticket.print', 'pos.ticket.reprint', 'pos.report.read']} />}>
                     <Route path="pos/history" element={<PosSalesHistoryPage />} />
+                  </Route>
+                  <Route element={<PermissionRoute permission="pos.report.read" />}>
+                    <Route path="pos/reports" element={<PosSessionReportsPage />} />
+                  </Route>
+                  <Route element={<PermissionRoute anyOf={['pos.return.create', 'pos.sale.refund', 'pos.return.read']} />}>
+                    <Route path="pos/returns" element={<PosReturnsPage />} />
                   </Route>
                 </Route>
               </Route>

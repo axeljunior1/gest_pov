@@ -34,6 +34,7 @@ public class StockTransferService {
     private final StockLedgerService ledger;
     private final StockMapper mapper;
     private final CurrentUserService currentUserService;
+    private final ProductVariantPolicyService variantPolicyService;
 
     @Transactional
     public StockTransferResponse create(StockTransferRequest request) {
@@ -60,7 +61,7 @@ public class StockTransferService {
             StockTransferLine line = StockTransferLine.builder()
                     .transfer(transfer)
                     .product(loadProduct(lineReq.getProductId()))
-                    .variant(loadVariant(lineReq.getProductId(), lineReq.getVariantId()))
+                    .variant(variantPolicyService.resolveForStock(loadProduct(lineReq.getProductId()), lineReq.getVariantId()))
                     .lot(loadLot(lineReq.getLotId()))
                     .quantity(lineReq.getQuantity())
                     .sourceLocation(loadLocation(source.getId(), lineReq.getSourceLocationId()))

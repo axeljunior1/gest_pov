@@ -8,5 +8,6 @@ public enum ReferenceValueCategory {
     LANGUAGE,
     TIMEZONE,
     DATE_FORMAT,
-    POS_SALES_FLOW_MODE
+    POS_SALES_FLOW_MODE,
+    STOCK_VALUATION_METHOD
 }

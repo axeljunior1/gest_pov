@@ -52,6 +52,12 @@ public class SaleLine {
     @Column(name = "unit_price_snapshot", precision = 19, scale = 4)
     private BigDecimal unitPriceSnapshot;
 
+    @Column(name = "product_name_snapshot")
+    private String productNameSnapshot;
+
+    @Column(name = "variant_name_snapshot")
+    private String variantNameSnapshot;
+
     @Column(name = "discount_amount", precision = 19, scale = 4)
     @Builder.Default
     private BigDecimal discountAmount = BigDecimal.ZERO;

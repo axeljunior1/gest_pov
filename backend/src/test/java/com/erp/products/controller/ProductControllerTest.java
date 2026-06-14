@@ -182,14 +182,52 @@ class ProductControllerTest extends AbstractIntegrationTest {
         variant.setPrix(new BigDecimal("99.99"));
         variant.setStock(15);
         variant.setGenerateBarcode(true);
-        variant.setBarcodeType(BarcodeType.CODE128);
+        variant.setBarcodeType(BarcodeType.EAN13);
 
         mockMvc.perform(post("/api/products/{id}/variants", productId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(variant)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.sku").value("RUN-PRO-001-WH-L"))
-                .andExpect(jsonPath("$.codeBarre").exists());
+                .andExpect(jsonPath("$.barcodeType").value("EAN13"))
+                .andExpect(jsonPath("$.codeBarre").exists())
+                .andExpect(jsonPath("$.codeBarre").value(org.hamcrest.Matchers.matchesPattern("\\d{13}")));
+    }
+
+    @Test
+    void shouldRejectDuplicateVariantCouleurTaille() throws Exception {
+        String response = mockMvc.perform(post("/api/products")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(buildProductRequest())))
+                .andReturn().getResponse().getContentAsString();
+
+        Long productId = objectMapper.readTree(response).get("id").asLong();
+
+        ProductVariantRequest variant = new ProductVariantRequest();
+        variant.setCouleur("Blanc");
+        variant.setTaille("L");
+        variant.setSku("RUN-PRO-001-WH-L");
+        variant.setPrix(new BigDecimal("99.99"));
+        variant.setStock(15);
+        variant.setGenerateBarcode(true);
+
+        mockMvc.perform(post("/api/products/{id}/variants", productId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(variant)))
+                .andExpect(status().isCreated());
+
+        ProductVariantRequest duplicate = new ProductVariantRequest();
+        duplicate.setCouleur("Blanc");
+        duplicate.setTaille("L");
+        duplicate.setSku("RUN-PRO-001-WH-L-2");
+        duplicate.setPrix(new BigDecimal("99.99"));
+        duplicate.setStock(5);
+
+        mockMvc.perform(post("/api/products/{id}/variants", productId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(duplicate)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value(containsString("existante")));
     }
 
     @Test
@@ -204,6 +242,35 @@ class ProductControllerTest extends AbstractIntegrationTest {
                         .content(objectMapper.writeValueAsString(buildProductRequest())))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value(containsString("SKU")));
+    }
+
+    @Test
+    void shouldGenerateProductAndVariantSkusWhenMissing() throws Exception {
+        ProductRequest request = buildProductRequest();
+        request.setSku(null);
+
+        ProductVariantRequest v1 = new ProductVariantRequest();
+        v1.setCouleur("Noir");
+        v1.setTaille("M");
+        v1.setSku(null);
+        v1.setStock(5);
+
+        ProductVariantRequest v2 = new ProductVariantRequest();
+        v2.setCouleur("Rouge");
+        v2.setTaille("L");
+        v2.setSku(null);
+        v2.setStock(3);
+
+        request.setVariantes(List.of(v1, v2));
+
+        mockMvc.perform(post("/api/products")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.sku").value(containsString("RUNNING-PRO")))
+                .andExpect(jsonPath("$.variantes[0].sku").value(containsString("BK-M")))
+                .andExpect(jsonPath("$.variantes[0].prix").value(99.99))
+                .andExpect(jsonPath("$.variantes[1].sku").value(containsString("RD-L")));
     }
 
     private ProductRequest buildProductRequest() {
@@ -237,7 +304,7 @@ class ProductControllerTest extends AbstractIntegrationTest {
         v2.setPrix(new BigDecimal("99.99"));
         v2.setStock(10);
         v2.setGenerateBarcode(true);
-        v2.setBarcodeType(BarcodeType.CODE128);
+        v2.setBarcodeType(BarcodeType.EAN13);
 
         request.setVariantes(List.of(v1, v2));
 

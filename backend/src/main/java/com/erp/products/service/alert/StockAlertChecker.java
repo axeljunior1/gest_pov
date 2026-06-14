@@ -4,6 +4,7 @@ import com.erp.products.domain.entity.*;
 import com.erp.products.domain.enums.AlertSeverity;
 import com.erp.products.domain.enums.AlertType;
 import com.erp.products.repository.StockItemRepository;
+import com.erp.products.service.ProductVariantPolicyService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -16,6 +17,7 @@ public class StockAlertChecker {
     private final StockItemRepository stockItemRepository;
     private final AlertSettingResolver settingResolver;
     private final AlertService alertService;
+    private final ProductVariantPolicyService variantPolicyService;
 
     public void checkAfterMovement(
             Long productId,
@@ -39,6 +41,8 @@ public class StockAlertChecker {
         AlertService.AlertPosition position = new AlertService.AlertPosition(
                 item.getProduct(), item.getWarehouse(), item.getLocation(), item.getLot());
 
+        String itemLabel = formatStockItemLabel(item);
+
         boolean outOfStock = available.compareTo(BigDecimal.ZERO) <= 0;
         boolean lowStock = !outOfStock
                 && settings.minStockLevel() != null
@@ -53,7 +57,7 @@ public class StockAlertChecker {
                     position,
                     available,
                     BigDecimal.ZERO,
-                    "Rupture de stock pour " + item.getProduct().getNom()
+                    "Rupture de stock pour " + itemLabel
                             + " (" + item.getWarehouse().getCode() + "/" + item.getLocation().getCode() + ")");
             alertService.autoResolveIfOpen(AlertType.LOW_STOCK, position);
             alertService.autoResolveIfOpen(AlertType.OVERSTOCK, position);
@@ -68,7 +72,7 @@ public class StockAlertChecker {
                     position,
                     available,
                     settings.minStockLevel(),
-                    "Stock faible pour " + item.getProduct().getNom()
+                    "Stock faible pour " + itemLabel
                             + " : " + available.stripTrailingZeros().toPlainString()
                             + " (seuil " + settings.minStockLevel().stripTrailingZeros().toPlainString() + ")");
         } else {
@@ -82,11 +86,18 @@ public class StockAlertChecker {
                     position,
                     available,
                     settings.maxStockLevel(),
-                    "Surstock pour " + item.getProduct().getNom()
+                    "Surstock pour " + itemLabel
                             + " : " + available.stripTrailingZeros().toPlainString());
         } else {
             alertService.autoResolveIfOpen(AlertType.OVERSTOCK, position);
         }
+    }
+
+    private String formatStockItemLabel(StockItem item) {
+        if (item.getVariant() != null) {
+            return item.getProduct().getNom() + " — " + variantPolicyService.buildVariantName(item.getVariant());
+        }
+        return item.getProduct().getNom();
     }
 
     private StockItem loadStockItem(

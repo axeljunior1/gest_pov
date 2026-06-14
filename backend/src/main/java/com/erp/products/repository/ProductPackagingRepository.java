@@ -26,4 +26,10 @@ public interface ProductPackagingRepository extends JpaRepository<ProductPackagi
             AND p.actif = true
             """)
     Optional<ProductPackaging> findActiveByCodeBarre(@Param("barcode") String barcode);
+
+    @Query("""
+            SELECT p FROM ProductPackaging p
+            WHERE LOWER(TRIM(p.codeBarre)) = LOWER(TRIM(:barcode))
+            """)
+    Optional<ProductPackaging> findByCodeBarreNormalized(@Param("barcode") String barcode);
 }

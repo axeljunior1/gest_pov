@@ -31,14 +31,17 @@ public class StockReservationService {
     private final StockLedgerService ledger;
     private final StockMapper mapper;
     private final CurrentUserService currentUserService;
+    private final ProductVariantPolicyService variantPolicyService;
 
     @Transactional
     public StockReservationResponse reserve(StockReservationRequest request) {
         String actor = currentUserService.resolveActor(request.getUtilisateur());
+        Product product = loadProduct(request.getProductId());
+        ProductVariant variant = variantPolicyService.resolveForStock(product, request.getVariantId());
         StockReservation reservation = reservationRepository.save(
                 StockReservation.builder()
-                        .product(loadProduct(request.getProductId()))
-                        .variant(loadVariant(request.getProductId(), request.getVariantId()))
+                        .product(product)
+                        .variant(variant)
                         .warehouse(loadWarehouse(request.getWarehouseId()))
                         .location(loadLocation(request.getWarehouseId(), request.getLocationId()))
                         .lot(loadLot(request.getLotId()))
@@ -50,7 +53,7 @@ public class StockReservationService {
 
         ledger.applyReservedChange(
                 request.getProductId(),
-                request.getVariantId(),
+                variant != null ? variant.getId() : null,
                 request.getWarehouseId(),
                 request.getLocationId(),
                 request.getLotId(),

@@ -112,6 +112,8 @@ export default function PosWorkspaceNav() {
   const dualRole = hasDualPosRole(user)
   const roleLabel = getPosRoleLabel(user)
   const canReprint = hasPermission('pos.ticket.print') || hasPermission('pos.ticket.reprint')
+  const canReport = hasPermission('pos.report.read')
+  const canReturn = hasPermission('pos.return.create') || hasPermission('pos.sale.refund')
 
   const refresh = useCallback(async () => {
     try {
@@ -176,6 +178,22 @@ export default function PosWorkspaceNav() {
               Ventes passées
             </Link>
           )}
+          {canReturn && (
+            <Link
+              to="/pos/returns"
+              className="px-4 py-2 rounded-lg border border-slate-600 text-sm text-slate-200 hover:bg-slate-800"
+            >
+              Retours
+            </Link>
+          )}
+          {canReport && (
+            <Link
+              to="/pos/reports"
+              className="px-4 py-2 rounded-lg border border-slate-600 text-sm text-slate-200 hover:bg-slate-800"
+            >
+              Rapports caisse
+            </Link>
+          )}
         </div>
       </div>
     )
@@ -220,14 +238,32 @@ export default function PosWorkspaceNav() {
           />
         )}
       </div>
-      {canReprint && (
-        <div className="mt-3 flex justify-end">
-          <Link
-            to="/pos/history"
-            className="px-4 py-2 rounded-lg border border-slate-600 text-sm text-slate-200 hover:bg-slate-800"
-          >
-            Consulter les ventes passées
-          </Link>
+      {(canReprint || canReport) && (
+        <div className="mt-3 flex flex-wrap justify-end gap-2">
+          {canReprint && (
+            <Link
+              to="/pos/history"
+              className="px-4 py-2 rounded-lg border border-slate-600 text-sm text-slate-200 hover:bg-slate-800"
+            >
+              Consulter les ventes passées
+            </Link>
+          )}
+          {canReturn && (
+            <Link
+              to="/pos/returns"
+              className="px-4 py-2 rounded-lg border border-slate-600 text-sm text-slate-200 hover:bg-slate-800"
+            >
+              Retours
+            </Link>
+          )}
+          {canReport && (
+            <Link
+              to="/pos/reports"
+              className="px-4 py-2 rounded-lg border border-slate-600 text-sm text-slate-200 hover:bg-slate-800"
+            >
+              Rapports de clôture
+            </Link>
+          )}
         </div>
       )}
     </div>
@@ -256,6 +292,75 @@ export function PosSessionChip({ session, expectedType, centralMode }) {
       )}
       {wrongType && centralMode && (
         <span className="text-xs text-amber-200/90">— mauvais écran pour cette session</span>
+      )}
+    </div>
+  )
+}
+
+/**
+ * Écran bloquant quand la session ouverte ne correspond pas au poste courant.
+ * Propose d’abord d’aller sur le bon écran (session conservée), puis la fermeture.
+ */
+export function PosWrongSessionPanel({
+  session,
+  expectedType,
+  centralMode = true,
+  onCloseSession,
+  canCloseSession = false,
+}) {
+  const { user } = useAuth()
+
+  if (!session || !expectedType || session.sessionType === expectedType) {
+    return null
+  }
+
+  const openType = session.sessionType
+  const target = WORKSPACES[openType]
+  const openLabel = openType === 'SALES' ? 'vente' : 'caisse'
+  const neededLabel = expectedType === 'SALES' ? 'vente' : 'caisse'
+  const canGoToTarget = openType === 'SALES' ? canPrepareSales(user) : canCollectPayment(user)
+
+  return (
+    <div className="flex-1 flex flex-col items-center justify-center gap-6 p-8 max-w-xl mx-auto text-center">
+      <PosSessionChip session={session} expectedType={expectedType} centralMode={centralMode} />
+      <h2 className="text-xl font-semibold text-amber-300">Mauvais poste pour cette session</h2>
+      <p className="text-slate-400">
+        Vous avez une session <strong className="text-white">{openLabel}</strong> ouverte (
+        <span className="font-mono text-slate-300">{session.sessionNumber}</span>
+        ). Cet écran nécessite une session <strong className="text-white">{neededLabel}</strong>.
+      </p>
+
+      {canGoToTarget ? (
+        <Link
+          to={target.path}
+          className={`inline-flex flex-col items-center gap-1 px-8 py-4 rounded-xl font-semibold text-base transition-colors ${
+            openType === 'CASHIER'
+              ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
+              : 'bg-indigo-600 hover:bg-indigo-500 text-white'
+          }`}
+        >
+          <span className="flex items-center gap-2">
+            <span aria-hidden>{target.icon}</span>
+            Aller à {target.label}
+          </span>
+          <span className="text-xs font-normal opacity-90">
+            Reprendre votre session {openLabel} ouverte
+          </span>
+        </Link>
+      ) : (
+        <p className="text-sm text-slate-500">
+          Vous n’avez pas accès au poste {openLabel}. Demandez à un collègue ou fermez cette session.
+        </p>
+      )}
+
+      {canCloseSession && onCloseSession && (
+        <button
+          type="button"
+          onClick={onCloseSession}
+          className="px-6 py-3 bg-slate-700 hover:bg-slate-600 rounded-xl text-sm font-medium text-slate-200"
+        >
+          Fermer la session {openLabel}
+        </button>
       )}
     </div>
   )

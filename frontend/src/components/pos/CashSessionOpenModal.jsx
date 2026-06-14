@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { formatPosMoney } from '../../utils/posMoney'
 
+import ModalOverlay from '../ui/ModalOverlay'
+
 export default function CashSessionOpenModal({ currency, onClose, onConfirm, loading }) {
   const [amount, setAmount] = useState('100')
 
@@ -12,7 +14,7 @@ export default function CashSessionOpenModal({ currency, onClose, onConfirm, loa
   }
 
   return (
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+    <ModalOverlay open onClose={loading ? undefined : onClose}>
       <form onSubmit={submit} className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-md p-6">
         <h2 className="text-lg font-semibold">Ouverture de caisse</h2>
         <p className="text-sm text-slate-400 mt-2">
@@ -47,6 +49,6 @@ export default function CashSessionOpenModal({ currency, onClose, onConfirm, loa
           </button>
         </div>
       </form>
-    </div>
+    </ModalOverlay>
   )
 }

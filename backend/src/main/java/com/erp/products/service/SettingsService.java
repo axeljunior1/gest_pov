@@ -3,6 +3,7 @@ package com.erp.products.service;
 import com.erp.products.domain.entity.AppSetting;
 import com.erp.products.domain.enums.AppSettingType;
 import com.erp.products.domain.enums.ReferenceValueCategory;
+import com.erp.products.domain.enums.StockValuationMethod;
 import com.erp.products.dto.*;
 import com.erp.products.exception.BusinessException;
 import com.erp.products.exception.ResourceNotFoundException;
@@ -111,7 +112,15 @@ public class SettingsService {
         return StockConfigResponse.builder()
                 .allowNegativeStock(getBoolean(SettingKeys.STOCK_ALLOW_NEGATIVE))
                 .lowStockThresholdDefault(getDecimal(SettingKeys.STOCK_LOW_THRESHOLD))
+                .valuationMethod(parseStockValuationMethod(getSetting(SettingKeys.STOCK_VALUATION_METHOD)))
                 .build();
+    }
+
+    private StockValuationMethod parseStockValuationMethod(String raw) {
+        if (raw != null && "SALE_PRICE".equalsIgnoreCase(raw.trim())) {
+            return StockValuationMethod.SALE_PRICE;
+        }
+        return StockValuationMethod.PURCHASE_COST;
     }
 
     @Transactional(readOnly = true)
@@ -185,6 +194,17 @@ public class SettingsService {
                 .alertCashDifferenceThreshold(alertCash != null ? alertCash : 20)
                 .requireManagerValidationForCashDifference(
                         getBoolean(SettingKeys.POS_REQUIRE_MANAGER_VALIDATION_FOR_CASH_DIFFERENCE))
+                .build();
+    }
+
+    @Transactional(readOnly = true)
+    public BarcodeScanConfig getBarcodeScanConfig() {
+        Integer minLength = getInteger(SettingKeys.POS_BARCODE_MIN_LENGTH);
+        return BarcodeScanConfig.builder()
+                .scanEnabled(getBoolean(SettingKeys.POS_BARCODE_SCAN_ENABLED))
+                .minLength(minLength != null ? minLength : 6)
+                .autoAddToCart(getBoolean(SettingKeys.POS_BARCODE_AUTO_ADD_TO_CART))
+                .searchPriority(getSetting(SettingKeys.POS_BARCODE_SEARCH_PRIORITY))
                 .build();
     }
 
@@ -293,6 +313,7 @@ public class SettingsService {
         map.put(SettingKeys.APP_TIMEZONE, ReferenceValueCategory.TIMEZONE);
         map.put(SettingKeys.APP_DATE_FORMAT, ReferenceValueCategory.DATE_FORMAT);
         map.put(SettingKeys.POS_SALES_FLOW_MODE, ReferenceValueCategory.POS_SALES_FLOW_MODE);
+        map.put(SettingKeys.STOCK_VALUATION_METHOD, ReferenceValueCategory.STOCK_VALUATION_METHOD);
         return map;
     }
 
@@ -306,6 +327,8 @@ public class SettingsService {
         map.put(SettingKeys.APP_DATE_FORMAT, def("dd/MM/yyyy", AppSettingType.STRING, "Format de date", true));
         map.put(SettingKeys.STOCK_ALLOW_NEGATIVE, def("false", AppSettingType.BOOLEAN, "Autoriser le stock negatif", false));
         map.put(SettingKeys.STOCK_LOW_THRESHOLD, def("10", AppSettingType.NUMBER, "Seuil stock faible par defaut", false));
+        map.put(SettingKeys.STOCK_VALUATION_METHOD, def("PURCHASE_COST", AppSettingType.STRING,
+                "Methode de valorisation du stock (PURCHASE_COST ou SALE_PRICE)", false));
         map.put(SettingKeys.ALERT_EXPIRY_DAYS, def("30", AppSettingType.NUMBER, "Delai alerte peremption (jours)", false));
         map.put(SettingKeys.NUMBERING_ENTRY_PREFIX, def("SE", AppSettingType.STRING, "Prefixe numerotation entrees", false));
         map.put(SettingKeys.NUMBERING_EXIT_PREFIX, def("SX", AppSettingType.STRING, "Prefixe numerotation sorties", false));
@@ -327,6 +350,16 @@ public class SettingsService {
         map.put(SettingKeys.POS_ALERT_CASH_DIFFERENCE_THRESHOLD, def("20", AppSettingType.NUMBER, "Seuil alerte ecart caisse", false));
         map.put(SettingKeys.POS_REQUIRE_MANAGER_VALIDATION_FOR_CASH_DIFFERENCE, def("false", AppSettingType.BOOLEAN,
                 "Validation manager obligatoire si ecart caisse a la cloture", false));
+        map.put(SettingKeys.POS_REQUIRE_MANAGER_APPROVAL_ABOVE_REFUND_AMOUNT, def("999999", AppSettingType.NUMBER,
+                "Seuil remboursement necessitant validation manager", false));
+        map.put(SettingKeys.POS_BARCODE_SCAN_ENABLED, def("true", AppSettingType.BOOLEAN,
+                "Activer le scan code-barres POS", true));
+        map.put(SettingKeys.POS_BARCODE_MIN_LENGTH, def("6", AppSettingType.NUMBER,
+                "Longueur minimale pour detection scan code-barres", true));
+        map.put(SettingKeys.POS_BARCODE_AUTO_ADD_TO_CART, def("true", AppSettingType.BOOLEAN,
+                "Ajout automatique au panier apres scan", true));
+        map.put(SettingKeys.POS_BARCODE_SEARCH_PRIORITY, def("packaging,variant,product", AppSettingType.STRING,
+                "Priorite recherche code-barres (packaging,variant,product)", false));
         map.put(SettingKeys.LOYALTY_ENABLED, def("true", AppSettingType.BOOLEAN, "Activer la fidelite", false));
         map.put(SettingKeys.LOYALTY_POINTS_PER_CURRENCY_UNIT, def("1", AppSettingType.NUMBER, "Points gagnes par unite de devise", false));
         map.put(SettingKeys.LOYALTY_CURRENCY_UNIT_AMOUNT, def("1", AppSettingType.NUMBER, "Montant devise pour le calcul des points", false));

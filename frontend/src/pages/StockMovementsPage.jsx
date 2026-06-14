@@ -12,7 +12,22 @@ const MOVEMENT_TYPES = [
 
 const REFERENCE_TYPES = [
   'STOCK_ENTRY', 'STOCK_EXIT', 'INVENTORY_COUNT', 'ADJUSTMENT', 'TRANSFER', 'RETURN', 'MANUAL',
+  'POS_SALE', 'POS_REFUND',
 ]
+
+const REFERENCE_TYPE_LABELS = {
+  STOCK_ENTRY: 'Entrée stock',
+  STOCK_EXIT: 'Sortie stock',
+  INVENTORY_COUNT: 'Inventaire',
+  ADJUSTMENT: 'Ajustement',
+  TRANSFER: 'Transfert',
+  RETURN: 'Retour',
+  MANUAL: 'Manuel',
+  POS_SALE: 'Vente POS',
+  POS_REFUND: 'Remboursement POS',
+}
+
+const referenceTypeLabel = (value) => REFERENCE_TYPE_LABELS[value] || value || '—'
 
 const typeTone = {
   IN: 'success',
@@ -191,7 +206,7 @@ export default function StockMovementsPage() {
           >
             <option value="">Toutes origines</option>
             {REFERENCE_TYPES.map((t) => (
-              <option key={t} value={t}>{t}</option>
+              <option key={t} value={t}>{referenceTypeLabel(t)}</option>
             ))}
           </select>
           <input
@@ -279,8 +294,8 @@ export default function StockMovementsPage() {
                         {m.quantityBefore ?? '—'} → {m.quantityAfter ?? '—'}
                       </td>
                       <td className="px-4 py-3 text-xs">
-                        {m.referenceType || '—'}
-                        {m.referenceId ? ` #${m.referenceId}` : ''}
+                        {referenceTypeLabel(m.referenceType)}
+                        {m.reference ? ` · ${m.reference}` : m.referenceId ? ` #${m.referenceId}` : ''}
                       </td>
                     </tr>
                   ))}
@@ -307,7 +322,8 @@ export default function StockMovementsPage() {
                 <div><dt className="text-gray-500">Réservé avant / après</dt>
                   <dd>{selected.quantityReservedBefore} → {selected.quantityReservedAfter}</dd></div>
                 <div><dt className="text-gray-500">Origine</dt>
-                  <dd>{selected.referenceType || '—'} {selected.referenceId ? `#${selected.referenceId}` : ''}</dd></div>
+                  <dd>{referenceTypeLabel(selected.referenceType)}
+                    {selected.referenceId ? ` #${selected.referenceId}` : ''}</dd></div>
                 <div><dt className="text-gray-500">Référence</dt><dd>{selected.reference || '—'}</dd></div>
                 <div><dt className="text-gray-500">Motif</dt><dd>{selected.reason || '—'}</dd></div>
                 <div><dt className="text-gray-500">Utilisateur</dt><dd>{selected.createdBy || selected.utilisateur}</dd></div>

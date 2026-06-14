@@ -42,6 +42,7 @@ export default function StockExitsPage() {
   const [locations, setLocations] = useState([])
   const [products, setProducts] = useState([])
   const [packagings, setPackagings] = useState({})
+  const [productDetails, setProductDetails] = useState({})
   const [filters, setFilters] = useState({ status: '', warehouseId: '', reason: '' })
 
   const [form, setForm] = useState({
@@ -96,6 +97,7 @@ export default function StockExitsPage() {
     if (productId) {
       try {
         const detail = await productsApi.getById(productId)
+        setProductDetails((prev) => ({ ...prev, [productId]: detail }))
         if (detail.variantes?.length === 1) {
           defaultVariantId = String(detail.variantes[0].id)
         }
@@ -370,8 +372,9 @@ export default function StockExitsPage() {
           <div className="space-y-3">
             <h3 className="text-sm font-medium">Lignes</h3>
             {form.lignes.map((line, idx) => {
-              const product = products.find((p) => String(p.id) === line.productId)
-              const variants = product?.variantes || []
+              const detail = productDetails[line.productId]
+              const variants = detail?.variantes ?? []
+              const variantsLoading = Boolean(line.productId && !detail)
               const pkgs = packagings[line.productId] || []
               return (
                 <div key={idx} className="grid grid-cols-1 md:grid-cols-5 gap-2 p-3 bg-gray-50 rounded-lg">
@@ -387,16 +390,23 @@ export default function StockExitsPage() {
                   </select>
                   <select
                     value={line.variantId}
+                    disabled={!line.productId || variantsLoading}
                     onChange={(e) => {
                       const lignes = [...form.lignes]
                       lignes[idx] = { ...lignes[idx], variantId: e.target.value }
                       setForm({ ...form, lignes })
                     }}
-                    className="text-sm border rounded-lg px-2 py-2"
+                    className="text-sm border rounded-lg px-2 py-2 disabled:bg-gray-100 disabled:cursor-not-allowed"
                   >
-                    <option value="">Variante</option>
+                    <option value="">
+                      {variantsLoading
+                        ? 'Chargement…'
+                        : `Variante${variants.length > 1 ? ' *' : ''}`}
+                    </option>
                     {variants.map((v) => (
-                      <option key={v.id} value={v.id}>{v.sku}</option>
+                      <option key={v.id} value={String(v.id)}>
+                        {v.label || [v.couleur, v.taille].filter(Boolean).join(' ') || v.sku}
+                      </option>
                     ))}
                   </select>
                   <select

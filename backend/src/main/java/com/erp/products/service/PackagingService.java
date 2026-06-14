@@ -2,6 +2,7 @@ package com.erp.products.service;
 
 import com.erp.products.domain.entity.Product;
 import com.erp.products.domain.entity.ProductPackaging;
+import com.erp.products.domain.entity.ProductVariant;
 import com.erp.products.domain.enums.AuditAction;
 import com.erp.products.dto.*;
 import com.erp.products.exception.BusinessException;
@@ -9,6 +10,7 @@ import com.erp.products.exception.ResourceNotFoundException;
 import com.erp.products.mapper.ProductMapper;
 import com.erp.products.repository.ProductPackagingRepository;
 import com.erp.products.repository.ProductRepository;
+import com.erp.products.repository.ProductVariantRepository;
 import com.erp.products.security.PermissionEvaluator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
@@ -30,9 +32,12 @@ public class PackagingService {
 
     private final ProductPackagingRepository packagingRepository;
     private final ProductRepository productRepository;
+    private final ProductVariantRepository variantRepository;
     private final ProductMapper mapper;
     private final AuditService auditService;
     private final PermissionEvaluator permissionChecker;
+    private final ProductVariantPolicyService variantPolicyService;
+    private final BarcodeRegistryService barcodeRegistryService;
 
     @Transactional(readOnly = true)
     public List<ProductPackagingResponse> listByProduct(Long productId) {
@@ -46,6 +51,7 @@ public class PackagingService {
     public ProductPackagingResponse create(Long productId, ProductPackagingRequest request) {
         Product product = findProduct(productId);
         requireBaseUnit(product);
+        ProductVariant variant = resolvePackagingVariant(product, request.getVariantId());
 
         boolean defaultVente = Boolean.TRUE.equals(request.getDefaultVente());
         boolean defaultAchat = Boolean.TRUE.equals(request.getDefaultAchat())
@@ -61,6 +67,7 @@ public class PackagingService {
 
         ProductPackaging packaging = ProductPackaging.builder()
                 .product(product)
+                .variant(variant)
                 .nom(request.getNom().trim())
                 .symbole(request.getSymbole())
                 .quantiteBase(request.getQuantiteBase())
@@ -72,6 +79,8 @@ public class PackagingService {
                 .principal(defaultAchat)
                 .actif(request.getActif() == null || request.getActif())
                 .build();
+
+        assertPackagingBarcode(packaging);
 
         ProductPackaging saved = packagingRepository.save(packaging);
         product.getConditionnements().add(saved);
@@ -87,6 +96,7 @@ public class PackagingService {
     public ProductPackagingResponse update(Long productId, Long packagingId, ProductPackagingRequest request) {
         Product product = findProduct(productId);
         ProductPackaging packaging = findPackaging(productId, packagingId);
+        ProductVariant variant = resolvePackagingVariant(product, request.getVariantId());
 
         BigDecimal newPrixVente = request.getPrixVente() != null
                 ? request.getPrixVente()
@@ -111,12 +121,15 @@ public class PackagingService {
         packaging.setCodeBarre(trimToNull(request.getCodeBarre()));
         packaging.setPrixVente(newPrixVente);
         packaging.setPrixAchat(request.getPrixAchat());
+        packaging.setVariant(variant);
         packaging.setDefaultVente(defaultVente);
         packaging.setDefaultAchat(defaultAchat);
         packaging.setPrincipal(defaultAchat);
         if (request.getActif() != null) {
             packaging.setActif(request.getActif());
         }
+
+        assertPackagingBarcode(packaging);
 
         return mapper.toPackagingResponse(packagingRepository.save(packaging), product);
     }
@@ -172,6 +185,33 @@ public class PackagingService {
         return unitPrice.multiply(quantiteBase).setScale(4, RoundingMode.HALF_UP);
     }
 
+    private ProductVariant resolvePackagingVariant(Product product, Long variantId) {
+        if (!variantPolicyService.hasVariants(product)) {
+            if (variantId != null) {
+                throw new BusinessException(ProductVariantPolicyService.MSG_NO_VARIANTS);
+            }
+            return null;
+        }
+        if (variantId != null) {
+            return loadVariant(product, variantId);
+        }
+        List<ProductVariant> variants = variantRepository.findByProductId(product.getId());
+        if (variants.size() == 1) {
+            return variants.get(0);
+        }
+        throw new BusinessException(
+                "Ce produit possède des variantes. Sélectionnez la variante pour ce conditionnement.");
+    }
+
+    private ProductVariant loadVariant(Product product, Long variantId) {
+        ProductVariant variant = variantRepository.findById(variantId)
+                .orElseThrow(() -> new ResourceNotFoundException("Variante non trouvée: " + variantId));
+        if (!variant.getProduct().getId().equals(product.getId())) {
+            throw new BusinessException("Variante invalide pour ce produit");
+        }
+        return variant;
+    }
+
     private Product findProduct(Long id) {
         return productRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Produit non trouvé: " + id));
@@ -211,5 +251,13 @@ public class PackagingService {
         }
         String trimmed = value.trim();
         return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private void assertPackagingBarcode(ProductPackaging packaging) {
+        if (packaging.getCodeBarre() == null) {
+            return;
+        }
+        barcodeRegistryService.assertAvailable(
+                packaging.getCodeBarre(), null, null, packaging.getId());
     }
 }

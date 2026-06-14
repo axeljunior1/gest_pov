@@ -34,4 +34,7 @@ public class ProductPackagingRequest {
 
     /** Alias legacy : achat principal */
     private Boolean principal;
+
+    /** Variante cible (null = produit simple ou commun à toutes les variantes). */
+    private Long variantId;
 }

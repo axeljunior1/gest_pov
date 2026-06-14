@@ -98,13 +98,15 @@ public class AuthReferenceDataInitializer implements ApplicationRunner {
 
         saveRole("Administrateur", "ADMIN",
                 "Administration generale", true, filter(all,
-                "products.", "product_packaging.", "stock.", "stock_entry.", "stock_exit.", "stock_movement.", "inventory.", "alerts.", "dashboard.", "analytics.", "import.", "export.", "settings.", "pos.", "customer.", "loyalty.",
+                "products.", "product_variant.", "product_packaging.", "stock.", "stock_entry.", "stock_exit.", "stock_movement.", "inventory.", "alerts.", "dashboard.", "analytics.", "import.", "export.", "settings.", "pos.", "customer.", "loyalty.",
                 "users.read", "users.create", "users.update",
                 "roles.read", "roles.update"));
 
         saveRole("Manager", "MANAGER",
                 "Gestion stock et entrees", true, filter(all,
                 "products.read", "products.update",
+                "product_variant.read", "product_variant.create", "product_variant.update",
+                "product_variant.manage_stock", "product_variant.manage_packaging",
                 "stock.read", "stock.adjust",
                 "stock_movement.read", "stock_movement.export",
                 "inventory.read", "inventory.create", "inventory.update", "inventory.validate", "inventory.cancel",
@@ -116,6 +118,8 @@ public class AuthReferenceDataInitializer implements ApplicationRunner {
                 "pos.session.open", "pos.session.close", "pos.sale.read", "pos.sale.prepare", "pos.sale.create",
                 "pos.payment.collect", "pos.sale.validate",
                 "pos.sale.cancel", "pos.sale.discount", "pos.sale.refund", "pos.ticket.reprint", "pos.report.read",
+                "pos.return.read", "pos.return.create", "pos.return.validate",
+                "pos.refund.create", "pos.refund.validate",
                 "pos.session.validate_cash_difference",
                 "customer.read", "customer.create", "customer.update", "loyalty.read", "loyalty.redeem", "loyalty.manage"));
 
@@ -124,6 +128,8 @@ public class AuthReferenceDataInitializer implements ApplicationRunner {
                 "pos.session.open", "pos.session.close", "pos.session.read",
                 "pos.payment.collect", "pos.payment.validate",
                 "pos.sale.read", "pos.ticket.print", "pos.ticket.reprint", "pos.report.read",
+                "pos.return.read", "pos.return.create", "pos.return.validate",
+                "pos.refund.create", "pos.refund.validate",
                 "customer.read", "loyalty.read"));
 
         saveRole("Vendeur", "SELLER",
@@ -151,11 +157,13 @@ public class AuthReferenceDataInitializer implements ApplicationRunner {
         Map<String, Permission> all = loadAllPermissions();
         grantRolePermissions("SUPER_ADMIN", all.values());
         grantRolePermissions("ADMIN", filter(all,
-                "products.", "product_packaging.", "stock.", "stock_entry.", "stock_exit.", "stock_movement.", "inventory.", "alerts.", "dashboard.", "analytics.", "import.", "export.", "settings.", "pos.", "customer.", "loyalty.",
+                "products.", "product_variant.", "product_packaging.", "stock.", "stock_entry.", "stock_exit.", "stock_movement.", "inventory.", "alerts.", "dashboard.", "analytics.", "import.", "export.", "settings.", "pos.", "customer.", "loyalty.",
                 "users.read", "users.create", "users.update",
                 "roles.read", "roles.update"));
         grantRolePermissions("MANAGER", filter(all,
                 "products.read", "products.update",
+                "product_variant.read", "product_variant.create", "product_variant.update",
+                "product_variant.manage_stock", "product_variant.manage_packaging",
                 "stock.read", "stock.adjust",
                 "stock_movement.read", "stock_movement.export",
                 "inventory.read", "inventory.create", "inventory.update", "inventory.validate", "inventory.cancel",
@@ -167,6 +175,8 @@ public class AuthReferenceDataInitializer implements ApplicationRunner {
                 "pos.session.open", "pos.session.close", "pos.sale.read", "pos.sale.prepare", "pos.sale.create",
                 "pos.payment.collect", "pos.sale.validate",
                 "pos.sale.cancel", "pos.sale.discount", "pos.sale.refund", "pos.ticket.reprint", "pos.report.read",
+                "pos.return.read", "pos.return.create", "pos.return.validate",
+                "pos.refund.create", "pos.refund.validate",
                 "pos.session.validate_cash_difference",
                 "customer.read", "customer.create", "customer.update", "loyalty.read", "loyalty.redeem", "loyalty.manage"));
         ensureCashierRolePermissions();
@@ -326,6 +336,12 @@ public class AuthReferenceDataInitializer implements ApplicationRunner {
                 p("products.create", "Creer des produits", "MODULE_PRODUCTS"),
                 p("products.update", "Modifier des produits", "MODULE_PRODUCTS"),
                 p("products.delete", "Supprimer des produits", "MODULE_PRODUCTS"),
+                p("product_variant.read", "Lire les variantes produit", "MODULE_PRODUCTS"),
+                p("product_variant.create", "Creer des variantes produit", "MODULE_PRODUCTS"),
+                p("product_variant.update", "Modifier des variantes produit", "MODULE_PRODUCTS"),
+                p("product_variant.delete", "Supprimer des variantes produit", "MODULE_PRODUCTS"),
+                p("product_variant.manage_stock", "Gerer le stock des variantes", "MODULE_PRODUCTS"),
+                p("product_variant.manage_packaging", "Gerer les conditionnements variante", "MODULE_PRODUCTS"),
                 p("product_packaging.update_price", "Modifier le prix de vente des conditionnements", "MODULE_PRODUCTS"),
                 p("stock.read", "Consulter le stock", "MODULE_STOCK"),
                 p("stock.adjust", "Ajuster le stock", "MODULE_STOCK"),
@@ -375,6 +391,11 @@ public class AuthReferenceDataInitializer implements ApplicationRunner {
                 p("pos.sale.cancel", "Annuler des ventes POS", "MODULE_POS"),
                 p("pos.sale.discount", "Appliquer des remises POS", "MODULE_POS"),
                 p("pos.sale.refund", "Rembourser des ventes POS", "MODULE_POS"),
+                p("pos.return.read", "Consulter les retours POS", "MODULE_POS"),
+                p("pos.return.create", "Creer un retour POS", "MODULE_POS"),
+                p("pos.return.validate", "Valider un retour POS", "MODULE_POS"),
+                p("pos.refund.create", "Creer un remboursement POS", "MODULE_POS"),
+                p("pos.refund.validate", "Valider un remboursement POS", "MODULE_POS"),
                 p("pos.ticket.print", "Imprimer un ticket POS", "MODULE_POS"),
                 p("pos.ticket.reprint", "Reimprimer des tickets", "MODULE_POS"),
                 p("pos.report.read", "Consulter les rapports caisse", "MODULE_POS"),

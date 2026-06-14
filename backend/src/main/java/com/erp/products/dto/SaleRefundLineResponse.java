@@ -11,6 +11,15 @@ public class SaleRefundLineResponse {
 
     private Long id;
     private Long saleLineId;
+    private Long productId;
+    private String productNom;
+    private Long packagingId;
+    private String packagingNameSnapshot;
     private BigDecimal quantity;
+    private BigDecimal quantityInBaseUnit;
+    private BigDecimal unitPriceSnapshot;
     private BigDecimal refundAmount;
+    private Boolean restock;
+    private String reason;
+    private String notes;
 }

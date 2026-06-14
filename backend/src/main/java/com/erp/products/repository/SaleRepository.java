@@ -20,6 +20,9 @@ public interface SaleRepository extends JpaRepository<Sale, Long> {
 
     List<Sale> findByPosSessionIdAndStatusOrderByCreatedAtDesc(Long sessionId, SaleStatus status);
 
+    List<Sale> findBySellerIdAndWarehouseIdAndStatusOrderByCreatedAtDesc(
+            Long sellerId, Long warehouseId, SaleStatus status);
+
     List<Sale> findByPosSessionIdOrderByCreatedAtDesc(Long sessionId);
 
     List<Sale> findByPaymentSessionIdOrderByCreatedAtDesc(Long paymentSessionId);
@@ -103,5 +106,22 @@ public interface SaleRepository extends JpaRepository<Sale, Long> {
             @Param("userId") Long userId,
             @Param("sellerId") Long sellerId,
             @Param("cashierId") Long cashierId,
+            org.springframework.data.domain.Pageable pageable);
+
+    @Query("""
+            SELECT s FROM Sale s
+            LEFT JOIN s.customer c
+            WHERE s.status IN :statuses
+            AND (
+                LOWER(s.saleNumber) LIKE CONCAT('%', :q, '%')
+                OR LOWER(c.firstName) LIKE CONCAT('%', :q, '%')
+                OR LOWER(c.lastName) LIKE CONCAT('%', :q, '%')
+                OR LOWER(c.customerNumber) LIKE CONCAT('%', :q, '%')
+            )
+            ORDER BY COALESCE(s.paidAt, s.validatedAt) DESC, s.id DESC
+            """)
+    List<Sale> searchRefundableSales(
+            @Param("statuses") Collection<SaleStatus> statuses,
+            @Param("q") String q,
             org.springframework.data.domain.Pageable pageable);
 }

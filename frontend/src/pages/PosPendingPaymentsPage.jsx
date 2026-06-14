@@ -6,17 +6,20 @@ import { useNotification } from '../context/NotificationContext'
 import { getErrorMessage } from '../utils/errors'
 import { isCashierOnlyUser } from '../utils/auth'
 import { notifyPosSessionChanged } from '../utils/posSession'
+import { notifyPosSaleStateChanged } from '../utils/posSaleEvents'
 import { saleStatusLabel } from '../utils/saleStatus'
 import { formatPosMoney } from '../utils/posMoney'
 import CashSessionCloseModal from '../components/pos/CashSessionCloseModal'
 import CashSessionOpenModal from '../components/pos/CashSessionOpenModal'
-import { PosSessionChip, PosSessionTypeBadge } from '../components/pos/PosWorkspaceNav'
+import ModalOverlay from '../components/ui/ModalOverlay'
+import { PosSessionChip, PosSessionTypeBadge, PosWrongSessionPanel } from '../components/pos/PosWorkspaceNav'
 import { PosTicketModal } from '../components/pos/PosPrintModals'
 
-function PaymentModal({ sale, currency, onClose, onPaid }) {
+function PaymentModal({ sale, currency, onClose, onPaid, onRecallToDraft }) {
   const [payments, setPayments] = useState([{ method: 'CASH', amount: sale?.total || 0 }])
   const [cashReceived, setCashReceived] = useState('')
   const [loading, setLoading] = useState(false)
+  const [recalling, setRecalling] = useState(false)
   const notify = useNotification()
 
   const total = Number(sale?.total || 0)
@@ -40,8 +43,20 @@ function PaymentModal({ sale, currency, onClose, onPaid }) {
     }
   }
 
+  const recallToDraft = async () => {
+    if (!window.confirm('Renvoyer cette vente en attente sur le poste vendeur ?')) return
+    setRecalling(true)
+    try {
+      await onRecallToDraft(sale.id)
+    } catch (e) {
+      notify.error(getErrorMessage(e))
+    } finally {
+      setRecalling(false)
+    }
+  }
+
   return (
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+    <ModalOverlay open onClose={onClose}>
       <div className="bg-slate-900 border border-slate-700 rounded-xl w-full max-w-lg p-6">
         <h3 className="text-lg font-semibold mb-1">Encaisser — {sale?.saleNumber}</h3>
         <p className="text-sm text-slate-400 mb-4">Vendeur : {sale?.sellerName || sale?.cashierName} · Total {formatPosMoney(total, currency)}</p>
@@ -87,15 +102,23 @@ function PaymentModal({ sale, currency, onClose, onPaid }) {
             <p className="text-emerald-400 text-sm mt-2">Monnaie à rendre : {formatPosMoney(change, currency)}</p>
           )}
         </div>
-        <div className="flex gap-2 justify-end">
-          <button type="button" onClick={onClose} className="px-4 py-2 rounded-lg bg-slate-700 text-sm">Annuler</button>
-          <button type="button" disabled={loading || paid < total} onClick={submit}
+        <div className="flex flex-wrap gap-2 justify-between">
+          <div className="flex gap-2">
+            <button type="button" onClick={onClose} className="px-4 py-2 rounded-lg bg-slate-700 text-sm">Fermer</button>
+            {onRecallToDraft && (
+              <button type="button" disabled={recalling || loading} onClick={recallToDraft}
+                className="px-4 py-2 rounded-lg bg-amber-700 hover:bg-amber-600 text-sm disabled:opacity-50">
+                Retour en attente vendeur
+              </button>
+            )}
+          </div>
+          <button type="button" disabled={loading || recalling || paid < total} onClick={submit}
             className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-sm font-medium disabled:opacity-50">
             Valider paiement
           </button>
         </div>
       </div>
-    </div>
+    </ModalOverlay>
   )
 }
 
@@ -118,6 +141,8 @@ export default function PosPendingPaymentsPage() {
   const [ticket, setTicket] = useState(null)
 
   const currency = context?.publicSettings?.currency || 'EUR'
+  const isCentralCashier = context?.posConfig?.salesFlowMode === 'CENTRAL_CASHIER'
+    || context?.posConfig?.cashHandlingMode === 'CENTRAL_CASHIER'
   const cashierOnly = isCashierOnlyUser(user)
   const canReprint = hasPermission('pos.ticket.print') || hasPermission('pos.ticket.reprint')
 
@@ -169,6 +194,14 @@ export default function PosPendingPaymentsPage() {
     return () => clearInterval(t)
   }, [refresh])
 
+  useEffect(() => {
+    const onSaleChange = () => {
+      refresh().catch(() => {})
+    }
+    window.addEventListener('pos-sale-state-changed', onSaleChange)
+    return () => window.removeEventListener('pos-sale-state-changed', onSaleChange)
+  }, [refresh])
+
   const openDetail = async (sale) => {
     try {
       const full = await posApi.getSale(sale.id)
@@ -184,9 +217,24 @@ export default function PosPendingPaymentsPage() {
       await posApi.cancelSale(saleId)
       notify.success('Vente annulée')
       setDetail(null)
-      refresh()
+      await refresh()
+      notifyPosSaleStateChanged()
     } catch (e) {
       notify.error(getErrorMessage(e))
+    }
+  }
+
+  const recallToDraft = async (saleId) => {
+    try {
+      await posApi.recallFromPayment(saleId)
+      notify.success('Vente renvoyée en attente — le vendeur la retrouve sur son poste (F9)')
+      setSelected(null)
+      setDetail(null)
+      await refresh()
+      notifyPosSaleStateChanged()
+    } catch (e) {
+      notify.error(getErrorMessage(e))
+      throw e
     }
   }
 
@@ -197,7 +245,20 @@ export default function PosPendingPaymentsPage() {
       setTicket(t)
     } catch { /* optional */ }
     notify.success(`Vente ${validatedSale.saleNumber} encaissée`)
-    refresh()
+    await refresh()
+    notifyPosSaleStateChanged()
+  }
+
+  const closeSalesSession = async () => {
+    if (!window.confirm('Fermer la session vente pour ouvrir une session caisse ici ?')) return
+    try {
+      const report = await posApi.closeSession({ closingCashAmount: 0, cancelPendingDrafts: true })
+      notify.success(`Session vente fermée — ${report.saleCount ?? 0} vente(s)`)
+      notifyPosSessionChanged()
+      await refresh()
+    } catch (e) {
+      notify.error(getErrorMessage(e))
+    }
   }
 
   if (!hasPermission('pos.payment.collect') && !hasPermission('pos.sale.read')) {
@@ -210,28 +271,30 @@ export default function PosPendingPaymentsPage() {
 
   if (!session || session.sessionType !== 'CASHIER') {
     const hasWrongSession = session?.sessionType === 'SALES'
+    if (hasWrongSession) {
+      return (
+        <PosWrongSessionPanel
+          session={session}
+          expectedType="CASHIER"
+          centralMode={isCentralCashier}
+          onCloseSession={closeSalesSession}
+          canCloseSession={hasPermission('pos.session.close') || hasPermission('pos.sale.create')}
+        />
+      )
+    }
     return (
       <>
         <div className="flex-1 flex flex-col items-center justify-center p-8 text-center max-w-lg mx-auto">
-          {hasWrongSession && (
-            <div className="mb-6">
-              <PosSessionChip session={session} expectedType="CASHIER" centralMode />
-            </div>
-          )}
           <PosSessionTypeBadge type="CASHIER" size="lg" />
           <h1 className="text-2xl font-semibold mt-6 mb-2">Poste encaissement</h1>
           <p className="text-slate-400 mb-6">
-            {hasWrongSession
-              ? 'Fermez d’abord votre session vente, ou utilisez l’onglet Préparation ventes en haut de l’écran.'
-              : 'Ouvrez votre session caisse pour voir les ventes en attente et encaisser les paiements.'}
+            Ouvrez votre session caisse pour voir les ventes en attente et encaisser les paiements.
           </p>
-          {!hasWrongSession && (
-            <button type="button" disabled={openingSession} onClick={() => setShowOpenModal(true)}
-              className="px-8 py-4 bg-emerald-600 hover:bg-emerald-500 rounded-xl text-lg font-medium disabled:opacity-50">
-              Ouvrir session caisse
-            </button>
-          )}
-          {cashierOnly && !hasWrongSession && (
+          <button type="button" disabled={openingSession} onClick={() => setShowOpenModal(true)}
+            className="px-8 py-4 bg-emerald-600 hover:bg-emerald-500 rounded-xl text-lg font-medium disabled:opacity-50">
+            Ouvrir session caisse
+          </button>
+          {cashierOnly && (
             <p className="mt-6 text-sm text-slate-500">
               Votre compte est limité à l’encaissement — la préparation des ventes se fait sur un autre poste.
             </p>
@@ -331,6 +394,14 @@ export default function PosPendingPaymentsPage() {
                             Encaisser
                           </button>
                         )}
+                        {(hasPermission('pos.payment.collect')
+                          || hasPermission('pos.sale.send_to_payment')
+                          || hasPermission('pos.sale.create')) && (
+                          <button type="button" onClick={() => recallToDraft(s.id)}
+                            className="px-3 py-1.5 bg-amber-800/60 border border-amber-700 rounded-lg text-xs">
+                            Retour en attente
+                          </button>
+                        )}
                         {hasPermission('pos.sale.cancel') && (
                           <button type="button" onClick={() => cancelPending(s.id)}
                             className="px-3 py-1.5 bg-red-900/50 border border-red-800 rounded-lg text-xs">
@@ -352,7 +423,7 @@ export default function PosPendingPaymentsPage() {
       </main>
 
       {detail && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-40 p-4">
+        <ModalOverlay open onClose={() => setDetail(null)}>
           <div className="bg-slate-900 border border-slate-700 rounded-xl w-full max-w-md p-6 max-h-[80vh] overflow-auto">
             <h3 className="font-semibold mb-2">{detail.saleNumber}</h3>
             <p className="text-xs text-slate-400 mb-4">Vendeur : {detail.sellerName || detail.cashierName}</p>
@@ -367,11 +438,17 @@ export default function PosPendingPaymentsPage() {
             <p className="font-bold text-emerald-400">Total {formatPosMoney(detail.total, currency)}</p>
             <button type="button" onClick={() => setDetail(null)} className="mt-4 px-4 py-2 bg-slate-700 rounded-lg text-sm">Fermer</button>
           </div>
-        </div>
+        </ModalOverlay>
       )}
 
       {selected && (
-        <PaymentModal sale={selected} currency={currency} onClose={() => setSelected(null)} onPaid={onPaid} />
+        <PaymentModal
+          sale={selected}
+          currency={currency}
+          onClose={() => setSelected(null)}
+          onPaid={onPaid}
+          onRecallToDraft={recallToDraft}
+        />
       )}
       {ticket && <TicketModal ticket={ticket} onClose={() => setTicket(null)} />}
       {showOpenModal && (
@@ -386,6 +463,7 @@ export default function PosPendingPaymentsPage() {
         <CashSessionCloseModal
           session={session}
           currency={currency}
+          companyName={context?.publicSettings?.companyName}
           onClose={() => setShowCloseModal(false)}
           onClosed={onSessionClosed}
         />

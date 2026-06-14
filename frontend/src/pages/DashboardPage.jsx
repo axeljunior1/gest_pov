@@ -4,13 +4,14 @@ import { PageHeader, Card, Loading, Badge, EmptyState } from '../components/ui'
 import { useNotification } from '../context/NotificationContext'
 import { getErrorMessage } from '../utils/errors'
 
-function KpiCard({ label, value, tone }) {
+function KpiCard({ label, value, tone, hint }) {
   return (
     <Card className="p-5">
       <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">{label}</p>
       <p className={`text-2xl font-semibold mt-2 ${tone === 'danger' ? 'text-red-600' : tone === 'warning' ? 'text-amber-600' : 'text-gray-900'}`}>
         {value}
       </p>
+      {hint && <p className="text-xs text-gray-400 mt-1">{hint}</p>}
     </Card>
   )
 }
@@ -114,9 +115,13 @@ export default function DashboardPage() {
       />
 
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
-        <KpiCard label="Produits" value={summary?.totalProducts ?? 0} />
+        <KpiCard label="Produits actifs" value={summary?.totalProducts ?? 0} />
         <KpiCard label="Quantité totale" value={formatNumber(summary?.totalStockQuantity)} />
-        <KpiCard label="Valeur du stock" value={formatCurrency(summary?.stockValue, publicSettings.currency)} />
+        <KpiCard
+          label="Valeur du stock"
+          value={formatCurrency(summary?.stockValue, publicSettings.currency)}
+          hint={summary?.stockValuationMethod === 'SALE_PRICE' ? 'Valorisation au PV' : 'Valorisation au PA'}
+        />
         <KpiCard label="Ruptures" value={summary?.outOfStockProducts ?? 0} tone="danger" />
         <KpiCard label="Stock faible" value={summary?.lowStockProducts ?? 0} tone="warning" />
       </div>

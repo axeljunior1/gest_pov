@@ -213,6 +213,47 @@ class PosSendToPaymentTest extends com.erp.products.AbstractIntegrationTest {
     }
 
     @Test
+    void shouldRecallPendingPaymentToHoldAndAllowAddingLineAfterResume() throws Exception {
+        openSalesSession(sellerToken);
+        Long saleId = createDraftSale(sellerToken, 1);
+        mockMvc.perform(auth(sellerToken, post("/api/pos/sales/" + saleId + "/send-to-payment")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status", is("PENDING_PAYMENT")));
+
+        openCashierSession(cashierToken);
+        mockMvc.perform(auth(cashierToken, post("/api/pos/sales/" + saleId + "/recall-from-payment")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status", is("HOLD")))
+                .andExpect(jsonPath("$.holdLabel", containsString("Retour caisse")))
+                .andExpect(jsonPath("$.submittedAt").doesNotExist());
+
+        mockMvc.perform(auth(cashierToken, get("/api/pos/sales/pending-payment")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(0)));
+
+        mockMvc.perform(auth(sellerToken, get("/api/pos/sales/hold")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].id", is(saleId.intValue())));
+
+        mockMvc.perform(auth(sellerToken, get("/api/pos/sales/draft")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(0)));
+
+        mockMvc.perform(auth(sellerToken, post("/api/pos/sales/" + saleId + "/resume")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status", is("DRAFT")));
+
+        mockMvc.perform(auth(sellerToken, post("/api/pos/sales/" + saleId + "/lines"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "productId", productId,
+                                "quantityInput", 1))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status", is("DRAFT")))
+                .andExpect(jsonPath("$.lignes", hasSize(greaterThanOrEqualTo(1))));
+    }
+
+    @Test
     void newSaleShouldAlwaysHaveSellerId() throws Exception {
         openSalesSession(sellerToken);
         MvcResult saleResult = mockMvc.perform(auth(sellerToken, post("/api/pos/sales")))

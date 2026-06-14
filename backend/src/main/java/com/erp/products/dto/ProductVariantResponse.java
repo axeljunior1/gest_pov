@@ -6,6 +6,7 @@ import lombok.Data;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.List;
 
 @Data
 @Builder
@@ -15,8 +16,15 @@ public class ProductVariantResponse {
     private Long productId;
     private String couleur;
     private String taille;
+    private String name;
+    private String label;
     private String sku;
+    private List<VariantAttributeSelectionResponse> attributeSelections;
     private BigDecimal prix;
+    private BigDecimal costPrice;
+    private Boolean sellable;
+    private Boolean stockable;
+    private Boolean active;
     private Integer stock;
     private String codeBarre;
     private BarcodeType barcodeType;

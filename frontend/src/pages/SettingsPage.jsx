@@ -12,7 +12,7 @@ const GROUPS = [
   },
   {
     title: 'Stock & alertes',
-    keys: ['stock.allow_negative', 'stock.low_threshold_default', 'alert.expiry_days_default'],
+    keys: ['stock.allow_negative', 'stock.low_threshold_default', 'stock.valuation_method', 'alert.expiry_days_default'],
   },
   {
     title: 'Numérotation documents',

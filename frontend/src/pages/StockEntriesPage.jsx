@@ -34,6 +34,7 @@ export default function StockEntriesPage() {
   const [products, setProducts] = useState([])
   const [suppliers, setSuppliers] = useState([])
   const [packagings, setPackagings] = useState({})
+  const [productDetails, setProductDetails] = useState({})
   const [filters, setFilters] = useState({ status: '', warehouseId: '' })
 
   const [form, setForm] = useState({
@@ -91,6 +92,7 @@ export default function StockEntriesPage() {
     if (productId) {
       try {
         const detail = await productsApi.getById(productId)
+        setProductDetails((prev) => ({ ...prev, [productId]: detail }))
         if (detail.variantes?.length === 1) {
           defaultVariantId = String(detail.variantes[0].id)
         }
@@ -139,6 +141,13 @@ export default function StockEntriesPage() {
     if (!payload.lignes.length) {
       notify.error('Ajoutez au moins une ligne produit.')
       return
+    }
+    for (const line of form.lignes.filter((l) => l.productId && l.quantityInput)) {
+      const detail = productDetails[line.productId]
+      if (detail?.variantes?.length > 1 && !line.variantId) {
+        notify.error(`Sélectionnez une variante pour « ${detail.nom} ».`)
+        return
+      }
     }
     run(
       () => stockEntriesApi.create(payload),
@@ -375,8 +384,9 @@ export default function StockEntriesPage() {
             </div>
 
             {form.lignes.map((line, idx) => {
-              const product = products.find((p) => String(p.id) === line.productId)
-              const variants = product?.variantes || []
+              const detail = productDetails[line.productId]
+              const variants = detail?.variantes ?? []
+              const variantsLoading = Boolean(line.productId && !detail)
               const pkgs = packagings[line.productId] || []
               return (
                 <div key={idx} className="grid grid-cols-1 md:grid-cols-6 gap-2 mb-3 p-3 bg-gray-50 rounded-lg">
@@ -392,16 +402,23 @@ export default function StockEntriesPage() {
                   </select>
                   <select
                     value={line.variantId}
+                    disabled={!line.productId || variantsLoading}
                     onChange={(e) => {
                       const lignes = [...form.lignes]
                       lignes[idx] = { ...lignes[idx], variantId: e.target.value }
                       setForm({ ...form, lignes })
                     }}
-                    className="border rounded-lg px-2 py-1.5 text-sm"
+                    className="border rounded-lg px-2 py-1.5 text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
                   >
-                    <option value="">Variante</option>
+                    <option value="">
+                      {variantsLoading
+                        ? 'Chargement…'
+                        : `Variante${variants.length > 1 ? ' *' : ''}`}
+                    </option>
                     {variants.map((v) => (
-                      <option key={v.id} value={v.id}>{v.sku}</option>
+                      <option key={v.id} value={String(v.id)}>
+                        {v.label || [v.couleur, v.taille].filter(Boolean).join(' ') || v.sku}
+                      </option>
                     ))}
                   </select>
                   <select

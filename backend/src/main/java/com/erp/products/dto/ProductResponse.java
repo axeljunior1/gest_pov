@@ -18,6 +18,7 @@ public class ProductResponse {
     private Long id;
     private String nom;
     private String sku;
+    private String codeBarre;
     private String description;
     private String marque;
     private Long categorieId;
@@ -36,6 +37,9 @@ public class ProductResponse {
     private String baseUnitSymbole;
     private ProductStatus statut;
     private LifecycleStatus cycleVie;
+    private Boolean sellable;
+    private Boolean hasVariants;
+    private Boolean stockable;
     private Integer stockTotal;
     private List<ProductVariantResponse> variantes;
     private List<ProductPackagingResponse> conditionnements;

@@ -2,6 +2,8 @@ package com.erp.products.service;
 
 import com.erp.products.domain.entity.StockEntry;
 import com.erp.products.domain.entity.StockExit;
+import com.erp.products.domain.enums.LifecycleStatus;
+import com.erp.products.domain.enums.ProductStatus;
 import com.erp.products.domain.enums.AlertStatus;
 import com.erp.products.domain.enums.AlertType;
 import com.erp.products.domain.enums.StockEntryStatus;
@@ -33,11 +35,13 @@ public class DashboardService {
     private final StockExitRepository exitRepository;
     private final StockMapper stockMapper;
     private final AlertSettingResolver alertSettingResolver;
+    private final StockValuationService stockValuationService;
 
     @Transactional(readOnly = true)
     public DashboardStockSummaryResponse getStockSummary() {
-        long totalProducts = productRepository.count();
-        BigDecimal totalQuantity = stockItemRepository.sumTotalQuantityOnHand();
+        long totalProducts = productRepository.countByStatutAndCycleVie(
+                ProductStatus.ACTIF, LifecycleStatus.ACTIF);
+        BigDecimal totalQuantity = stockItemRepository.sumEligibleQuantityOnHand();
         BigDecimal stockValue = getStockValue();
 
         var settings = alertSettingResolver.resolve(null, null);
@@ -58,6 +62,7 @@ public class DashboardService {
                 .totalProducts(totalProducts)
                 .totalStockQuantity(totalQuantity)
                 .stockValue(stockValue)
+                .stockValuationMethod(stockValuationService.getMethod())
                 .outOfStockProducts(outOfStock)
                 .lowStockProducts(lowStock)
                 .build();
@@ -65,7 +70,7 @@ public class DashboardService {
 
     @Transactional(readOnly = true)
     public BigDecimal getStockValue() {
-        return stockItemRepository.sumStockValue();
+        return stockValuationService.computeTotalStockValue();
     }
 
     @Transactional(readOnly = true)
@@ -106,7 +111,8 @@ public class DashboardService {
 
     @Transactional(readOnly = true)
     public List<WarehouseStockSummaryResponse> getWarehouseSummary() {
-        return stockItemRepository.summarizeByWarehouse().stream()
+        boolean salePrice = stockValuationService.usesSalePrice();
+        return stockItemRepository.summarizeEligibleByWarehouse(salePrice).stream()
                 .map(row -> WarehouseStockSummaryResponse.builder()
                         .warehouseId((Long) row[0])
                         .warehouseCode((String) row[1])

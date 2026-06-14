@@ -66,4 +66,33 @@ public class BarcodeService {
         }
         return digits;
     }
+
+    /** Génère un EAN-13 interne unique (préfixe 200) avec clé de contrôle. */
+    public String allocateEan13(java.util.function.Predicate<String> isTaken) {
+        java.util.concurrent.ThreadLocalRandom random = java.util.concurrent.ThreadLocalRandom.current();
+        for (int attempt = 0; attempt < 500; attempt++) {
+            String twelve = String.format("200%09d", Math.floorMod(random.nextInt(), 1_000_000_000));
+            String ean13 = twelve + computeEan13CheckDigit(twelve);
+            if (!isTaken.test(ean13)) {
+                return ean13;
+            }
+        }
+        throw new BusinessException("Impossible de générer un code EAN-13 unique");
+    }
+
+    public static String computeEan13CheckDigit(String twelveDigits) {
+        if (twelveDigits == null || twelveDigits.length() != 12) {
+            throw new BusinessException("EAN-13 : 12 chiffres requis avant la clé de contrôle");
+        }
+        int sum = 0;
+        for (int i = 0; i < 12; i++) {
+            int digit = twelveDigits.charAt(i) - '0';
+            sum += (i % 2 == 0) ? digit : digit * 3;
+        }
+        return String.valueOf((10 - (sum % 10)) % 10);
+    }
+
+    public static BarcodeType defaultType() {
+        return BarcodeType.EAN13;
+    }
 }

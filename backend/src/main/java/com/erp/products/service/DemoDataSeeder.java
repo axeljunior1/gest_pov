@@ -30,6 +30,7 @@ public class DemoDataSeeder {
     private final ProductVariantRepository variantRepository;
     private final PackagingService packagingService;
     private final StockService stockService;
+    private final ProductVariantPolicyService variantPolicyService;
 
     @Transactional
     public DemoSeedResult seed() {
@@ -62,15 +63,17 @@ public class DemoDataSeeder {
 
         ProductVariant variant = variantRepository.save(ProductVariant.builder()
                 .product(product)
+                .name("Unite")
                 .sku(DEMO_PRODUCT_SKU + "-U")
                 .prix(new BigDecimal("500"))
                 .codeBarre("DEMO-EAU-UNIT")
                 .stock(0)
                 .build());
+        variantPolicyService.syncProductFlags(product.getId());
 
-        packagingService.create(product.getId(), packagingReq("Unite", 1, "500", "DEMO-EAU-UNIT", true));
-        packagingService.create(product.getId(), packagingReq("Carton", 12, "5500", "DEMO-EAU-CARTON", false));
-        packagingService.create(product.getId(), packagingReq("Palette", 600, "250000", null, false));
+        packagingService.create(product.getId(), packagingReq("Unite", 1, "500", "DEMO-EAU-UNIT", true, variant.getId()));
+        packagingService.create(product.getId(), packagingReq("Carton", 12, "5500", "DEMO-EAU-CARTON", false, variant.getId()));
+        packagingService.create(product.getId(), packagingReq("Palette", 600, "250000", null, false, variant.getId()));
 
         Warehouse warehouse = warehouseRepository.findByCode("WH-MAIN")
                 .orElseGet(() -> {
@@ -106,7 +109,7 @@ public class DemoDataSeeder {
     }
 
     private static ProductPackagingRequest packagingReq(
-            String nom, int qty, String prix, String barcode, boolean defaultVente) {
+            String nom, int qty, String prix, String barcode, boolean defaultVente, Long variantId) {
         ProductPackagingRequest req = new ProductPackagingRequest();
         req.setNom(nom);
         req.setQuantiteBase(new BigDecimal(qty));
@@ -114,6 +117,7 @@ public class DemoDataSeeder {
         req.setCodeBarre(barcode);
         req.setDefaultVente(defaultVente);
         req.setActif(true);
+        req.setVariantId(variantId);
         return req;
     }
 

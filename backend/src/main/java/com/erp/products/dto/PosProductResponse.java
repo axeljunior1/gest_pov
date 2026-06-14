@@ -20,9 +20,16 @@ public class PosProductResponse {
     private BigDecimal stockAvailable;
     private boolean outOfStock;
     private boolean lowStock;
+    private boolean sellable;
+    private boolean hasVariants;
+    private boolean stockable;
+    private boolean requiresVariantSelection;
+    private List<PosVariantResponse> variants;
     private String imageUrl;
     private List<String> barcodes;
     private List<PosPackagingResponse> packagings;
     /** Renseigné lors d'un scan code-barres conditionnement. */
     private Long matchedPackagingId;
+    /** Renseigné lors d'un scan code-barres / SKU variante. */
+    private Long matchedVariantId;
 }

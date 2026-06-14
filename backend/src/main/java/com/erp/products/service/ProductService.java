@@ -15,8 +15,11 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.math.BigDecimal;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -42,6 +45,9 @@ public class ProductService {
     private final CurrentUserService currentUserService;
     private final BarcodeService barcodeService;
     private final FileStorageService fileStorageService;
+    private final ProductVariantAttributeService variantAttributeService;
+    private final ProductVariantPolicyService variantPolicyService;
+    private final BarcodeRegistryService barcodeRegistryService;
 
     @Transactional(readOnly = true)
     public List<ProductResponse> search(ProductSearchCriteria criteria) {
@@ -64,20 +70,27 @@ public class ProductService {
 
     @Transactional(readOnly = true)
     public ProductResponse getByBarcode(String codeBarre) {
-        Product product = productRepository.findByVariantBarcode(codeBarre)
+        String normalized = BarcodeRegistryService.normalize(codeBarre);
+        if (normalized == null) {
+            throw new ResourceNotFoundException("Produit non trouvé pour le code-barres: " + codeBarre);
+        }
+        Optional<Product> byProduct = productRepository.findActiveSimpleByCodeBarre(normalized);
+        if (byProduct.isPresent()) {
+            return mapper.toProductResponse(byProduct.get(), barcodeService, true);
+        }
+        Product product = productRepository.findByVariantBarcode(normalized)
+                .or(() -> variantRepository.findByCodeBarreNormalized(normalized).map(ProductVariant::getProduct))
                 .orElseThrow(() -> new ResourceNotFoundException("Produit non trouvé pour le code-barres: " + codeBarre));
         return mapper.toProductResponse(product, barcodeService, true);
     }
 
     @Transactional
     public ProductResponse create(ProductRequest request) {
-        if (productRepository.existsBySku(request.getSku())) {
-            throw new BusinessException("SKU déjà existant: " + request.getSku());
-        }
+        String sku = resolveProductSku(request.getSku(), request.getNom());
 
         Product product = Product.builder()
                 .nom(request.getNom())
-                .sku(request.getSku())
+                .sku(sku)
                 .description(request.getDescription())
                 .marque(request.getMarque())
                 .prixAchat(request.getPrixAchat())
@@ -93,33 +106,46 @@ public class ProductService {
         Product saved = productRepository.save(product);
 
         if (request.getVariantes() != null) {
-            request.getVariantes().forEach(v -> addVariantInternal(saved, v, currentUserService.resolveActor(request.getUtilisateur())));
+            Set<String> reservedVariantSkus = new HashSet<>();
+            for (int i = 0; i < request.getVariantes().size(); i++) {
+                addVariantInternal(saved, request.getVariantes().get(i),
+                        currentUserService.resolveActor(request.getUtilisateur()),
+                        reservedVariantSkus, i + 1);
+            }
         }
 
+        variantAttributeService.syncProductSellable(saved.getId());
+        Product productForExtras = findProduct(saved.getId());
+        applyProductBarcode(productForExtras, request);
+        productRepository.save(productForExtras);
+
         if (request.getFournisseurs() != null) {
-            request.getFournisseurs().forEach(f -> addSupplierInternal(saved, f));
+            request.getFournisseurs().forEach(f -> addSupplierInternal(productForExtras, f));
         }
 
         if (request.getAttributs() != null) {
-            saveAttributes(saved, request.getAttributs());
+            saveAttributes(productForExtras, request.getAttributs());
         }
 
-        auditService.log("Product", saved.getId(), AuditAction.CREATION,
-                "Produit créé: " + saved.getNom(), request.getUtilisateur());
+        auditService.log("Product", productForExtras.getId(), AuditAction.CREATION,
+                "Produit créé: " + productForExtras.getNom(), request.getUtilisateur());
 
-        return mapper.toProductResponse(findProduct(saved.getId()), barcodeService, true);
+        return mapper.toProductResponse(findProduct(productForExtras.getId()), barcodeService, true);
     }
 
     @Transactional
     public ProductResponse update(Long id, ProductRequest request) {
         Product product = findProduct(id);
 
-        if (!product.getSku().equals(request.getSku()) && productRepository.existsBySku(request.getSku())) {
+        if (isNotBlank(request.getSku()) && !product.getSku().equals(request.getSku().trim())
+                && productRepository.existsBySku(request.getSku().trim())) {
             throw new BusinessException("SKU déjà existant: " + request.getSku());
         }
 
         product.setNom(request.getNom());
-        product.setSku(request.getSku());
+        if (isNotBlank(request.getSku())) {
+            product.setSku(request.getSku().trim());
+        }
         product.setDescription(request.getDescription());
         product.setMarque(request.getMarque());
         product.setPrixAchat(request.getPrixAchat());
@@ -136,6 +162,7 @@ public class ProductService {
         }
 
         applyRelations(product, request);
+        applyProductBarcode(product, request);
 
         if (request.getAttributs() != null) {
             product.getAttributs().clear();
@@ -214,7 +241,8 @@ public class ProductService {
     @Transactional
     public ProductVariantResponse addVariant(Long productId, ProductVariantRequest request) {
         Product product = findProduct(productId);
-        ProductVariant variant = addVariantInternal(product, request, "system");
+        ProductVariant variant = addVariantInternal(product, request, "system", new HashSet<>(),
+                variantRepository.findByProductId(productId).size() + 1);
         return mapper.toVariantResponse(variant, barcodeService);
     }
 
@@ -222,25 +250,62 @@ public class ProductService {
     public ProductVariantResponse updateVariant(Long productId, Long variantId, ProductVariantRequest request) {
         ProductVariant variant = findVariant(productId, variantId);
 
-        if (!variant.getSku().equals(request.getSku()) && variantRepository.existsBySku(request.getSku())) {
+        if (isNotBlank(request.getSku()) && !variant.getSku().equals(request.getSku().trim())
+                && variantRepository.existsBySku(request.getSku().trim())) {
             throw new BusinessException("SKU variante déjà existant: " + request.getSku());
         }
 
         variant.setCouleur(request.getCouleur());
         variant.setTaille(request.getTaille());
-        variant.setSku(request.getSku());
-        variant.setPrix(request.getPrix());
-        variant.setStock(request.getStock());
+        if (isNotBlank(request.getSku())) {
+            variant.setSku(request.getSku().trim());
+        }
+        if (request.getPrix() != null) {
+            variant.setPrix(request.getPrix());
+        }
+        if (request.getStock() != null) {
+            variant.setStock(request.getStock());
+        }
+        applyVariantFlags(variant, request);
+        variantAttributeService.applySelections(variant, variantAttributeService.resolveSelections(request));
+        variant.setName(variantAttributeService.buildVariantLabel(variant));
         applyBarcode(variant, request);
+        variantAttributeService.assertVariantUniqueness(variant);
 
         return mapper.toVariantResponse(variantRepository.save(variant), barcodeService);
     }
 
     @Transactional
+    public List<ProductVariantResponse> generateVariants(Long productId, ProductVariantGenerateRequest request) {
+        Product product = findProduct(productId);
+        List<ProductVariant> drafts = variantAttributeService.generateVariants(product, request);
+        Set<String> reservedVariantSkus = variantRepository.findByProductId(productId).stream()
+                .map(ProductVariant::getSku)
+                .collect(Collectors.toCollection(HashSet::new));
+
+        List<ProductVariantResponse> created = new java.util.ArrayList<>();
+        for (ProductVariant draft : drafts) {
+            String sku = ProductSkuGenerator.ensureUnique(draft.getSku(), candidate ->
+                    reservedVariantSkus.contains(candidate) || variantRepository.existsBySku(candidate));
+            draft.setSku(sku);
+            reservedVariantSkus.add(sku);
+            ProductVariant saved = variantRepository.save(draft);
+            product.getVariantes().add(saved);
+            created.add(mapper.toVariantResponse(saved, barcodeService));
+        }
+        variantAttributeService.syncProductSellable(productId);
+        auditService.log("Product", productId, AuditAction.AJOUT_VARIANTE,
+                "Variantes générées: " + created.size());
+        return created;
+    }
+
+    @Transactional
     public void deleteVariant(Long productId, Long variantId) {
         ProductVariant variant = findVariant(productId, variantId);
+        variantPolicyService.assertDeletable(variant);
         priceHistoryRepository.deleteByVariantId(variantId);
         variantRepository.delete(variant);
+        variantAttributeService.syncProductSellable(productId);
         auditService.log("Product", productId, AuditAction.SUPPRESSION_VARIANTE,
                 "Variante supprimée: " + variant.getSku());
     }
@@ -369,37 +434,106 @@ public class ProductService {
         }
     }
 
-    private ProductVariant addVariantInternal(Product product, ProductVariantRequest request, String utilisateur) {
-        if (variantRepository.existsBySku(request.getSku())) {
-            throw new BusinessException("SKU variante déjà existant: " + request.getSku());
-        }
-
+    private ProductVariant addVariantInternal(
+            Product product,
+            ProductVariantRequest request,
+            String utilisateur,
+            Set<String> reservedVariantSkus,
+            int variantIndex) {
         ProductVariant variant = ProductVariant.builder()
                 .product(product)
                 .couleur(request.getCouleur())
                 .taille(request.getTaille())
-                .sku(request.getSku())
-                .prix(request.getPrix())
+                .prix(request.getPrix() != null ? request.getPrix() : product.getPrixVente())
                 .stock(request.getStock() != null ? request.getStock() : 0)
+                .isSellable(true)
+                .isStockable(true)
+                .isActive(true)
                 .build();
 
+        applyVariantFlags(variant, request);
+        variantAttributeService.applySelections(variant, variantAttributeService.resolveSelections(request));
+        variant.setName(variantAttributeService.buildVariantLabel(variant));
+
+        String sku;
+        if (isNotBlank(request.getSku())) {
+            sku = request.getSku().trim();
+            if (reservedVariantSkus.contains(sku) || variantRepository.existsBySku(sku)) {
+                throw new BusinessException("SKU variante déjà existant: " + sku);
+            }
+        } else {
+            sku = variantAttributeService.buildVariantSku(product, variant, variantIndex);
+            sku = ProductSkuGenerator.ensureUnique(sku, candidate ->
+                    reservedVariantSkus.contains(candidate) || variantRepository.existsBySku(candidate));
+        }
+        variant.setSku(sku);
+        reservedVariantSkus.add(sku);
+
         applyBarcode(variant, request);
+        variantAttributeService.assertVariantUniqueness(variant);
         ProductVariant saved = variantRepository.save(variant);
         product.getVariantes().add(saved);
+        variantAttributeService.syncProductSellable(product.getId());
         auditService.log("Product", product.getId(), AuditAction.AJOUT_VARIANTE,
                 "Variante ajoutée: " + saved.getSku(), currentUserService.resolveActor(utilisateur));
         return saved;
     }
 
+    private void applyVariantFlags(ProductVariant variant, ProductVariantRequest request) {
+        if (request.getCostPrice() != null) {
+            variant.setCostPrice(request.getCostPrice());
+        }
+        if (request.getSellable() != null) {
+            variant.setIsSellable(request.getSellable());
+        }
+        if (request.getStockable() != null) {
+            variant.setIsStockable(request.getStockable());
+        }
+        if (request.getActive() != null) {
+            variant.setIsActive(request.getActive());
+        }
+    }
+
+    private void applyProductBarcode(Product product, ProductRequest request) {
+        if (variantPolicyService.hasVariants(product)) {
+            if (product.getCodeBarre() != null) {
+                product.setCodeBarre(null);
+            }
+            return;
+        }
+        if (Boolean.TRUE.equals(request.getGenerateBarcode())) {
+            product.setCodeBarre(barcodeService.allocateEan13(barcodeRegistryService::isTaken));
+            return;
+        }
+        if (request.getCodeBarre() == null) {
+            return;
+        }
+        if (request.getCodeBarre().isBlank()) {
+            product.setCodeBarre(null);
+            return;
+        }
+        String code = request.getCodeBarre().trim();
+        barcodeRegistryService.assertAvailable(code, product.getId(), null, null);
+        product.setCodeBarre(code);
+    }
+
     private void applyBarcode(ProductVariant variant, ProductVariantRequest request) {
         if (Boolean.TRUE.equals(request.getGenerateBarcode())) {
-            BarcodeType type = request.getBarcodeType() != null ? request.getBarcodeType() : BarcodeType.CODE128;
-            String content = request.getCodeBarre() != null ? request.getCodeBarre() : variant.getSku();
-            variant.setCodeBarre(content);
+            BarcodeType type = request.getBarcodeType() != null ? request.getBarcodeType() : BarcodeType.EAN13;
             variant.setBarcodeType(type);
+            if (request.getCodeBarre() != null && !request.getCodeBarre().isBlank()) {
+                variant.setCodeBarre(request.getCodeBarre().trim());
+            } else if (type == BarcodeType.EAN13) {
+                variant.setCodeBarre(barcodeService.allocateEan13(barcodeRegistryService::isTaken));
+            } else {
+                variant.setCodeBarre(variant.getSku());
+            }
+        } else if (request.getCodeBarre() != null && !request.getCodeBarre().isBlank()) {
+            variant.setCodeBarre(request.getCodeBarre().trim());
+            variant.setBarcodeType(request.getBarcodeType() != null ? request.getBarcodeType() : BarcodeType.EAN13);
         } else if (request.getCodeBarre() != null) {
-            variant.setCodeBarre(request.getCodeBarre());
-            variant.setBarcodeType(request.getBarcodeType());
+            variant.setCodeBarre(null);
+            variant.setBarcodeType(null);
         }
     }
 
@@ -469,5 +603,21 @@ public class ProductService {
                 .utilisateur(currentUserService.resolveActor(utilisateur))
                 .build();
         priceHistoryRepository.save(history);
+    }
+
+    private String resolveProductSku(String requestedSku, String nom) {
+        if (isNotBlank(requestedSku)) {
+            String sku = requestedSku.trim();
+            if (productRepository.existsBySku(sku)) {
+                throw new BusinessException("SKU déjà existant: " + sku);
+            }
+            return sku;
+        }
+        String base = ProductSkuGenerator.baseFromProductName(nom);
+        return ProductSkuGenerator.ensureUnique(base, productRepository::existsBySku);
+    }
+
+    private static boolean isNotBlank(String value) {
+        return value != null && !value.isBlank();
     }
 }

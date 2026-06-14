@@ -69,3 +69,70 @@ input, select, textarea {
 button {
   @apply cursor-pointer;
 }
+
+/* Impression ticket / facture POS */
+@media print {
+  body {
+    background: #fff !important;
+  }
+
+  body * {
+    visibility: hidden;
+  }
+
+  .pos-print-overlay,
+  .pos-print-overlay * {
+    visibility: visible;
+  }
+
+  .pos-print-overlay {
+    position: absolute;
+    inset: 0;
+    background: #fff !important;
+    padding: 0 !important;
+    display: block !important;
+  }
+
+  .pos-print-root {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    max-width: none !important;
+    margin: 0 !important;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    color: #000 !important;
+    background: #fff !important;
+  }
+
+  .pos-print-ticket {
+    width: 80mm;
+    max-width: 80mm;
+    font-size: 11px;
+    padding: 8mm 5mm !important;
+  }
+
+  .pos-print-invoice {
+    width: 210mm;
+    max-width: 210mm;
+    padding: 12mm !important;
+    font-size: 12px;
+  }
+
+  .pos-print-close-report {
+    width: 210mm;
+    max-width: 210mm;
+    padding: 12mm !important;
+    font-size: 12px;
+  }
+
+  .pos-print-invoice .pos-print-table {
+    page-break-inside: avoid;
+  }
+
+  .pos-print-actions {
+    display: none !important;
+  }
+}

@@ -138,21 +138,29 @@ public class ProductController {
         return productService.getAuditHistory(id);
     }
 
-    @PreAuthorize("@permissionChecker.has(authentication, 'products.create')")
+    @PreAuthorize("@permissionChecker.has(authentication, 'product_variant.create')")
     @PostMapping("/{id}/variants")
     @ResponseStatus(HttpStatus.CREATED)
     public ProductVariantResponse addVariant(@PathVariable Long id, @Valid @RequestBody ProductVariantRequest request) {
         return productService.addVariant(id, request);
     }
 
-    @PreAuthorize("@permissionChecker.has(authentication, 'products.update')")
+    @PreAuthorize("@permissionChecker.has(authentication, 'product_variant.update')")
     @PutMapping("/{id}/variants/{variantId}")
     public ProductVariantResponse updateVariant(@PathVariable Long id, @PathVariable Long variantId,
                                                  @Valid @RequestBody ProductVariantRequest request) {
         return productService.updateVariant(id, variantId, request);
     }
 
-    @PreAuthorize("@permissionChecker.has(authentication, 'products.delete')")
+    @PreAuthorize("@permissionChecker.has(authentication, 'product_variant.create')")
+    @PostMapping("/{id}/variants/generate")
+    public List<ProductVariantResponse> generateVariants(
+            @PathVariable Long id,
+            @RequestBody ProductVariantGenerateRequest request) {
+        return productService.generateVariants(id, request);
+    }
+
+    @PreAuthorize("@permissionChecker.has(authentication, 'product_variant.delete')")
     @DeleteMapping("/{id}/variants/{variantId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteVariant(@PathVariable Long id, @PathVariable Long variantId) {

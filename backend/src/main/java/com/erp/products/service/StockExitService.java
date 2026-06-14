@@ -44,6 +44,7 @@ public class StockExitService {
     private final AuditService auditService;
     private final CurrentUserService currentUserService;
     private final SettingsService settingsService;
+    private final ProductVariantPolicyService variantPolicyService;
 
     @Transactional
     public StockExitResponse create(StockExitRequest request) {
@@ -294,7 +295,7 @@ public class StockExitService {
         List<StockExitLine> lines = new ArrayList<>();
         for (StockExitRequest.Line req : lineReqs) {
             Product product = loadProduct(req.getProductId());
-            ProductVariant variant = resolveVariant(req.getProductId(), req.getVariantId());
+            ProductVariant variant = variantPolicyService.resolveForStock(product, req.getVariantId());
             ProductPackaging packaging = loadPackagingOptional(req.getProductId(), req.getPackagingId());
             BigDecimal baseQty = resolveLineBaseQuantity(req);
 
@@ -352,29 +353,6 @@ public class StockExitService {
     private Product loadProduct(Long id) {
         return productRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Produit non trouvé: " + id));
-    }
-
-    private ProductVariant resolveVariant(Long productId, Long variantId) {
-        if (variantId != null) {
-            return loadVariant(productId, variantId);
-        }
-        List<ProductVariant> variants = variantRepository.findByProductId(productId);
-        if (variants.size() == 1) {
-            return variants.get(0);
-        }
-        return null;
-    }
-
-    private ProductVariant loadVariant(Long productId, Long variantId) {
-        if (variantId == null) {
-            return null;
-        }
-        ProductVariant v = variantRepository.findById(variantId)
-                .orElseThrow(() -> new ResourceNotFoundException("Variante non trouvée: " + variantId));
-        if (!v.getProduct().getId().equals(productId)) {
-            throw new BusinessException("Variante invalide pour ce produit");
-        }
-        return v;
     }
 
     private Warehouse loadWarehouse(Long id) {

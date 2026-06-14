@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState } from 'react'
 import { posApi } from '../../api'
 import { useNotification } from '../../context/NotificationContext'
 import { getErrorMessage } from '../../utils/errors'
-import { differenceSeverityStyle, formatPosDateTime, formatPosMoney } from '../../utils/posMoney'
+import { formatPosDateTime, formatPosMoney } from '../../utils/posMoney'
+import { PosCloseReportModal } from './PosCloseReportView'
+import ModalOverlay from '../ui/ModalOverlay'
 
 function SummaryRow({ label, value, highlight }) {
   return (
@@ -13,7 +15,7 @@ function SummaryRow({ label, value, highlight }) {
   )
 }
 
-export default function CashSessionCloseModal({ session, currency, onClose, onClosed }) {
+export default function CashSessionCloseModal({ session, currency, companyName, onClose, onClosed }) {
   const notify = useNotification()
   const [preview, setPreview] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -88,51 +90,18 @@ export default function CashSessionCloseModal({ session, currency, onClose, onCl
   }
 
   if (report) {
-    const style = differenceSeverityStyle(report.differenceSeverity)
     return (
-      <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-        <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-lg max-h-[90vh] overflow-auto">
-          <div className="p-6 border-b border-slate-800">
-            <h2 className="text-xl font-semibold">Rapport de clôture</h2>
-            <p className="text-sm text-slate-400 mt-1">Session {report.sessionNumber}</p>
-          </div>
-          <div className="p-6 space-y-4 text-sm">
-            <div className={`rounded-xl border p-4 text-center ${style.bg}`}>
-              <p className={`text-xs uppercase tracking-wide ${style.text}`}>{style.label}</p>
-              <p className="text-3xl font-bold mt-2">{formatPosMoney(report.expectedCashAmount, currency)}</p>
-              <p className="text-xs text-slate-400 mt-1">Cash attendu</p>
-            </div>
-            <SummaryRow label="Caissier" value={report.cashierName} />
-            <SummaryRow label="Ouverture" value={formatPosDateTime(report.openedAt)} />
-            <SummaryRow label="Fermeture" value={formatPosDateTime(report.closedAt)} />
-            <SummaryRow label="Fond initial" value={formatPosMoney(report.openingCashAmount, currency)} />
-            <SummaryRow label="Ventes espèces" value={formatPosMoney(report.cashRevenue, currency)} />
-            <SummaryRow label="Ventes carte" value={formatPosMoney(report.cardRevenue, currency)} />
-            <SummaryRow label="Mobile money" value={formatPosMoney(report.mobileMoneyRevenue, currency)} />
-            <SummaryRow label="Virements" value={formatPosMoney(report.bankTransferRevenue, currency)} />
-            <SummaryRow label="Remboursements cash" value={formatPosMoney(report.cashRefundTotal, currency)} />
-            <SummaryRow label="Cash déclaré" value={formatPosMoney(report.declaredCashAmount, currency)} highlight />
-            <SummaryRow label="Écart" value={formatPosMoney(report.cashDifference, currency)} highlight />
-            {report.differenceReasonLabel && (
-              <SummaryRow label="Motif écart" value={report.differenceReasonLabel} />
-            )}
-            {report.differenceComment && (
-              <p className="text-xs text-slate-400 bg-slate-800 rounded-lg p-3">{report.differenceComment}</p>
-            )}
-          </div>
-          <div className="p-6 border-t border-slate-800 flex justify-end">
-            <button type="button" onClick={onClose}
-              className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 rounded-lg text-sm font-medium">
-              Terminer
-            </button>
-          </div>
-        </div>
-      </div>
+      <PosCloseReportModal
+        report={report}
+        currency={currency}
+        companyName={companyName}
+        onClose={onClose}
+      />
     )
   }
 
   return (
-    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+    <ModalOverlay open onClose={submitting ? undefined : onClose}>
       <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-2xl max-h-[95vh] overflow-auto">
         <div className="p-6 border-b border-slate-800">
           <h2 className="text-xl font-semibold">Clôture de caisse</h2>
@@ -264,6 +233,6 @@ export default function CashSessionCloseModal({ session, currency, onClose, onCl
           </button>
         </div>
       </div>
-    </div>
+    </ModalOverlay>
   )
 }

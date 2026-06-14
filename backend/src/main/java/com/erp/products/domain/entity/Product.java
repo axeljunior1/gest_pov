@@ -29,6 +29,8 @@ public class Product {
     @Column(nullable = false, unique = true)
     private String sku;
 
+    private String codeBarre;
+
     @Column(length = 2000)
     private String description;
 
@@ -68,6 +70,18 @@ public class Product {
     @Column(nullable = false)
     @Builder.Default
     private LifecycleStatus cycleVie = LifecycleStatus.BROUILLON;
+
+    @Column(name = "is_sellable", nullable = false)
+    @Builder.Default
+    private Boolean isSellable = true;
+
+    @Column(name = "has_variants", nullable = false)
+    @Builder.Default
+    private Boolean hasVariants = false;
+
+    @Column(name = "is_stockable", nullable = false)
+    @Builder.Default
+    private Boolean isStockable = true;
 
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default

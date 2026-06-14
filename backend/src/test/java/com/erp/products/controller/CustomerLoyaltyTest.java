@@ -296,7 +296,7 @@ class CustomerLoyaltyTest extends com.erp.products.AbstractIntegrationTest {
                 .andExpect(status().isOk());
     }
 
-    private void validateSale(Long saleId, double amount) throws Exception {
+    private void validateSale(Long saleId) throws Exception {
         JsonNode sale = objectMapper.readTree(
                 mockMvc.perform(auth(get("/api/pos/sales/" + saleId)))
                         .andExpect(status().isOk())

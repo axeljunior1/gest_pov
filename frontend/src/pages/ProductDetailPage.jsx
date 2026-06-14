@@ -9,17 +9,21 @@ import { useNotification } from '../context/NotificationContext'
 import { getErrorMessage } from '../utils/errors'
 import { buildProductPayload, buildVariantPayload } from '../utils/payload'
 import {
+  duplicatePackagingForm, duplicateVariantForm, hasVariantIdentityConflict, variantIdentityKey,
+} from '../utils/variants'
+import {
   PRODUCT_STATUS, LIFECYCLE_STATUS, PRICE_TYPES, BARCODE_TYPES, DOCUMENT_TYPES,
   formatPrice, formatDate, lifecycleLabel, statusLabel,
 } from '../utils/constants'
 
 const emptyVariant = () => ({
   couleur: '', taille: '', sku: '', prix: '', stock: 0,
-  generateBarcode: true, barcodeType: 'CODE128',
+  sellable: true, stockable: true, active: true, costPrice: '',
+  generateBarcode: true, barcodeType: 'EAN13',
 })
 
 const initialForm = () => ({
-  nom: '', sku: '', description: '', marque: '',
+  nom: '', sku: '', codeBarre: '', generateBarcode: false, description: '', marque: '',
   categorieId: '', fournisseurPrincipalId: '', unitId: '',
   prixAchat: '', prixVente: '', prixPromotionnel: '',
   statut: 'ACTIF', cycleVie: 'BROUILLON',
@@ -53,7 +57,7 @@ export default function ProductDetailPage() {
   const [lifecycleForm, setLifecycleForm] = useState({ cycleVie: 'BROUILLON' })
   const [barcodePreview, setBarcodePreview] = useState(null)
   const [packagingForm, setPackagingForm] = useState({
-    nom: '', symbole: '', quantiteBase: '', prixVente: '', defaultVente: false, principal: false,
+    nom: '', symbole: '', quantiteBase: '', prixVente: '', defaultVente: false, principal: false, variantId: '',
   })
   const [packagingConvert, setPackagingConvert] = useState({ packagingId: '', quantity: '' })
   const [packagingPreview, setPackagingPreview] = useState(null)
@@ -92,7 +96,8 @@ export default function ProductDetailPage() {
       const data = await productsApi.getById(id)
       setProduct(data)
       setForm({
-        nom: data.nom, sku: data.sku, description: data.description || '',
+        nom: data.nom, sku: data.sku, codeBarre: data.codeBarre || '', generateBarcode: false,
+        description: data.description || '',
         marque: data.marque || '', categorieId: data.categorieId || '',
         fournisseurPrincipalId: data.fournisseurPrincipalId || '',
         unitId: data.unitId || '', prixAchat: data.prixAchat || '',
@@ -102,6 +107,8 @@ export default function ProductDetailPage() {
         attributs: data.attributs || {},
       })
       setLifecycleForm({ cycleVie: data.cycleVie })
+      const defaultVariantId = data.variantes?.length === 1 ? String(data.variantes[0].id) : ''
+      setPackagingForm((prev) => ({ ...prev, variantId: defaultVariantId }))
       const [history, auditLog] = await Promise.all([
         productsApi.getPriceHistory(id),
         productsApi.getAudit(id),
@@ -123,12 +130,34 @@ export default function ProductDetailPage() {
       ...(c.children ? flatCategories(c.children, prefix + c.nom + ' > ') : []),
     ])
 
-  const buildPayload = () => buildProductPayload(form, { isNew })
+  const buildPayload = () => buildProductPayload(form, { isNew, hasVariants: product?.hasVariants })
 
   const handleSave = () => {
-    if (!form.nom.trim() || !form.sku.trim()) {
-      notify.error('Le nom et le SKU sont obligatoires.')
+    if (!form.nom.trim()) {
+      notify.error('Le nom est obligatoire.')
       return
+    }
+    if (isNew) {
+      const keys = new Set()
+      for (const v of form.variantes) {
+        if (!v.couleur?.trim() && !v.taille?.trim() && !v.sku?.trim()) continue
+        const key = variantIdentityKey(v)
+        if (key !== '|') {
+          if (keys.has(key)) {
+            notify.error('Deux variantes initiales ont la même couleur et taille.')
+            return
+          }
+          keys.add(key)
+        }
+        if (v.sku?.trim()) {
+          const skuKey = `sku:${v.sku.trim().toLowerCase()}`
+          if (keys.has(skuKey)) {
+            notify.error('Deux variantes initiales partagent le même SKU.')
+            return
+          }
+          keys.add(skuKey)
+        }
+      }
     }
     const payload = buildPayload()
     if (isNew) {
@@ -148,8 +177,16 @@ export default function ProductDetailPage() {
   }
 
   const handleAddVariant = () => {
-    if (!newVariant.sku.trim()) {
-      notify.error('Le SKU de la variante est obligatoire.')
+    if (!newVariant.couleur?.trim() && !newVariant.taille?.trim() && !newVariant.sku?.trim()) {
+      notify.error('Indiquez au moins une couleur, une taille ou un SKU.')
+      return
+    }
+    if (hasVariantIdentityConflict(newVariant, product?.variantes)) {
+      notify.error('Une variante avec la même couleur et la même taille existe déjà.')
+      return
+    }
+    if (newVariant.sku?.trim() && product?.variantes?.some((v) => v.sku === newVariant.sku.trim())) {
+      notify.error('Ce SKU est déjà utilisé par une variante de ce produit.')
       return
     }
     run(
@@ -158,6 +195,41 @@ export default function ProductDetailPage() {
         successMessage: 'Variante ajoutée',
         onSuccess: () => { setNewVariant(emptyVariant()); loadProduct() },
       },
+    )
+  }
+
+  const handleDuplicateVariant = (variant) => {
+    setNewVariant(duplicateVariantForm(variant))
+    notify.success('Variante copiée — modifiez au minimum la couleur ou la taille, puis ajoutez.')
+  }
+
+  const handleDuplicatePackaging = (packaging) => {
+    const defaultVariantId = product?.variantes?.length === 1 ? String(product.variantes[0].id) : packagingForm.variantId
+    setPackagingForm(duplicatePackagingForm(packaging, defaultVariantId))
+    notify.success('Conditionnement copié — ajustez le nom ou la variante si besoin.')
+  }
+
+  const handleDuplicateInitialVariant = (index) => {
+    const source = form.variantes[index]
+    setField('variantes', [...form.variantes, duplicateVariantForm(source)])
+  }
+
+  const handleToggleVariantFlag = (variant, field, value) => {
+    run(
+      () => productsApi.updateVariant(id, variant.id, buildVariantPayload({
+        couleur: variant.couleur,
+        taille: variant.taille,
+        sku: variant.sku,
+        prix: variant.prix,
+        stock: variant.stock,
+        sellable: field === 'sellable' ? value : variant.sellable !== false,
+        stockable: field === 'stockable' ? value : variant.stockable !== false,
+        active: field === 'active' ? value : variant.active !== false,
+        costPrice: variant.costPrice,
+        barcodeType: variant.barcodeType || 'EAN13',
+        codeBarre: variant.codeBarre,
+      })),
+      { successMessage: 'Variante mise à jour', onSuccess: loadProduct },
     )
   }
 
@@ -281,6 +353,11 @@ export default function ProductDetailPage() {
       notify.error('Le nom du conditionnement est obligatoire.')
       return
     }
+    const variants = product?.variantes || []
+    if (variants.length > 1 && !packagingForm.variantId) {
+      notify.error('Sélectionnez la variante concernée par ce conditionnement.')
+      return
+    }
     const quantiteBase = parseFloat(String(packagingForm.quantiteBase).replace(',', '.'))
     if (!packagingForm.quantiteBase || !Number.isFinite(quantiteBase) || quantiteBase <= 0) {
       notify.error('Indiquez combien d\'unités de base contient 1 conditionnement (ex: 12).')
@@ -299,12 +376,16 @@ export default function ProductDetailPage() {
         prixVente,
         defaultVente: packagingForm.defaultVente,
         principal: packagingForm.principal,
+        variantId: variants.length > 0
+          ? Number(packagingForm.variantId || variants[0].id)
+          : null,
       }),
       {
         successMessage: 'Conditionnement ajouté',
         onSuccess: () => {
+          const defaultVariantId = variants.length === 1 ? String(variants[0].id) : packagingForm.variantId
           setPackagingForm({
-            nom: '', symbole: '', quantiteBase: '', prixVente: '', defaultVente: false, principal: false,
+            nom: '', symbole: '', quantiteBase: '', prixVente: '', defaultVente: false, principal: false, variantId: defaultVariantId,
           })
           loadProduct()
         },
@@ -406,8 +487,27 @@ export default function ProductDetailPage() {
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-500 mb-1">SKU</label>
-              <input value={form.sku} onChange={(e) => setField('sku', e.target.value)} className="w-full font-mono" />
+              <input value={form.sku} onChange={(e) => setField('sku', e.target.value)} className="w-full font-mono" placeholder="Auto depuis le nom si vide" />
             </div>
+            {!product?.hasVariants && (
+              <div className="col-span-2">
+                <label className="block text-xs font-medium text-gray-500 mb-1">Code-barres (produit simple)</label>
+                <input
+                  value={form.codeBarre}
+                  onChange={(e) => setField('codeBarre', e.target.value)}
+                  className="w-full font-mono"
+                  placeholder="EAN-13 ou génération auto"
+                />
+                <label className="flex items-center gap-2 mt-2 text-sm text-gray-600">
+                  <input
+                    type="checkbox"
+                    checked={form.generateBarcode}
+                    onChange={(e) => setField('generateBarcode', e.target.checked)}
+                  />
+                  Générer un EAN-13 à l&apos;enregistrement
+                </label>
+              </div>
+            )}
             <div>
               <label className="block text-xs font-medium text-gray-500 mb-1">Marque</label>
               <input value={form.marque} onChange={(e) => setField('marque', e.target.value)} className="w-full" />
@@ -466,7 +566,7 @@ export default function ProductDetailPage() {
             <div className="pt-4 border-t border-gray-100">
               <h3 className="text-sm font-medium mb-3">Variantes initiales</h3>
               {form.variantes.map((v, i) => (
-                <div key={i} className="grid grid-cols-5 gap-2 mb-2">
+                <div key={i} className="grid grid-cols-6 gap-2 mb-2 items-center">
                   <input placeholder="Couleur" value={v.couleur} onChange={(e) => {
                     const variantes = [...form.variantes]
                     variantes[i].couleur = e.target.value
@@ -477,7 +577,7 @@ export default function ProductDetailPage() {
                     variantes[i].taille = e.target.value
                     setField('variantes', variantes)
                   }} />
-                  <input placeholder="SKU" value={v.sku} onChange={(e) => {
+                  <input placeholder="SKU (auto)" value={v.sku} onChange={(e) => {
                     const variantes = [...form.variantes]
                     variantes[i].sku = e.target.value
                     setField('variantes', variantes)
@@ -492,6 +592,9 @@ export default function ProductDetailPage() {
                     variantes[i].prix = e.target.value
                     setField('variantes', variantes)
                   }} />
+                  <Button variant="ghost" className="text-xs" type="button" onClick={() => handleDuplicateInitialVariant(i)}>
+                    Dupliquer
+                  </Button>
                 </div>
               ))}
               <Button variant="secondary" onClick={() => setField('variantes', [...form.variantes, emptyVariant()])}>
@@ -513,10 +616,15 @@ export default function ProductDetailPage() {
             <Alert type="warning" message="Définissez d'abord l'unité de base du produit dans l'onglet Général." />
           )}
 
+          {(product?.variantes?.length ?? 0) > 0 && (
+            <Alert type="info" message="Ce produit a des variantes : chaque conditionnement doit être rattaché à une variante (onglet Conditionnements)." />
+          )}
+
           <Card className="overflow-hidden">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b text-left text-gray-500">
+                  <th className="px-5 py-3">Variante</th>
                   <th className="px-5 py-3">Nom</th>
                   <th className="px-5 py-3">Symbole</th>
                   <th className="px-5 py-3">Contenu (unité de base)</th>
@@ -529,6 +637,7 @@ export default function ProductDetailPage() {
               <tbody>
                 {product?.conditionnements?.length ? product.conditionnements.map((p) => (
                   <tr key={p.id} className="border-b border-gray-50">
+                    <td className="px-5 py-3 text-xs">{p.variantLabel || (p.variantId ? `#${p.variantId}` : '—')}</td>
                     <td className="px-5 py-3 font-medium">{p.nom}</td>
                     <td className="px-5 py-3 font-mono text-xs">{p.symbole || '—'}</td>
                     <td className="px-5 py-3">
@@ -538,13 +647,18 @@ export default function ProductDetailPage() {
                     <td className="px-5 py-3">{p.defaultVente ? '✓' : ''}</td>
                     <td className="px-5 py-3">{p.principal ? '✓' : ''}</td>
                     <td className="px-5 py-3">
-                      <Button variant="ghost" className="text-xs text-red-600" onClick={() => handleDeletePackaging(p.id)}>
-                        Suppr.
-                      </Button>
+                      <div className="flex gap-1">
+                        <Button variant="ghost" className="text-xs" onClick={() => handleDuplicatePackaging(p)}>
+                          Dupliquer
+                        </Button>
+                        <Button variant="ghost" className="text-xs text-red-600" onClick={() => handleDeletePackaging(p.id)}>
+                          Suppr.
+                        </Button>
+                      </div>
                     </td>
                   </tr>
                 )) : (
-                  <tr><td colSpan={7} className="px-5 py-8 text-center text-gray-400">Aucun conditionnement</td></tr>
+                  <tr><td colSpan={8} className="px-5 py-8 text-center text-gray-400">Aucun conditionnement</td></tr>
                 )}
               </tbody>
             </table>
@@ -553,6 +667,18 @@ export default function ProductDetailPage() {
           <Card className="p-5">
             <h3 className="text-sm font-medium mb-3">Ajouter un conditionnement</h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {(product?.variantes?.length ?? 0) > 1 && (
+                <select
+                  value={packagingForm.variantId}
+                  onChange={(e) => setPackagingForm({ ...packagingForm, variantId: e.target.value })}
+                  className="md:col-span-2"
+                >
+                  <option value="">Variante *</option>
+                  {product.variantes.map((v) => (
+                    <option key={v.id} value={v.id}>{v.label || [v.couleur, v.taille].filter(Boolean).join(' ') || v.sku}</option>
+                  ))}
+                </select>
+              )}
               <input placeholder="Nom (ex: Carton)" value={packagingForm.nom} onChange={(e) => setPackagingForm({ ...packagingForm, nom: e.target.value })} />
               <input placeholder="Symbole (ex: ctn)" value={packagingForm.symbole} onChange={(e) => setPackagingForm({ ...packagingForm, symbole: e.target.value })} />
               <input placeholder="Qté unité de base (ex: 12)" type="number" min="0.000001" step="any" value={packagingForm.quantiteBase} onChange={(e) => {
@@ -607,15 +733,22 @@ export default function ProductDetailPage() {
 
       {tab === 'variants' && !isNew && (
         <div className="space-y-4">
+          {(product?.variantes?.length ?? 0) > 0 && (
+            <Alert type="info" message="Après avoir ajouté une variante, créez ses conditionnements dans l'onglet Conditionnements (un conditionnement par variante si besoin)." />
+          )}
           <Card className="overflow-hidden">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b text-left text-gray-500">
+                  <th className="px-5 py-3">Libellé</th>
                   <th className="px-5 py-3">Couleur</th>
                   <th className="px-5 py-3">Taille</th>
                   <th className="px-5 py-3">SKU</th>
                   <th className="px-5 py-3">Prix</th>
                   <th className="px-5 py-3">Stock</th>
+                  <th className="px-5 py-3">Vendable</th>
+                  <th className="px-5 py-3">Stockable</th>
+                  <th className="px-5 py-3">Actif</th>
                   <th className="px-5 py-3">Code-barres</th>
                   <th className="px-5 py-3"></th>
                 </tr>
@@ -623,22 +756,37 @@ export default function ProductDetailPage() {
               <tbody>
                 {product?.variantes?.map((v) => (
                   <tr key={v.id} className="border-b border-gray-50">
+                    <td className="px-5 py-3 font-medium">{v.label || [v.couleur, v.taille].filter(Boolean).join(' ') || '—'}</td>
                     <td className="px-5 py-3">{v.couleur || '—'}</td>
                     <td className="px-5 py-3">{v.taille || '—'}</td>
                     <td className="px-5 py-3 font-mono text-xs">{v.sku}</td>
                     <td className="px-5 py-3">{formatPrice(v.prix)}</td>
                     <td className="px-5 py-3">{v.stock}</td>
                     <td className="px-5 py-3">
+                      <input type="checkbox" checked={v.sellable !== false} onChange={(e) => handleToggleVariantFlag(v, 'sellable', e.target.checked)} />
+                    </td>
+                    <td className="px-5 py-3">
+                      <input type="checkbox" checked={v.stockable !== false} onChange={(e) => handleToggleVariantFlag(v, 'stockable', e.target.checked)} />
+                    </td>
+                    <td className="px-5 py-3">
+                      <input type="checkbox" checked={v.active !== false} onChange={(e) => handleToggleVariantFlag(v, 'active', e.target.checked)} />
+                    </td>
+                    <td className="px-5 py-3">
                       {v.codeBarre ? (
-                        <button className="text-xs text-blue-600 hover:underline" onClick={() => handleGenerateBarcode(v.codeBarre, v.barcodeType || 'CODE128')}>
+                        <button className="text-xs text-blue-600 hover:underline" onClick={() => handleGenerateBarcode(v.codeBarre, v.barcodeType || 'EAN13')}>
                           {v.codeBarre}
                         </button>
                       ) : '—'}
                     </td>
                     <td className="px-5 py-3">
-                      <Button variant="ghost" className="text-red-600 text-xs" onClick={() => handleDeleteVariant(v.id)}>
-                        Supprimer
-                      </Button>
+                      <div className="flex gap-1">
+                        <Button variant="ghost" className="text-xs" onClick={() => handleDuplicateVariant(v)}>
+                          Dupliquer
+                        </Button>
+                        <Button variant="ghost" className="text-red-600 text-xs" onClick={() => handleDeleteVariant(v.id)}>
+                          Supprimer
+                        </Button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -657,14 +805,27 @@ export default function ProductDetailPage() {
             <div className="grid grid-cols-4 gap-3">
               <input placeholder="Couleur" value={newVariant.couleur} onChange={(e) => setNewVariant({ ...newVariant, couleur: e.target.value })} />
               <input placeholder="Taille" value={newVariant.taille} onChange={(e) => setNewVariant({ ...newVariant, taille: e.target.value })} />
-              <input placeholder="SKU *" value={newVariant.sku} onChange={(e) => setNewVariant({ ...newVariant, sku: e.target.value })} />
+              <input placeholder="SKU (auto : couleur/taille)" value={newVariant.sku} onChange={(e) => setNewVariant({ ...newVariant, sku: e.target.value })} />
               <input placeholder="Stock" type="number" value={newVariant.stock} onChange={(e) => setNewVariant({ ...newVariant, stock: e.target.value })} />
               <input placeholder="Prix" type="number" step="0.01" value={newVariant.prix} onChange={(e) => setNewVariant({ ...newVariant, prix: e.target.value })} />
+              <label className="flex items-center gap-2 text-sm">
+                <input type="checkbox" checked={newVariant.sellable !== false} onChange={(e) => setNewVariant({ ...newVariant, sellable: e.target.checked })} />
+                Vendable
+              </label>
+              <label className="flex items-center gap-2 text-sm">
+                <input type="checkbox" checked={newVariant.stockable !== false} onChange={(e) => setNewVariant({ ...newVariant, stockable: e.target.checked })} />
+                Stockable
+              </label>
+              <label className="flex items-center gap-2 text-sm">
+                <input type="checkbox" checked={newVariant.active !== false} onChange={(e) => setNewVariant({ ...newVariant, active: e.target.checked })} />
+                Actif (POS)
+              </label>
               <select value={newVariant.barcodeType} onChange={(e) => setNewVariant({ ...newVariant, barcodeType: e.target.value })}>
                 {BARCODE_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
               </select>
             </div>
-            <Button className="mt-3" onClick={handleAddVariant} disabled={submitting}>Ajouter</Button>
+            <Button className="mt-3" onClick={handleAddVariant} disabled={submitting}>Ajouter la variante</Button>
+            <p className="text-xs text-gray-400 mt-2">Code-barres EAN-13 généré automatiquement si non renseigné.</p>
           </Card>
         </div>
       )}

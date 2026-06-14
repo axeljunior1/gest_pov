@@ -52,7 +52,12 @@ public final class ReferenceValueCatalog {
                 seed(ReferenceValueCategory.POS_SALES_FLOW_MODE, "SELLER_COLLECTS_PAYMENT",
                         "Vendeur encaisseur", 1),
                 seed(ReferenceValueCategory.POS_SALES_FLOW_MODE, "CENTRAL_CASHIER",
-                        "Caisse centrale", 2)
+                        "Caisse centrale", 2),
+
+                seed(ReferenceValueCategory.STOCK_VALUATION_METHOD, "PURCHASE_COST",
+                        "Prix d'achat (PA)", 1),
+                seed(ReferenceValueCategory.STOCK_VALUATION_METHOD, "SALE_PRICE",
+                        "Prix de vente (PV)", 2)
         );
     }
 

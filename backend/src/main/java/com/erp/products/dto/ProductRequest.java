@@ -16,8 +16,10 @@ public class ProductRequest {
     @NotBlank(message = "Le nom est obligatoire")
     private String nom;
 
-    @NotBlank(message = "Le SKU est obligatoire")
     private String sku;
+
+    private String codeBarre;
+    private Boolean generateBarcode;
 
     private String description;
     private String marque;

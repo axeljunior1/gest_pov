@@ -8,6 +8,9 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import jakarta.persistence.LockModeType;
+import org.springframework.data.domain.Pageable;
+
+import java.util.List;
 import java.util.Optional;
 
 public interface PosSessionRepository extends JpaRepository<PosSession, Long> {
@@ -18,4 +21,17 @@ public interface PosSessionRepository extends JpaRepository<PosSession, Long> {
 
     Optional<PosSession> findByCashierIdAndStatusAndSessionType(
             Long cashierId, PosSessionStatus status, com.erp.products.domain.enums.PosSessionType sessionType);
+
+    @Query("""
+            SELECT s FROM PosSession s
+            WHERE s.status = :status
+            AND s.sessionType = :sessionType
+            AND (:cashierId IS NULL OR s.cashier.id = :cashierId)
+            ORDER BY s.closedAt DESC, s.id DESC
+            """)
+    List<PosSession> findClosedSessions(
+            @Param("status") PosSessionStatus status,
+            @Param("sessionType") com.erp.products.domain.enums.PosSessionType sessionType,
+            @Param("cashierId") Long cashierId,
+            Pageable pageable);
 }

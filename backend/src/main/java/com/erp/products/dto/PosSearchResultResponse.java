@@ -12,4 +12,7 @@ public class PosSearchResultResponse {
 
     private PosSearchMatchType matchType;
     private List<PosProductResponse> products;
+    private String message;
+    private Boolean ambiguous;
+    private List<BarcodeLookupResult> barcodeMatches;
 }

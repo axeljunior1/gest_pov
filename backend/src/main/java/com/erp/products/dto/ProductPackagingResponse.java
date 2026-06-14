@@ -12,6 +12,8 @@ public class ProductPackagingResponse {
 
     private Long id;
     private Long productId;
+    private Long variantId;
+    private String variantLabel;
     private String nom;
     private String symbole;
     private BigDecimal quantiteBase;

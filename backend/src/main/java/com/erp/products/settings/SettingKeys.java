@@ -10,6 +10,7 @@ public final class SettingKeys {
     public static final String APP_DATE_FORMAT = "app.date_format";
     public static final String STOCK_ALLOW_NEGATIVE = "stock.allow_negative";
     public static final String STOCK_LOW_THRESHOLD = "stock.low_threshold_default";
+    public static final String STOCK_VALUATION_METHOD = "stock.valuation_method";
     public static final String ALERT_EXPIRY_DAYS = "alert.expiry_days_default";
     public static final String NUMBERING_ENTRY_PREFIX = "numbering.entry_prefix";
     public static final String NUMBERING_EXIT_PREFIX = "numbering.exit_prefix";
@@ -30,6 +31,13 @@ public final class SettingKeys {
     public static final String POS_ALERT_CASH_DIFFERENCE_THRESHOLD = "pos.alert.cash_difference_threshold";
     public static final String POS_REQUIRE_MANAGER_VALIDATION_FOR_CASH_DIFFERENCE =
             "pos.require_manager_validation_for_cash_difference";
+    public static final String POS_REQUIRE_MANAGER_APPROVAL_ABOVE_REFUND_AMOUNT =
+            "pos.require_manager_approval_above_refund_amount";
+
+    public static final String POS_BARCODE_SCAN_ENABLED = "pos.barcode_scan_enabled";
+    public static final String POS_BARCODE_MIN_LENGTH = "pos.barcode_min_length";
+    public static final String POS_BARCODE_AUTO_ADD_TO_CART = "pos.barcode_auto_add_to_cart";
+    public static final String POS_BARCODE_SEARCH_PRIORITY = "pos.barcode_search_priority";
 
     public static final String LOYALTY_ENABLED = "loyalty.enabled";
     public static final String LOYALTY_POINTS_PER_CURRENCY_UNIT = "loyalty.points_per_currency_unit";

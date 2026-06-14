@@ -13,3 +13,8 @@ export const SALE_STATUS_LABELS = {
 export function saleStatusLabel(status) {
   return SALE_STATUS_LABELS[status] || status || '—'
 }
+
+/** Vente renvoyée par la caisse (HOLD avec libellé dédié). */
+export function isCashierRecallHold(sale) {
+  return sale?.status === 'HOLD' && String(sale?.holdLabel || '').startsWith('Retour caisse')
+}

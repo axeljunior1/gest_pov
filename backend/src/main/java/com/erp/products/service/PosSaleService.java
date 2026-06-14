@@ -10,6 +10,7 @@ import com.erp.products.repository.*;
 import com.erp.products.security.CurrentUserService;
 import com.erp.products.security.PermissionEvaluator;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -28,6 +29,7 @@ import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class PosSaleService {
 
     private final SaleRepository saleRepository;
@@ -46,7 +48,9 @@ public class PosSaleService {
     private final LoyaltyService loyaltyService;
     private final PaymentRepository paymentRepository;
     private final PermissionEvaluator permissionChecker;
+    private final ProductVariantPolicyService variantPolicyService;
     private final StockExitService stockExitService;
+    private final BarcodeLookupService barcodeLookupService;
 
     @Transactional
     public SaleResponse createSale() {
@@ -110,6 +114,26 @@ public class PosSaleService {
         return mapper.toSaleResponse(saved);
     }
 
+    @Transactional
+    public SaleResponse recallFromPayment(Long saleId) {
+        if (!posConfigService.isCentralCashier()) {
+            throw new BusinessException("Retour saisie disponible uniquement en mode caisse centrale");
+        }
+        Sale sale = findSaleForUpdate(saleId);
+        if (sale.getStatus() != SaleStatus.PENDING_PAYMENT) {
+            throw new BusinessException("Seule une vente en attente de paiement peut revenir en saisie");
+        }
+        assertCanRecallFromPayment(sale);
+        sale.setStatus(SaleStatus.HOLD);
+        sale.setHoldLabel("Retour caisse — " + sale.getSaleNumber());
+        sale.setSubmittedAt(null);
+        Sale saved = saleRepository.save(sale);
+        auditService.log("Sale", saved.getId(), AuditAction.MODIFICATION,
+                "Vente renvoyee en attente vendeur " + saved.getSaleNumber(),
+                currentUserService.requireCurrentUser().getEmail());
+        return mapper.toSaleResponse(saved);
+    }
+
     @Transactional(readOnly = true)
     public SaleResponse getSale(Long id) {
         return mapper.toSaleResponse(findSale(id));
@@ -119,8 +143,31 @@ public class PosSaleService {
     public List<SaleResponse> listHoldSales() {
         User user = currentUserService.requireCurrentUser();
         PosSession session = sessionService.requireSessionForSaleCreation(user);
-        return saleRepository.findByPosSessionIdAndStatusOrderByCreatedAtDesc(session.getId(), SaleStatus.HOLD)
-                .stream().map(mapper::toSaleResponse).toList();
+        List<Sale> sales;
+        if (posConfigService.isCentralCashier()) {
+            sales = saleRepository.findBySellerIdAndWarehouseIdAndStatusOrderByCreatedAtDesc(
+                    user.getId(), session.getWarehouse().getId(), SaleStatus.HOLD);
+        } else {
+            sales = saleRepository.findByPosSessionIdAndStatusOrderByCreatedAtDesc(
+                    session.getId(), SaleStatus.HOLD);
+        }
+        return sales.stream().map(mapper::toSaleResponse).toList();
+    }
+
+    @Transactional(readOnly = true)
+    public long countHoldSales() {
+        return listHoldSales().size();
+    }
+
+    @Transactional(readOnly = true)
+    public List<SaleResponse> listDraftSales() {
+        User user = currentUserService.requireCurrentUser();
+        PosSession session = sessionService.requireSessionForSaleCreation(user);
+        return saleRepository.findByPosSessionIdAndStatusOrderByCreatedAtDesc(session.getId(), SaleStatus.DRAFT)
+                .stream()
+                .filter(s -> !s.getLignes().isEmpty())
+                .map(mapper::toSaleResponse)
+                .toList();
     }
 
     @Transactional(readOnly = true)
@@ -175,8 +222,8 @@ public class PosSaleService {
         ensureEditable(sale);
 
         Product product = loadProduct(request.getProductId());
-        ProductVariant variant = resolveVariant(product.getId(), request.getVariantId());
-        ProductPackaging packaging = resolvePackaging(product, request.getPackagingId());
+        ProductVariant variant = variantPolicyService.resolveForSale(product, request.getVariantId());
+        ProductPackaging packaging = resolvePackaging(product, variant, request.getPackagingId());
 
         BigDecimal qtyInput = request.getQuantityInput() != null
                 ? request.getQuantityInput() : BigDecimal.ONE;
@@ -185,7 +232,7 @@ public class PosSaleService {
         }
 
         BigDecimal qtyBase = resolveBaseQuantity(product, packaging, qtyInput);
-        BigDecimal unitPrice = resolveLineUnitPrice(product, packaging, request);
+        BigDecimal unitPrice = resolveLineUnitPrice(product, variant, packaging, request);
         BigDecimal taxRate = request.getTaxRate() != null
                 ? request.getTaxRate()
                 : settingsService.getDecimal(com.erp.products.settings.SettingKeys.POS_TAX_RATE_DEFAULT);
@@ -210,6 +257,8 @@ public class PosSaleService {
                     .product(product)
                     .variant(variant)
                     .packaging(packaging)
+                    .productNameSnapshot(product.getNom())
+                    .variantNameSnapshot(variant != null ? variantPolicyService.buildVariantName(variant) : null)
                     .packagingNameSnapshot(packaging != null ? packaging.getNom() : null)
                     .packagingQuantitySnapshot(packaging != null ? packaging.getQuantiteBase() : null)
                     .quantityInput(qtyInput)
@@ -225,6 +274,50 @@ public class PosSaleService {
 
         recalculateTotals(sale);
         return mapper.toSaleResponse(saleRepository.save(sale));
+    }
+
+    @Transactional
+    public BarcodeScanResponse addScannedItem(Long saleId, BarcodeScanRequest request) {
+        if (request == null || request.getCode() == null || request.getCode().isBlank()) {
+            throw new BusinessException("Code-barres requis");
+        }
+        BarcodeScanConfig config = settingsService.getBarcodeScanConfig();
+        if (!config.isScanEnabled()) {
+            throw new BusinessException("Scan code-barres désactivé");
+        }
+
+        List<BarcodeLookupResult> matches = barcodeLookupService.lookupBarcode(request.getCode());
+        if (matches.isEmpty()) {
+            throw new BusinessException("Aucun produit trouvé pour ce code-barres");
+        }
+        if (matches.size() > 1) {
+            log.warn("Code-barres ambigu {} : {} correspondances actives",
+                    BarcodeRegistryService.normalize(request.getCode()), matches.size());
+            throw new BusinessException(
+                    "Plusieurs articles correspondent à ce code-barres. Contactez un administrateur.");
+        }
+
+        BarcodeLookupResult lookup = matches.get(0);
+        BigDecimal qtyInput = request.getQuantityInput() != null
+                ? request.getQuantityInput() : BigDecimal.ONE;
+
+        SaleLineRequest lineRequest = new SaleLineRequest();
+        lineRequest.setProductId(lookup.getProductId());
+        lineRequest.setVariantId(lookup.getVariantId());
+        lineRequest.setPackagingId(lookup.getPackagingId());
+        lineRequest.setQuantityInput(qtyInput);
+
+        SaleResponse sale = upsertLine(saleId, lineRequest);
+        String priceLabel = lookup.getSalePrice() != null
+                ? lookup.getSalePrice().stripTrailingZeros().toPlainString()
+                : "0";
+        String message = "Produit ajouté : " + lookup.getDisplayName() + " — " + priceLabel;
+
+        return BarcodeScanResponse.builder()
+                .sale(sale)
+                .lookup(lookup)
+                .message(message)
+                .build();
     }
 
     @Transactional
@@ -378,12 +471,17 @@ public class PosSaleService {
 
         if (!settingsService.getStockConfig().isAllowNegativeStock()) {
             for (SaleLine line : sale.getLignes()) {
+                variantPolicyService.resolveForSale(line.getProduct(),
+                        line.getVariant() != null ? line.getVariant().getId() : null);
                 BigDecimal available = ledger.getAvailable(
                         line.getProduct().getId(),
                         line.getVariant() != null ? line.getVariant().getId() : null,
                         sale.getWarehouse().getId());
                 if (available.compareTo(line.getQuantityInBaseUnit()) < 0) {
-                    throw new BusinessException("Stock insuffisant pour " + line.getProduct().getNom()
+                    String label = line.getVariantNameSnapshot() != null
+                            ? line.getProductNameSnapshot() + " — " + line.getVariantNameSnapshot()
+                            : (line.getProductNameSnapshot() != null ? line.getProductNameSnapshot() : line.getProduct().getNom());
+                    throw new BusinessException("Stock insuffisant pour " + label
                             + " (disponible: " + available.stripTrailingZeros().toPlainString() + ")");
                 }
             }
@@ -524,7 +622,11 @@ public class PosSaleService {
         return qtyInput.setScale(6, RoundingMode.HALF_UP);
     }
 
-    private BigDecimal resolveLineUnitPrice(Product product, ProductPackaging packaging, SaleLineRequest request) {
+    private BigDecimal resolveLineUnitPrice(
+            Product product,
+            ProductVariant variant,
+            ProductPackaging packaging,
+            SaleLineRequest request) {
         if (packaging != null) {
             BigDecimal packagingPrice = packaging.getPrixVente();
             if (request.getUnitPrice() != null
@@ -537,18 +639,34 @@ public class PosSaleService {
         if (request.getUnitPrice() != null && canUpdatePackagingPrice()) {
             return request.getUnitPrice().setScale(4, RoundingMode.HALF_UP);
         }
+        if (variant != null && variant.getPrix() != null) {
+            return variant.getPrix();
+        }
         return resolveUnitPrice(product);
     }
 
-    private ProductPackaging resolvePackaging(Product product, Long packagingId) {
+    private ProductPackaging resolvePackaging(Product product, ProductVariant variant, Long packagingId) {
         if (packagingId != null) {
             ProductPackaging packaging = loadPackagingOptional(product.getId(), packagingId);
             if (!Boolean.TRUE.equals(packaging.getActif())) {
                 throw new BusinessException("Conditionnement inactif");
             }
+            if (packaging.getVariant() != null && variant != null
+                    && !packaging.getVariant().getId().equals(variant.getId())) {
+                throw new BusinessException("Conditionnement invalide pour cette variante");
+            }
             return packaging;
         }
-        return packagingRepository.findFirstByProductIdAndDefaultVenteTrueAndActifTrue(product.getId())
+        Long variantId = variant != null ? variant.getId() : null;
+        return packagingRepository.findByProductIdAndActifTrueOrderByNomAsc(product.getId()).stream()
+                .filter(p -> p.getVariant() == null
+                        || (variantId != null && p.getVariant().getId().equals(variantId)))
+                .filter(p -> Boolean.TRUE.equals(p.getDefaultVente()))
+                .findFirst()
+                .or(() -> packagingRepository.findByProductIdAndActifTrueOrderByNomAsc(product.getId()).stream()
+                        .filter(p -> p.getVariant() == null
+                                || (variantId != null && p.getVariant().getId().equals(variantId)))
+                        .findFirst())
                 .orElse(null);
     }
 
@@ -644,6 +762,21 @@ public class PosSaleService {
         }
     }
 
+    private void assertCanRecallFromPayment(Sale sale) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (permissionChecker.has(auth, "pos.payment.collect")) {
+            return;
+        }
+        User user = currentUserService.requireCurrentUser();
+        boolean canPrepare = permissionChecker.has(auth, "pos.sale.send_to_payment")
+                || permissionChecker.has(auth, "pos.sale.create")
+                || permissionChecker.has(auth, "pos.sale.prepare");
+        if (canPrepare && sale.getSeller() != null && sale.getSeller().getId().equals(user.getId())) {
+            return;
+        }
+        throw new BusinessException("Droit insuffisant pour renvoyer cette vente en saisie");
+    }
+
     private Sale findSale(Long id) {
         return saleRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Vente non trouvee: " + id));
@@ -659,17 +792,8 @@ public class PosSaleService {
                 .orElseThrow(() -> new ResourceNotFoundException("Produit non trouve: " + id));
     }
 
-    private ProductVariant resolveVariant(Long productId, Long variantId) {
-        if (variantId != null) {
-            ProductVariant v = variantRepository.findById(variantId)
-                    .orElseThrow(() -> new ResourceNotFoundException("Variante non trouvee: " + variantId));
-            if (!v.getProduct().getId().equals(productId)) {
-                throw new BusinessException("Variante invalide");
-            }
-            return v;
-        }
-        List<ProductVariant> variants = variantRepository.findByProductId(productId);
-        return variants.size() == 1 ? variants.get(0) : null;
+    private ProductVariant resolveVariant(Product product, Long variantId) {
+        return variantPolicyService.resolveForSale(product, variantId);
     }
 
     private ProductPackaging loadPackagingOptional(Long productId, Long packagingId) {

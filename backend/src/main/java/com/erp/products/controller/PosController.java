@@ -33,6 +33,7 @@ public class PosController {
         body.put("posConfig", posConfigService.getConfig());
         body.put("registerName", settingsService.getSetting(com.erp.products.settings.SettingKeys.POS_REGISTER_NAME));
         body.put("publicSettings", settingsService.getPublicSettings());
+        body.put("barcodeScanConfig", settingsService.getBarcodeScanConfig());
         body.put("loyaltyConfig", settingsService.getLoyaltyConfig());
         return body;
     }
@@ -60,6 +61,13 @@ public class PosController {
     @PreAuthorize("@permissionChecker.hasAny(authentication, 'pos.session.close', 'pos.payment.collect')")
     public PosSessionReportResponse closePreview() {
         return sessionService.getClosePreview();
+    }
+
+    @GetMapping("/sessions/closed")
+    @PreAuthorize("@permissionChecker.has(authentication, 'pos.report.read')")
+    public List<PosSessionResponse> listClosedSessions(
+            @RequestParam(required = false) Integer limit) {
+        return sessionService.listClosedSessions(limit);
     }
 
     @GetMapping("/sessions/{id}/report")
@@ -112,6 +120,12 @@ public class PosController {
         return saleService.upsertLine(id, request);
     }
 
+    @PostMapping("/sales/{id}/scan")
+    @PreAuthorize("@permissionChecker.has(authentication, 'pos.sale.create')")
+    public BarcodeScanResponse scanItem(@PathVariable Long id, @RequestBody BarcodeScanRequest request) {
+        return saleService.addScannedItem(id, request);
+    }
+
     @PutMapping("/sales/{id}/lines/{lineId}")
     @PreAuthorize("@permissionChecker.has(authentication, 'pos.sale.create')")
     public SaleResponse updateLine(
@@ -156,6 +170,18 @@ public class PosController {
         return saleService.listHoldSales();
     }
 
+    @GetMapping("/sales/hold/count")
+    @PreAuthorize("@permissionChecker.hasAny(authentication, 'pos.sale.read', 'pos.sale.create', 'pos.sale.send_to_payment')")
+    public Map<String, Long> countHold() {
+        return Map.of("count", saleService.countHoldSales());
+    }
+
+    @GetMapping("/sales/draft")
+    @PreAuthorize("@permissionChecker.hasAny(authentication, 'pos.sale.read', 'pos.sale.create', 'pos.sale.send_to_payment')")
+    public List<SaleResponse> listDraft() {
+        return saleService.listDraftSales();
+    }
+
     @GetMapping("/sales/completed")
     @PreAuthorize("@permissionChecker.hasAny(authentication, 'pos.ticket.print', 'pos.ticket.reprint', 'pos.report.read')")
     public List<SaleResponse> listCompletedSales(
@@ -174,6 +200,12 @@ public class PosController {
     @PreAuthorize("@permissionChecker.hasAny(authentication, 'pos.sale.send_to_payment', 'pos.sale.prepare')")
     public SaleResponse sendToPayment(@PathVariable Long id) {
         return saleService.sendToPayment(id);
+    }
+
+    @PostMapping("/sales/{id}/recall-from-payment")
+    @PreAuthorize("@permissionChecker.hasAny(authentication, 'pos.payment.collect', 'pos.sale.send_to_payment', 'pos.sale.prepare', 'pos.sale.create')")
+    public SaleResponse recallFromPayment(@PathVariable Long id) {
+        return saleService.recallFromPayment(id);
     }
 
     @PostMapping("/sales/{id}/submit-payment")
@@ -208,9 +240,48 @@ public class PosController {
 
     @PostMapping("/sales/{id}/refund")
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("@permissionChecker.has(authentication, 'pos.sale.refund')")
+    @PreAuthorize("@permissionChecker.hasAny(authentication, 'pos.sale.refund', 'pos.return.validate', 'pos.refund.validate')")
     public SaleRefundResponse refund(@PathVariable Long id, @RequestBody SaleRefundRequest request) {
         return refundService.createRefund(id, request);
+    }
+
+    @GetMapping("/sales/refundable/search")
+    @PreAuthorize("@permissionChecker.hasAny(authentication, 'pos.return.read', 'pos.sale.refund', 'pos.return.create')")
+    public List<SaleResponse> searchRefundableSales(
+            @RequestParam String q,
+            @RequestParam(required = false) Integer limit) {
+        return refundService.searchRefundableSales(q, limit);
+    }
+
+    @GetMapping("/sales/{id}/returnable")
+    @PreAuthorize("@permissionChecker.hasAny(authentication, 'pos.return.read', 'pos.return.create', 'pos.sale.refund')")
+    public ReturnableSaleResponse returnableSale(@PathVariable Long id) {
+        return refundService.getReturnableSale(id);
+    }
+
+    @PostMapping("/sales/{id}/returns")
+    @ResponseStatus(HttpStatus.CREATED)
+    @PreAuthorize("@permissionChecker.hasAny(authentication, 'pos.return.create', 'pos.sale.refund')")
+    public SaleRefundResponse createReturn(@PathVariable Long id, @RequestBody SaleRefundRequest request) {
+        return refundService.createReturn(id, request);
+    }
+
+    @PostMapping("/returns/{id}/validate")
+    @PreAuthorize("@permissionChecker.hasAny(authentication, 'pos.return.validate', 'pos.refund.validate', 'pos.sale.refund')")
+    public SaleRefundResponse validateReturn(@PathVariable Long id, @RequestBody RefundValidateRequest request) {
+        return refundService.validateReturn(id, request);
+    }
+
+    @GetMapping("/returns/{id}")
+    @PreAuthorize("@permissionChecker.hasAny(authentication, 'pos.return.read', 'pos.sale.refund')")
+    public SaleRefundResponse getReturn(@PathVariable Long id) {
+        return refundService.getReturn(id);
+    }
+
+    @GetMapping("/returns/{id}/receipt")
+    @PreAuthorize("@permissionChecker.hasAny(authentication, 'pos.return.read', 'pos.ticket.print', 'pos.ticket.reprint')")
+    public ReturnReceiptResponse returnReceipt(@PathVariable Long id) {
+        return refundService.buildReceipt(id);
     }
 
     @GetMapping("/customers/search")

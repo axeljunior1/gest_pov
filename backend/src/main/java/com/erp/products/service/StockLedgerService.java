@@ -37,6 +37,7 @@ class StockLedgerService {
     private final LotRepository lotRepository;
     private final SettingsService settingsService;
     private final AlertRuleEngine alertRuleEngine;
+    private final ProductVariantPolicyService variantPolicyService;
 
     record MovementMeta(
             StockMovementType type,
@@ -152,6 +153,11 @@ class StockLedgerService {
 
     @Transactional(readOnly = true)
     public BigDecimal getAvailable(Long productId, Long variantId, Long warehouseId) {
+        if (variantId == null && variantRepository.countByProductId(productId) > 0) {
+            return variantRepository.findByProductId(productId).stream()
+                    .map(v -> getAvailable(productId, v.getId(), warehouseId))
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+        }
         if (warehouseId != null) {
             return stockItemRepository.findByWarehouseId(warehouseId).stream()
                     .filter(i -> i.getProduct().getId().equals(productId))
@@ -269,6 +275,7 @@ class StockLedgerService {
                 throw new BusinessException("Variante invalide pour ce produit");
             }
         }
+        variantPolicyService.resolveForStock(product, variantId);
 
         Warehouse warehouse = warehouseRepository.findById(warehouseId)
                 .orElseThrow(() -> new ResourceNotFoundException("Entrepôt non trouvé: " + warehouseId));

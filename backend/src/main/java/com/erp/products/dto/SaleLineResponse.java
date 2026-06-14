@@ -13,6 +13,7 @@ public class SaleLineResponse {
     private Long productId;
     private String productNom;
     private String productSku;
+    private String variantNameSnapshot;
     private Long variantId;
     private Long packagingId;
     private String packagingNameSnapshot;

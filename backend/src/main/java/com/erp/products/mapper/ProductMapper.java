@@ -5,6 +5,7 @@ import com.erp.products.dto.*;
 import com.erp.products.repository.ProductVariantRepository;
 import com.erp.products.repository.StockItemRepository;
 import com.erp.products.service.BarcodeService;
+import com.erp.products.service.ProductVariantAttributeService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -20,6 +21,7 @@ public class ProductMapper {
 
     private final StockItemRepository stockItemRepository;
     private final ProductVariantRepository variantRepository;
+    private final ProductVariantAttributeService variantAttributeService;
 
     public CategoryResponse toCategoryResponse(Category category, boolean withChildren) {
         CategoryResponse.CategoryResponseBuilder builder = CategoryResponse.builder()
@@ -91,6 +93,11 @@ public class ProductMapper {
                 .createdAt(packaging.getCreatedAt())
                 .updatedAt(packaging.getUpdatedAt());
 
+        if (packaging.getVariant() != null) {
+            builder.variantId(packaging.getVariant().getId())
+                    .variantLabel(variantAttributeService.buildVariantLabel(packaging.getVariant()));
+        }
+
         if (product.getUnit() != null) {
             builder.baseUnitSymbole(product.getUnit().getSymbole())
                     .baseUnitNom(product.getUnit().getNom());
@@ -104,8 +111,15 @@ public class ProductMapper {
                 .productId(variant.getProduct().getId())
                 .couleur(variant.getCouleur())
                 .taille(variant.getTaille())
+                .name(variant.getName())
+                .label(variantAttributeService.buildVariantLabel(variant))
+                .attributeSelections(toAttributeSelections(variant))
                 .sku(variant.getSku())
                 .prix(variant.getPrix())
+                .costPrice(variant.getCostPrice())
+                .sellable(variant.getIsSellable())
+                .stockable(variant.getIsStockable())
+                .active(variant.getIsActive())
                 .stock(resolveVariantStock(variant))
                 .codeBarre(variant.getCodeBarre())
                 .barcodeType(variant.getBarcodeType())
@@ -165,6 +179,7 @@ public class ProductMapper {
                 .id(product.getId())
                 .nom(product.getNom())
                 .sku(product.getSku())
+                .codeBarre(product.getCodeBarre())
                 .description(product.getDescription())
                 .marque(product.getMarque())
                 .prixAchat(product.getPrixAchat())
@@ -174,6 +189,9 @@ public class ProductMapper {
                 .prixPromotionnelFin(product.getPrixPromotionnelFin())
                 .statut(product.getStatut())
                 .cycleVie(product.getCycleVie())
+                .sellable(product.getIsSellable())
+                .hasVariants(product.getHasVariants())
+                .stockable(product.getIsStockable())
                 .stockTotal(stockTotal)
                 .createdAt(product.getCreatedAt())
                 .updatedAt(product.getUpdatedAt());
@@ -255,6 +273,23 @@ public class ProductMapper {
                 .type(def.getType())
                 .createdAt(def.getCreatedAt())
                 .build();
+    }
+
+    private List<VariantAttributeSelectionResponse> toAttributeSelections(ProductVariant variant) {
+        if (variant.getAttributeValues() == null || variant.getAttributeValues().isEmpty()) {
+            return List.of();
+        }
+        return variant.getAttributeValues().stream()
+                .sorted(java.util.Comparator.comparing(v -> v.getAttribute().getCode()))
+                .map(v -> VariantAttributeSelectionResponse.builder()
+                        .attributeId(v.getAttribute().getId())
+                        .attributeCode(v.getAttribute().getCode())
+                        .attributeName(v.getAttribute().getName())
+                        .valueId(v.getAttributeValue().getId())
+                        .value(v.getAttributeValue().getValue())
+                        .valueCode(v.getAttributeValue().getCode())
+                        .build())
+                .collect(Collectors.toList());
     }
 
     private String buildCategoryPath(Category category) {

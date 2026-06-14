@@ -3,8 +3,8 @@ import { formatPosMoney } from '../../utils/posMoney'
 export function PosTicketModal({ ticket, onClose }) {
   if (!ticket) return null
   return (
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4 print:bg-white print:static print:p-0">
-      <div className="pos-light-panel rounded-xl w-full max-w-sm p-6 font-mono text-sm print:shadow-none print:border-0">
+    <div className="pos-print-overlay fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+      <div className="pos-print-root pos-print-ticket pos-light-panel rounded-xl w-full max-w-sm p-6 font-mono text-sm">
         <p className="font-bold text-center">{ticket.companyName}</p>
         <p className="text-center text-xs text-gray-500">{ticket.registerName}</p>
         <p className="text-center text-xs mb-1">Ticket {ticket.ticketNumber}</p>
@@ -31,7 +31,7 @@ export function PosTicketModal({ ticket, onClose }) {
         {ticket.changeAmount > 0 && (
           <p className="text-xs mt-1">Monnaie : {Number(ticket.changeAmount).toFixed(2)}</p>
         )}
-        <div className="flex gap-2 mt-4 print:hidden">
+        <div className="pos-print-actions flex gap-2 mt-4">
           <button type="button" onClick={() => window.print()} className="flex-1 py-2 bg-gray-900 text-white rounded-lg text-xs">
             Imprimer
           </button>
@@ -47,8 +47,8 @@ export function PosTicketModal({ ticket, onClose }) {
 export function PosInvoiceModal({ invoice, onClose }) {
   if (!invoice) return null
   return (
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4 print:bg-white print:static print:p-0">
-      <div className="pos-light-panel rounded-xl w-full max-w-lg p-8 text-sm print:shadow-none print:border-0">
+    <div className="pos-print-overlay fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+      <div className="pos-print-root pos-print-invoice pos-light-panel rounded-xl w-full max-w-lg p-8 text-sm">
         <div className="flex justify-between items-start gap-4 mb-6">
           <div>
             <p className="text-lg font-bold">{invoice.companyName}</p>
@@ -78,10 +78,12 @@ export function PosInvoiceModal({ invoice, onClose }) {
             {invoice.customerEmail && <p className="text-sm text-gray-600">{invoice.customerEmail}</p>}
           </div>
         ) : (
-          <p className="text-sm text-gray-500 mb-6 italic">Vente comptoir — client non renseigné</p>
+          <p className="text-sm text-gray-500 mb-6 italic border border-dashed border-gray-300 rounded-lg p-3">
+            Vente comptoir — client non renseigné
+          </p>
         )}
 
-        <table className="w-full text-sm mb-4">
+        <table className="w-full text-sm mb-4 pos-print-table">
           <thead>
             <tr className="border-b text-left text-gray-500 text-xs">
               <th className="py-2">Désignation</th>
@@ -126,7 +128,7 @@ export function PosInvoiceModal({ invoice, onClose }) {
           Vendeur : {invoice.sellerName} · Caissier : {invoice.cashierName}
         </p>
 
-        <div className="flex gap-2 mt-6 print:hidden">
+        <div className="pos-print-actions flex gap-2 mt-6">
           <button type="button" onClick={() => window.print()} className="flex-1 py-2 bg-gray-900 text-white rounded-lg text-xs">
             Imprimer facture
           </button>

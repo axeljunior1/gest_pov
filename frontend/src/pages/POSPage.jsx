@@ -7,10 +7,16 @@ import { useNotification } from '../context/NotificationContext'
 import { getErrorMessage } from '../utils/errors'
 import { isCashierOnlyUser } from '../utils/auth'
 import { parseQty, parseSearchWithQty } from '../utils/posQty'
+import {
+  barcodeMinLengthFromContext, isBarcodeAutoAddEnabled, isBarcodeScanEnabled, looksLikeBarcode,
+} from '../utils/barcodeScan'
 import CashSessionCloseModal from '../components/pos/CashSessionCloseModal'
 import CashSessionOpenModal from '../components/pos/CashSessionOpenModal'
 import { notifyPosSessionChanged } from '../utils/posSession'
-import { PosSessionChip, PosSessionTypeBadge } from '../components/pos/PosWorkspaceNav'
+import { notifyPosSaleStateChanged } from '../utils/posSaleEvents'
+import { PosSessionChip, PosSessionTypeBadge, PosWrongSessionPanel } from '../components/pos/PosWorkspaceNav'
+import ResumeSalesModal from '../components/pos/ResumeSalesModal'
+import ModalOverlay from '../components/ui/ModalOverlay'
 import { PosTicketModal } from '../components/pos/PosPrintModals'
 
 function formatMoney(value, currency = 'EUR') {
@@ -30,15 +36,74 @@ function flatCategories(nodes, depth = 0) {
   ])
 }
 
-function PosSearchResults({ results, matchType, highlightIndex, currency, onPick }) {
+function resolvePosVariantId(product, variantId) {
+  if (variantId) return variantId
+  if (product?.matchedVariantId) return product.matchedVariantId
+  if (product?.variants?.length === 1) return product.variants[0].id
+  return null
+}
+
+function expandPosSearchResults(results, matchType) {
+  if (!results?.length) return []
+  if (matchType !== 'TEXT') {
+    return results.map((p) => ({
+      key: `${p.id}`,
+      product: p,
+      variantId: resolvePosVariantId(p),
+      label: p.nom,
+      unitPrice: p.unitPrice,
+      stockAvailable: p.stockAvailable,
+      outOfStock: p.outOfStock,
+      lowStock: p.lowStock,
+    }))
+  }
+  const rows = []
+  for (const p of results) {
+    if (p.hasVariants && p.variants?.length > 0) {
+      for (const v of p.variants) {
+        rows.push({
+          key: `${p.id}-${v.id}`,
+          product: p,
+          variantId: v.id,
+          label: `${p.nom} — ${v.label || v.sku}`,
+          unitPrice: v.unitPrice,
+          stockAvailable: v.stockAvailable,
+          outOfStock: v.outOfStock,
+          lowStock: v.lowStock,
+        })
+      }
+    } else {
+      rows.push({
+        key: `${p.id}`,
+        product: p,
+        variantId: resolvePosVariantId(p),
+        label: p.nom,
+        unitPrice: p.unitPrice,
+        stockAvailable: p.stockAvailable,
+        outOfStock: p.outOfStock,
+        lowStock: p.lowStock,
+      })
+    }
+  }
+  return rows
+}
+
+function PosSearchResults({ results, matchType, highlightIndex, currency, onPick, message }) {
   if (results === null) return null
 
-  if (results.length === 0) {
-    return <p className="text-red-400 text-sm mt-2 px-1">Aucun produit trouvé</p>
+  const rows = expandPosSearchResults(results, matchType)
+
+  if (rows.length === 0) {
+    const text = matchType === 'BARCODE_NOT_FOUND'
+      ? (message || 'Aucun produit trouvé pour ce code-barres')
+      : matchType === 'BARCODE_AMBIGUOUS'
+        ? (message || 'Plusieurs articles correspondent — contactez un administrateur')
+        : 'Aucun produit trouvé'
+    return <p className="text-red-400 text-sm mt-2 px-1 font-medium">{text}</p>
   }
 
   const hint = matchType === 'TEXT'
-    ? `${results.length} résultat(s) — cliquez ou Entrée pour ajouter`
+    ? `${rows.length} résultat(s) — cliquez ou Entrée pour ajouter`
     : null
 
   return (
@@ -47,24 +112,26 @@ function PosSearchResults({ results, matchType, highlightIndex, currency, onPick
         <p className="text-xs text-slate-400 px-4 py-2 border-b border-slate-700">{hint}</p>
       )}
       <ul className="max-h-56 overflow-auto">
-        {results.map((p, index) => (
-          <li key={p.id}>
+        {rows.map((row, index) => (
+          <li key={row.key}>
             <button
               type="button"
-              onClick={() => onPick(p)}
+              onClick={() => onPick(row)}
               className={`w-full text-left px-4 py-3 text-sm flex items-center justify-between gap-3 ${
                 index === highlightIndex ? 'bg-emerald-600/30 ring-1 ring-inset ring-emerald-500' : 'hover:bg-slate-700'
               }`}
             >
               <span className="min-w-0">
-                <span className="font-medium block truncate">{p.nom}</span>
-                <span className="text-xs text-slate-400">{p.sku}{p.categoryNom ? ` · ${p.categoryNom}` : ''}</span>
+                <span className="font-medium block truncate">{row.label}</span>
+                <span className="text-xs text-slate-400">{row.product.sku}{row.product.categoryNom ? ` · ${row.product.categoryNom}` : ''}</span>
               </span>
               <span className="shrink-0 text-right">
-                <span className="text-emerald-400 font-medium">{formatMoney(p.unitPrice, currency)}</span>
-                {p.outOfStock
+                <span className="text-emerald-400 font-medium">{formatMoney(row.unitPrice ?? row.product.unitPrice, currency)}</span>
+                {row.outOfStock
                   ? <span className="block text-[10px] text-red-400">Rupture</span>
-                  : <span className="block text-[10px] text-slate-500">Stock {Number(p.stockAvailable).toFixed(0)}</span>}
+                  : row.lowStock
+                    ? <span className="block text-[10px] text-orange-400">Stock faible ({Number(row.stockAvailable).toFixed(0)})</span>
+                    : <span className="block text-[10px] text-slate-500">Stock {Number(row.stockAvailable ?? row.product.stockAvailable).toFixed(0)}</span>}
               </span>
             </button>
           </li>
@@ -102,7 +169,7 @@ function PaymentModal({ sale, currency, onClose, onPaid }) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+    <ModalOverlay open onClose={onClose}>
       <div className="bg-slate-900 border border-slate-700 rounded-xl w-full max-w-lg p-6">
         <h3 className="text-lg font-semibold mb-4">Paiement — {formatMoney(total, currency)}</h3>
         {payments.map((p, i) => (
@@ -155,23 +222,67 @@ function PaymentModal({ sale, currency, onClose, onPaid }) {
           )}
         </div>
         <div className="flex gap-2 justify-end">
-          <button type="button" onClick={onClose} className="px-4 py-2 rounded-lg bg-slate-700 text-sm">Annuler (Esc)</button>
+          <button type="button" onClick={onClose} className="px-4 py-2 rounded-lg bg-slate-700 text-sm">Retour à la saisie (Esc)</button>
           <button type="button" disabled={loading || paid < total} onClick={submit}
             className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-sm font-medium disabled:opacity-50">
             Encaisser
           </button>
         </div>
       </div>
-    </div>
+    </ModalOverlay>
   )
 }
 
-function PackagingPickerModal({ product, qty, currency, onClose, onPick }) {
-  const packagings = (product?.packagings || []).filter((p) => p.active !== false)
+function VariantPickerModal({ product, qty, currency, onClose, onPick }) {
+  const variants = product?.variants || []
+  return (
+    <ModalOverlay open onClose={onClose}>
+      <div className="bg-slate-900 border border-slate-700 rounded-xl w-full max-w-md p-6 max-h-[80vh] overflow-y-auto">
+        <h3 className="text-lg font-semibold mb-1">{product?.nom}</h3>
+        <p className="text-sm text-slate-400 mb-4">Choisissez une variante · quantité ×{qty}</p>
+        <div className="space-y-2">
+          {variants.length === 0 && (
+            <p className="text-sm text-slate-500">Aucune variante vendable</p>
+          )}
+          {variants.map((v) => (
+            <button
+              key={v.id}
+              type="button"
+              disabled={v.outOfStock}
+              onClick={() => onPick(v.id)}
+              className={`w-full text-left px-4 py-3 rounded-xl border transition-colors ${
+                v.outOfStock
+                  ? 'border-slate-800 opacity-60 cursor-not-allowed'
+                  : 'border-slate-700 hover:border-emerald-500 hover:bg-slate-800'
+              }`}
+            >
+              <span className="font-medium">{v.label || v.sku}</span>
+              <span className="text-xs text-slate-400 ml-2">({v.stockAvailable ?? 0} dispo.)</span>
+              {v.outOfStock && <span className="text-[10px] bg-red-900 text-red-300 px-1.5 py-0.5 rounded ml-2">Rupture</span>}
+              {v.lowStock && !v.outOfStock && <span className="text-[10px] bg-orange-900 text-orange-300 px-1.5 py-0.5 rounded ml-2">Stock faible</span>}
+              <span className="float-right text-emerald-400 font-semibold">{formatMoney(v.unitPrice, currency)}</span>
+              {v.packagings?.length > 0 && (
+                <span className="block text-[10px] text-slate-500 mt-1">
+                  {v.packagings.slice(0, 2).map((p) => p.nom).join(' · ')}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+        <button type="button" onClick={onClose} className="mt-4 w-full py-2 rounded-lg bg-slate-700 text-sm hover:bg-slate-600">
+          Annuler (Esc)
+        </button>
+      </div>
+    </ModalOverlay>
+  )
+}
+
+function PackagingPickerModal({ product, qty, currency, onClose, onPick, packagings: packagingsProp }) {
+  const packagings = (packagingsProp || product?.packagings || []).filter((p) => p.active !== false)
   const defaultId = packagings.find((p) => p.defaultSale)?.id ?? packagings[0]?.id
 
   return (
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+    <ModalOverlay open onClose={onClose}>
       <div className="bg-slate-900 border border-slate-700 rounded-xl w-full max-w-md p-6">
         <h3 className="text-lg font-semibold mb-1">{product?.nom}</h3>
         <p className="text-sm text-slate-400 mb-4">Choisissez le conditionnement · quantité ×{qty}</p>
@@ -199,7 +310,7 @@ function PackagingPickerModal({ product, qty, currency, onClose, onPick }) {
           Annuler (Esc)
         </button>
       </div>
-    </div>
+    </ModalOverlay>
   )
 }
 
@@ -232,10 +343,14 @@ export default function POSPage() {
   const [search, setSearch] = useState('')
   const [searchResults, setSearchResults] = useState(null)
   const [searchMatchType, setSearchMatchType] = useState(null)
+  const [searchMessage, setSearchMessage] = useState(null)
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchHighlight, setSearchHighlight] = useState(0)
   const [sale, setSale] = useState(null)
   const [holdSales, setHoldSales] = useState([])
+  const [holdCount, setHoldCount] = useState(0)
+  const [draftSales, setDraftSales] = useState([])
+  const [showResumeModal, setShowResumeModal] = useState(false)
   const [showPayment, setShowPayment] = useState(false)
   const [ticket, setTicket] = useState(null)
   const [clock, setClock] = useState(new Date())
@@ -245,6 +360,7 @@ export default function POSPage() {
   const [showCloseModal, setShowCloseModal] = useState(false)
   const [nextQty, setNextQty] = useState('')
   const [packagingPicker, setPackagingPicker] = useState(null)
+  const [variantPicker, setVariantPicker] = useState(null)
 
   const currency = context?.publicSettings?.currency || 'EUR'
   const warehouseId = session?.warehouseId
@@ -268,17 +384,86 @@ export default function POSPage() {
     : canOpenCashSession || canPrepareSales
   const wrongSessionType = session?.sessionType && session.sessionType !== requiredSessionType
 
-  const submitToCash = useCallback(async () => {
+  const loadResumeSales = useCallback(async () => {
+    const holds = await posApi.listHold()
+    setHoldSales(holds)
+    setHoldCount(holds.length)
+    if (isCentralCashier) {
+      const drafts = await posApi.listDraft()
+      setDraftSales(drafts)
+    } else {
+      setDraftSales([])
+    }
+  }, [isCentralCashier])
+
+  const refreshHoldCount = useCallback(async () => {
+    if (!isCentralCashier || !canPrepareSales) return
+    try {
+      const count = await posApi.holdCount()
+      setHoldCount(count ?? 0)
+    } catch {
+      /* ignore polling errors */
+    }
+  }, [isCentralCashier, canPrepareSales])
+
+  const sendSaleToCashier = useCallback(async () => {
     if (!sale?.id || !sale.lignes?.length) return
     try {
       await posApi.sendToPayment(sale.id)
       setSale(null)
       setNextQty('')
       notify.success('Vente transférée à la caisse — le caissier peut l’encaisser')
+      await loadResumeSales()
+      notifyPosSaleStateChanged()
     } catch (e) {
       notify.error(getErrorMessage(e))
     }
-  }, [sale, notify])
+  }, [sale, notify, loadResumeSales])
+
+  const pauseClientSale = useCallback(async () => {
+    if (!sale?.id) return
+    try {
+      await posApi.holdSale(sale.id)
+      setSale(null)
+      setNextQty('')
+      notify.success('Panier mis en pause — reprise vendeur (F9)')
+      await loadResumeSales()
+      notifyPosSaleStateChanged()
+    } catch (e) {
+      notify.error(getErrorMessage(e))
+    }
+  }, [sale, notify, loadResumeSales])
+
+  const openResumeModal = useCallback(async () => {
+    try {
+      await loadResumeSales()
+      setShowResumeModal(true)
+    } catch (e) {
+      notify.error(getErrorMessage(e))
+    }
+  }, [loadResumeSales, notify])
+
+  const handleResumeHold = useCallback(async (h) => {
+    try {
+      const updated = await posApi.resumeSale(h.id)
+      setSale(updated)
+      setShowResumeModal(false)
+      await loadResumeSales()
+    } catch (e) {
+      notify.error(getErrorMessage(e))
+    }
+  }, [notify, loadResumeSales])
+
+  const handlePickDraft = useCallback(async (d) => {
+    try {
+      const full = await posApi.getSale(d.id)
+      setSale(full)
+      setShowResumeModal(false)
+      await loadResumeSales()
+    } catch (e) {
+      notify.error(getErrorMessage(e))
+    }
+  }, [notify, loadResumeSales])
 
   const refreshContext = useCallback(async () => {
     const ctx = await posApi.context()
@@ -300,43 +485,74 @@ export default function POSPage() {
     return s
   }, [sale])
 
-  const addProductWithPackaging = useCallback(async (product, packagingId, qtyOverride) => {
+  const addProductWithPackaging = useCallback(async (product, packagingId, qtyOverride, variantId) => {
     try {
       const qty = qtyOverride ?? parseQty(nextQty, 1)
       const s = await ensureSale()
       const payload = { productId: product.id, quantityInput: qty }
       if (packagingId) payload.packagingId = packagingId
+      if (variantId) payload.variantId = variantId
       const updated = await posApi.addLine(s.id, payload)
       setSale(updated)
       setNextQty('')
-      const pkg = product.packagings?.find((p) => p.id === packagingId)
-      const label = pkg ? `${product.nom} — ${pkg.nom}` : product.nom
+      const variant = product.variants?.find((v) => v.id === variantId)
+      const pkg = (variant?.packagings || product.packagings)?.find((p) => p.id === packagingId)
+      let label = product.nom
+      if (variant?.label) label += ` — ${variant.label}`
+      if (pkg) label += ` — ${pkg.nom}`
       notify.success(`${label} × ${qty}`)
     } catch (e) {
       notify.error(getErrorMessage(e))
     }
   }, [ensureSale, notify, nextQty])
 
-  const addProduct = useCallback(async (product, qtyOverride) => {
-    const active = (product.packagings || []).filter((p) => p.active !== false)
+  const resolvePackagings = useCallback((product, variantId) => {
+    if (variantId) {
+      const variant = product.variants?.find((v) => v.id === variantId)
+      if (variant?.packagings?.length) return variant.packagings
+    }
+    return product.packagings || []
+  }, [])
+
+  const addProduct = useCallback(async (product, qtyOverride, variantId) => {
+    const effectiveVariantId = resolvePosVariantId(product, variantId)
+
+    if (product.hasVariants && !product.sellable && !effectiveVariantId) {
+      setVariantPicker({ product, qty: qtyOverride ?? parseQty(nextQty, 1) })
+      return
+    }
+    if (!product.sellable && !effectiveVariantId) {
+      notify.error('Ce produit n\'est pas vendable directement.')
+      return
+    }
+
+    const packagings = resolvePackagings(product, effectiveVariantId)
+    const active = packagings.filter((p) => p.active !== false)
+    const productWithPack = { ...product, packagings: active, matchedVariantId: effectiveVariantId }
 
     if (product.matchedPackagingId) {
-      await addProductWithPackaging(product, product.matchedPackagingId, qtyOverride)
+      await addProductWithPackaging(productWithPack, product.matchedPackagingId, qtyOverride, effectiveVariantId)
       return
     }
 
     if (active.length === 1) {
-      await addProductWithPackaging(product, active[0].id, qtyOverride)
+      await addProductWithPackaging(productWithPack, active[0].id, qtyOverride, effectiveVariantId)
+      return
+    }
+
+    const defaultPackaging = active.find((p) => p.defaultSale)
+    if (active.length > 1 && defaultPackaging && (product.matchedVariantId || product.matchedPackagingId)) {
+      await addProductWithPackaging(productWithPack, defaultPackaging.id, qtyOverride, effectiveVariantId)
       return
     }
 
     if (active.length > 1) {
-      setPackagingPicker({ product, qty: qtyOverride ?? parseQty(nextQty, 1) })
+      setPackagingPicker({ product: productWithPack, qty: qtyOverride ?? parseQty(nextQty, 1), variantId: effectiveVariantId })
       return
     }
 
-    await addProductWithPackaging(product, null, qtyOverride)
-  }, [addProductWithPackaging, nextQty])
+    await addProductWithPackaging(productWithPack, null, qtyOverride, effectiveVariantId)
+  }, [addProductWithPackaging, nextQty, notify, resolvePackagings])
 
   const updateLineQty = useCallback(async (lineId, rawQty) => {
     if (!sale?.id) return
@@ -354,13 +570,40 @@ export default function POSPage() {
     setSearch('')
     setSearchResults(null)
     setSearchMatchType(null)
+    setSearchMessage(null)
     setSearchOpen(false)
     setSearchHighlight(0)
   }, [])
 
-  const pickSearchProduct = useCallback(async (product, fromQuery) => {
+  const scanBarcode = useCallback(async (rawQuery) => {
+    const { qty: prefixQty, term } = parseSearchWithQty(rawQuery)
+    const minLen = barcodeMinLengthFromContext(context)
+    if (!looksLikeBarcode(term, minLen) || !isBarcodeScanEnabled(context)) {
+      return false
+    }
+    try {
+      const qty = prefixQty ?? parseQty(nextQty, 1)
+      const s = await ensureSale()
+      const result = await posApi.scanItem(s.id, { code: term, quantityInput: qty })
+      setSale(result.sale)
+      setNextQty('')
+      notify.success(result.message || 'Produit ajouté')
+      clearSearch()
+      searchRef.current?.focus()
+      return true
+    } catch (e) {
+      notify.error(getErrorMessage(e))
+      clearSearch()
+      searchRef.current?.focus()
+      return true
+    }
+  }, [context, ensureSale, nextQty, notify, clearSearch])
+
+  const pickSearchProduct = useCallback(async (row, fromQuery) => {
+    const product = row?.product ?? row
+    const variantId = row?.variantId ?? resolvePosVariantId(product)
     const { qty: prefixQty } = parseSearchWithQty(fromQuery ?? search)
-    await addProduct(product, prefixQty ?? undefined)
+    await addProduct(product, prefixQty ?? undefined, variantId)
     clearSearch()
     searchRef.current?.focus()
   }, [addProduct, clearSearch, search])
@@ -372,8 +615,18 @@ export default function POSPage() {
     if (!term) {
       setSearchResults(null)
       setSearchMatchType(null)
+      setSearchMessage(null)
       setSearchOpen(false)
       setSearchHighlight(0)
+      return
+    }
+
+    const minLen = barcodeMinLengthFromContext(context)
+    if (looksLikeBarcode(term, minLen) && isBarcodeScanEnabled(context)) {
+      setSearchResults(null)
+      setSearchMatchType(null)
+      setSearchMessage(null)
+      setSearchOpen(false)
       return
     }
 
@@ -387,21 +640,34 @@ export default function POSPage() {
 
       setSearchResults(items)
       setSearchMatchType(matchType)
+      setSearchMessage(data.message ?? null)
       setSearchOpen(true)
       setSearchHighlight(0)
+
+      if (matchType === 'BARCODE_NOT_FOUND') {
+        notify.error(data.message || 'Aucun produit trouvé pour ce code-barres')
+        return
+      }
+      if (matchType === 'BARCODE_AMBIGUOUS') {
+        notify.error(data.message || 'Plusieurs articles correspondent à ce code-barres')
+        return
+      }
 
       const isExactScan = matchType === 'EXACT_BARCODE'
         || matchType === 'EXACT_SKU'
         || matchType === 'EXACT_PACKAGING_BARCODE'
-      if (autoAddExact && isExactScan && items.length === 1) {
-        await pickSearchProduct(items[0], q)
+      if (autoAddExact && isExactScan && items.length === 1 && isBarcodeAutoAddEnabled(context)) {
+        await pickSearchProduct({
+          product: items[0],
+          variantId: resolvePosVariantId(items[0]),
+        }, q)
       }
     } catch (e) {
       if (requestId === searchRequestRef.current) {
         notify.error(getErrorMessage(e))
       }
     }
-  }, [warehouseId, pickSearchProduct, notify])
+  }, [warehouseId, pickSearchProduct, notify, context])
 
   const onSearchChange = (e) => {
     const value = e.target.value
@@ -414,6 +680,7 @@ export default function POSPage() {
     if (!term && !value.trim()) {
       setSearchResults(null)
       setSearchMatchType(null)
+      setSearchMessage(null)
       setSearchOpen(false)
       setSearchHighlight(0)
       return
@@ -421,8 +688,18 @@ export default function POSPage() {
     if (!term) {
       setSearchResults(null)
       setSearchMatchType(null)
+      setSearchMessage(null)
       setSearchOpen(false)
       setSearchHighlight(0)
+      return
+    }
+
+    const minLen = barcodeMinLengthFromContext(context)
+    if (looksLikeBarcode(term, minLen) && isBarcodeScanEnabled(context)) {
+      setSearchResults(null)
+      setSearchMatchType(null)
+      setSearchMessage(null)
+      setSearchOpen(false)
       return
     }
 
@@ -432,16 +709,17 @@ export default function POSPage() {
   }
 
   const onSearchKeyDown = (e) => {
+    const rows = expandPosSearchResults(searchResults, searchMatchType)
     if (e.key === 'ArrowDown') {
       e.preventDefault()
-      if (searchResults?.length) {
-        setSearchHighlight((i) => Math.min(i + 1, searchResults.length - 1))
+      if (rows.length) {
+        setSearchHighlight((i) => Math.min(i + 1, rows.length - 1))
       }
       return
     }
     if (e.key === 'ArrowUp') {
       e.preventDefault()
-      if (searchResults?.length) {
+      if (rows.length) {
         setSearchHighlight((i) => Math.max(i - 1, 0))
       }
       return
@@ -454,8 +732,14 @@ export default function POSPage() {
     if (e.key === 'Enter') {
       e.preventDefault()
       clearTimeout(searchTimerRef.current)
-      if (searchResults?.length) {
-        pickSearchProduct(searchResults[searchHighlight] ?? searchResults[0])
+      const minLen = barcodeMinLengthFromContext(context)
+      const { term } = parseSearchWithQty(search)
+      if (looksLikeBarcode(term, minLen) && isBarcodeScanEnabled(context)) {
+        scanBarcode(search)
+        return
+      }
+      if (rows.length) {
+        pickSearchProduct(rows[searchHighlight] ?? rows[0])
       } else if (search.trim()) {
         runSearch(search, { autoAddExact: true })
       }
@@ -482,7 +766,33 @@ export default function POSPage() {
 
   useEffect(() => {
     searchRef.current?.focus()
-  }, [session])
+    if (session && isCentralCashier && canPrepareSales) {
+      refreshHoldCount()
+    }
+  }, [session, isCentralCashier, canPrepareSales, refreshHoldCount])
+
+  useEffect(() => {
+    if (!session || !isCentralCashier || !canPrepareSales) return undefined
+    const tick = () => {
+      if (showResumeModal) {
+        loadResumeSales().catch(() => {})
+      } else {
+        refreshHoldCount()
+      }
+    }
+    tick()
+    const timer = setInterval(tick, 15000)
+    return () => clearInterval(timer)
+  }, [session, isCentralCashier, canPrepareSales, showResumeModal, loadResumeSales, refreshHoldCount])
+
+  useEffect(() => {
+    if (!isCentralCashier || !canPrepareSales) return undefined
+    const onSaleChange = () => {
+      loadResumeSales().catch(() => {})
+    }
+    window.addEventListener('pos-sale-state-changed', onSaleChange)
+    return () => window.removeEventListener('pos-sale-state-changed', onSaleChange)
+  }, [isCentralCashier, canPrepareSales, loadResumeSales])
 
   useEffect(() => {
     const onKey = (e) => {
@@ -491,36 +801,34 @@ export default function POSPage() {
       if (e.key === 'F4') {
         e.preventDefault()
         if (sale?.lignes?.length) {
-          if (showSendToCash) submitToCash()
+          if (showSendToCash) sendSaleToCashier()
           else if (showPaymentButton) setShowPayment(true)
         }
       }
       if (e.key === 'F8' && sale?.id) {
         e.preventDefault()
-        posApi.holdSale(sale.id).then(() => {
-          notify.success('Panier mis en pause — reprise vendeur (F9), pas envoyé à la caisse')
-          setSale(null)
-          setNextQty('')
-          posApi.listHold().then(setHoldSales)
-        }).catch((err) => notify.error(getErrorMessage(err)))
+        pauseClientSale()
       }
       if (e.key === 'F9') {
         e.preventDefault()
-        posApi.listHold().then(setHoldSales)
+        openResumeModal()
       }
       if (e.key === 'Escape') {
         if (searchOpen) {
           clearSearch()
         } else {
+          setShowResumeModal(false)
           setShowPayment(false)
           setTicket(null)
+          setVariantPicker(null)
+          setPackagingPicker(null)
         }
       }
       if (e.ctrlKey && e.key === 'n') { e.preventDefault(); setSale(null); posApi.createSale().then(setSale) }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [sale, notify, searchOpen, clearSearch, showSendToCash, showPaymentButton, submitToCash])
+  }, [sale, searchOpen, clearSearch, showSendToCash, showPaymentButton, sendSaleToCashier, pauseClientSale, openResumeModal])
 
   const openSession = async (openingCashAmount = 0) => {
     setOpeningSession(true)
@@ -661,28 +969,25 @@ export default function POSPage() {
   }
 
   if (wrongSessionType) {
-    const needed = requiredSessionType === 'SALES' ? 'vente' : 'caisse'
-    const current = session.sessionType === 'SALES' ? 'vente' : 'caisse'
     return (
-      <div className="flex-1 flex flex-col items-center justify-center gap-6 p-8 max-w-xl mx-auto text-center">
-        <PosSessionChip session={session} expectedType={requiredSessionType} centralMode={isCentralCashier} />
-        <h2 className="text-xl font-semibold text-amber-300">Mauvais poste pour cette session</h2>
-        <p className="text-slate-400">
-          Vous avez une session <strong className="text-white">{current}</strong> ouverte.
-          Cet écran nécessite une session <strong className="text-white">{needed}</strong>.
-        </p>
-        {session.sessionType === 'CASHIER' && isCentralCashier && canCollect && (
-          <p className="text-sm text-slate-500">
-            Passez à l’onglet <strong className="text-emerald-400">Encaissement</strong> en haut de l’écran.
-          </p>
+      <>
+        <PosWrongSessionPanel
+          session={session}
+          expectedType={requiredSessionType}
+          centralMode={isCentralCashier}
+          onCloseSession={handleCloseClick}
+          canCloseSession={hasPermission('pos.session.close') || canPrepareSales || canCollect}
+        />
+        {showCloseModal && session?.sessionType === 'CASHIER' && (
+          <CashSessionCloseModal
+            session={session}
+            currency={currency}
+            companyName={context?.publicSettings?.companyName}
+            onClose={() => setShowCloseModal(false)}
+            onClosed={onCashSessionClosed}
+          />
         )}
-        {(hasPermission('pos.session.close') || canPrepareSales) && (
-          <button type="button" onClick={handleCloseClick}
-            className="px-6 py-3 bg-slate-700 hover:bg-slate-600 rounded-xl text-sm font-medium">
-            Fermer la session {current}
-          </button>
-        )}
-      </div>
+      </>
     )
   }
 
@@ -695,6 +1000,25 @@ export default function POSPage() {
       {/* Header */}
       <header className="px-4 py-3 bg-slate-900 border-b border-slate-800 flex flex-wrap items-center gap-4 text-sm">
         <PosSessionChip session={session} expectedType={requiredSessionType} centralMode={isCentralCashier} />
+        {isCentralCashier && canPrepareSales && (
+          <button
+            type="button"
+            onClick={openResumeModal}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors ${
+              holdCount > 0
+                ? 'bg-amber-500/20 border-amber-400 text-amber-100 animate-pulse'
+                : 'bg-slate-800 border-slate-600 text-slate-400'
+            }`}
+            title="Ventes en attente (retour caisse ou pause client) — F9 pour reprendre"
+          >
+            <span className={`inline-flex items-center justify-center min-w-[1.5rem] h-6 px-1.5 rounded-full text-xs font-bold ${
+              holdCount > 0 ? 'bg-amber-500 text-slate-900' : 'bg-slate-700 text-slate-300'
+            }`}>
+              {holdCount}
+            </span>
+            en attente
+          </button>
+        )}
         <div className="text-slate-300">
           <p>{user?.firstName} {user?.lastName}</p>
           <p className="text-xs text-slate-500">{clock.toLocaleString('fr-FR')}</p>
@@ -808,9 +1132,10 @@ export default function POSPage() {
                   <PosSearchResults
                     results={searchResults}
                     matchType={searchMatchType}
+                    message={searchMessage}
                     highlightIndex={searchHighlight}
                     currency={currency}
-                    onPick={(p) => pickSearchProduct(p)}
+                    onPick={(row) => pickSearchProduct(row, search)}
                   />
                 )}
               </div>
@@ -830,6 +1155,11 @@ export default function POSPage() {
                 className="bg-slate-800 border border-slate-700 rounded-xl p-3 text-left hover:border-emerald-500 hover:bg-slate-750 transition-colors min-h-[120px] flex flex-col"
               >
                 <p className="font-medium text-sm line-clamp-2 flex-1">{p.nom}</p>
+                {p.hasVariants && p.variants?.length > 0 && (
+                  <p className="text-[10px] text-slate-400 mt-0.5 line-clamp-2">
+                    {p.variants.map((v) => v.label || v.sku).join(' · ')}
+                  </p>
+                )}
                 <p className="text-emerald-400 font-semibold mt-2">{formatMoney(p.unitPrice, currency)}</p>
                 <ProductPackagingHints packagings={p.packagings} currency={currency} />
                 <div className="flex gap-1 mt-1 flex-wrap">
@@ -863,7 +1193,7 @@ export default function POSPage() {
               <li key={l.id} className="p-3 text-sm">
                 <div className="flex justify-between gap-2">
                   <span className="font-medium line-clamp-1">
-                    {l.productNom}
+                    {l.variantNameSnapshot ? `${l.productNom} — ${l.variantNameSnapshot}` : l.productNom}
                     {l.packagingNameSnapshot && (
                       <span className="block text-xs text-slate-400 font-normal">{l.packagingNameSnapshot}</span>
                     )}
@@ -924,7 +1254,7 @@ export default function POSPage() {
               <button
                 type="button"
                 disabled={!lines.length}
-                onClick={submitToCash}
+                onClick={sendSaleToCashier}
                 className="w-full mt-3 py-3 bg-amber-600 hover:bg-amber-500 rounded-xl font-semibold disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 {lines.length
@@ -943,41 +1273,54 @@ export default function POSPage() {
               </button>
             )}
             <div className="flex gap-2 mt-2">
-              <button type="button" disabled={!sale?.id} onClick={() => posApi.holdSale(sale.id).then(() => { notify.success('Panier en pause vendeur'); setSale(null) })}
+              <button type="button" disabled={!sale?.id} onClick={pauseClientSale}
                 className="flex-1 py-2 bg-slate-800 rounded-lg text-xs disabled:opacity-40" title="Pause locale : servir un autre client, reprise avec F9">Pause client (F8)</button>
-              <button type="button" onClick={() => posApi.listHold().then(setHoldSales)}
+              <button type="button" onClick={openResumeModal}
                 className="flex-1 py-2 bg-slate-800 rounded-lg text-xs">Reprendre (F9)</button>
             </div>
           </div>
         </aside>
       </div>
 
-      {holdSales.length > 0 && (
-        <div className="fixed bottom-4 right-4 bg-slate-800 border border-slate-600 rounded-xl p-3 max-w-xs z-40">
-          <p className="text-xs text-slate-400 mb-2">Paniers en pause (vendeur uniquement)</p>
-          {holdSales.map((h) => (
-            <button key={h.id} type="button"
-              onClick={() => posApi.resumeSale(h.id).then(setSale).then(() => setHoldSales([]))}
-              className="block w-full text-left text-sm py-1 hover:text-emerald-400">
-              {h.holdLabel || h.saleNumber} — {formatMoney(h.total, currency)}
-            </button>
-          ))}
-        </div>
-      )}
+      <ResumeSalesModal
+        open={showResumeModal}
+        onClose={() => setShowResumeModal(false)}
+        holdSales={holdSales}
+        draftSales={draftSales}
+        currency={currency}
+        isCentralCashier={isCentralCashier}
+        onResumeHold={handleResumeHold}
+        onPickDraft={handlePickDraft}
+      />
 
       {showPayment && sale && (
         <PaymentModal sale={sale} currency={currency} onClose={() => setShowPayment(false)} onPaid={onPaid} />
+      )}
+      {variantPicker && (
+        <VariantPickerModal
+          product={variantPicker.product}
+          qty={variantPicker.qty}
+          currency={currency}
+          onClose={() => setVariantPicker(null)}
+          onPick={async (variantId) => {
+            const { product, qty } = variantPicker
+            setVariantPicker(null)
+            await addProduct(product, qty, variantId)
+            searchRef.current?.focus()
+          }}
+        />
       )}
       {packagingPicker && (
         <PackagingPickerModal
           product={packagingPicker.product}
           qty={packagingPicker.qty}
           currency={currency}
+          packagings={packagingPicker.product?.packagings}
           onClose={() => setPackagingPicker(null)}
           onPick={async (packagingId) => {
-            const { product, qty } = packagingPicker
+            const { product, qty, variantId } = packagingPicker
             setPackagingPicker(null)
-            await addProductWithPackaging(product, packagingId, qty)
+            await addProductWithPackaging(product, packagingId, qty, variantId)
             searchRef.current?.focus()
           }}
         />
@@ -995,6 +1338,7 @@ export default function POSPage() {
         <CashSessionCloseModal
           session={session}
           currency={currency}
+          companyName={context?.publicSettings?.companyName}
           onClose={() => setShowCloseModal(false)}
           onClosed={onCashSessionClosed}
         />

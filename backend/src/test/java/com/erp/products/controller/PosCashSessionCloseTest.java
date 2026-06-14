@@ -261,6 +261,24 @@ class PosCashSessionCloseTest extends com.erp.products.AbstractIntegrationTest {
     }
 
     @Test
+    void listClosedSessionsReturnsCashierSessions() throws Exception {
+        openCashierSession(100);
+        openSalesAndPayCash(1, 10);
+
+        mockMvc.perform(auth(cashierToken, post("/api/pos/sessions/close"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("closingCashAmount", 110))))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(auth(adminToken, get("/api/pos/sessions/closed")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(greaterThanOrEqualTo(1))))
+                .andExpect(jsonPath("$[0].sessionNumber", notNullValue()))
+                .andExpect(jsonPath("$[0].cashierName", notNullValue()))
+                .andExpect(jsonPath("$[0].status", is("CLOSED")));
+    }
+
+    @Test
     void sessionReportAfterCloseContainsAuditFields() throws Exception {
         openCashierSession(100);
         openSalesAndPayCash(1, 10);

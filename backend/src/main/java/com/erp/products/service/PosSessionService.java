@@ -5,6 +5,7 @@ import com.erp.products.domain.enums.CashDifferenceReason;
 import com.erp.products.domain.enums.PaymentMethod;
 import com.erp.products.domain.enums.PosSessionStatus;
 import com.erp.products.domain.enums.PosSessionType;
+import com.erp.products.domain.enums.RefundPaymentStatus;
 import com.erp.products.domain.enums.SaleRefundStatus;
 import com.erp.products.domain.enums.SaleStatus;
 import com.erp.products.domain.enums.SaleStatuses;
@@ -14,8 +15,10 @@ import com.erp.products.exception.ResourceNotFoundException;
 import com.erp.products.mapper.PosMapper;
 import com.erp.products.repository.*;
 import com.erp.products.security.CurrentUserService;
+import com.erp.products.security.PermissionEvaluator;
 import com.erp.products.settings.SettingKeys;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -40,11 +43,13 @@ public class PosSessionService {
     private final SaleRepository saleRepository;
     private final PaymentRepository paymentRepository;
     private final SaleRefundRepository refundRepository;
+    private final RefundPaymentRepository refundPaymentRepository;
     private final WarehouseRepository warehouseRepository;
     private final UserRepository userRepository;
     private final SettingsService settingsService;
     private final PosConfigService posConfigService;
     private final CurrentUserService currentUserService;
+    private final PermissionEvaluator permissionChecker;
     private final PasswordEncoder passwordEncoder;
     private final PosMapper mapper;
 
@@ -132,9 +137,27 @@ public class PosSessionService {
     }
 
     @Transactional(readOnly = true)
+    public List<PosSessionResponse> listClosedSessions(Integer limit) {
+        User user = currentUserService.requireCurrentUser();
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        boolean fullAccess = permissionChecker.has(auth, "pos.report.read");
+        Long cashierId = fullAccess ? null : user.getId();
+        int max = limit != null && limit > 0 ? Math.min(limit, 200) : 50;
+        return sessionRepository.findClosedSessions(
+                        PosSessionStatus.CLOSED,
+                        PosSessionType.CASHIER,
+                        cashierId,
+                        PageRequest.of(0, max))
+                .stream()
+                .map(mapper::toSessionResponse)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
     public PosSessionReportResponse getSessionReport(Long sessionId) {
         PosSession session = sessionRepository.findById(sessionId)
                 .orElseThrow(() -> new ResourceNotFoundException("Session non trouvee: " + sessionId));
+        assertCanReadSessionReport(session);
         PosSessionReportResponse report = enrichReport(session, buildReport(session));
         if (session.getStatus() == PosSessionStatus.CLOSED) {
             report.setDeclaredCashAmount(session.getClosingCashAmount());
@@ -296,6 +319,17 @@ public class PosSessionService {
         report.setDifferenceSeverity(abs.compareTo(BigDecimal.valueOf(threshold)) <= 0 ? "MINOR" : "MAJOR");
     }
 
+    private void assertCanReadSessionReport(PosSession session) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (permissionChecker.has(auth, "pos.report.read")) {
+            return;
+        }
+        User user = currentUserService.requireCurrentUser();
+        if (!session.getCashier().getId().equals(user.getId())) {
+            throw new BusinessException("Acces refuse a ce rapport de session");
+        }
+    }
+
     private PosSessionType resolveSessionType(PosSessionOpenRequest request) {
         PosSessionType requested = request.getSessionType() != null
                 ? request.getSessionType()
@@ -386,8 +420,11 @@ public class PosSessionService {
             cardRevenue = nullToZero(paymentRepository.sumBySessionAndMethod(session.getId(), PaymentMethod.CARD));
             mobileRevenue = nullToZero(paymentRepository.sumBySessionAndMethod(session.getId(), PaymentMethod.MOBILE_MONEY));
             bankRevenue = nullToZero(paymentRepository.sumBySessionAndMethod(session.getId(), PaymentMethod.BANK_TRANSFER));
-            cashRefundTotal = nullToZero(refundRepository.sumCashRefundsBySession(session.getId(), SaleRefundStatus.COMPLETED));
-            refundsTotal = cashRefundTotal;
+            cashRefundTotal = sumRefundsByMethod(session.getId(), PaymentMethod.CASH);
+            BigDecimal cardRefundTotal = sumRefundsByMethod(session.getId(), PaymentMethod.CARD);
+            BigDecimal mobileRefundTotal = sumRefundsByMethod(session.getId(), PaymentMethod.MOBILE_MONEY);
+            BigDecimal bankRefundTotal = sumRefundsByMethod(session.getId(), PaymentMethod.BANK_TRANSFER);
+            refundsTotal = cashRefundTotal.add(cardRefundTotal).add(mobileRefundTotal).add(bankRefundTotal);
         }
 
         BigDecimal opening = nullToZero(session.getOpeningCashAmount());
@@ -411,6 +448,15 @@ public class PosSessionService {
                 .openingCashAmount(opening)
                 .expectedCashAmount(expectedCash)
                 .build();
+    }
+
+    private BigDecimal sumRefundsByMethod(Long sessionId, PaymentMethod method) {
+        BigDecimal fromPayments = nullToZero(refundPaymentRepository.sumBySessionAndMethod(
+                sessionId, method, RefundPaymentStatus.REFUNDED));
+        if (fromPayments.compareTo(BigDecimal.ZERO) > 0 || method != PaymentMethod.CASH) {
+            return fromPayments;
+        }
+        return nullToZero(refundRepository.sumLegacyCashRefundsBySession(sessionId, SaleRefundStatus.COMPLETED));
     }
 
     private List<Sale> resolveSalesForReport(PosSession session) {
