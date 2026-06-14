@@ -48,4 +48,6 @@ public class SaleResponse {
     private Instant cancelledAt;
     private List<SaleLineResponse> lignes;
     private List<PaymentResponse> payments;
+    /** Au moins une ligne dépasse le stock disponible (mode stock positif). */
+    private Boolean hasStockIssues;
 }

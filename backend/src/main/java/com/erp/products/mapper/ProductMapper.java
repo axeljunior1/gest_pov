@@ -1,6 +1,7 @@
 package com.erp.products.mapper;
 
 import com.erp.products.domain.entity.*;
+import com.erp.products.domain.enums.BarcodeType;
 import com.erp.products.dto.*;
 import com.erp.products.repository.ProductVariantRepository;
 import com.erp.products.repository.StockItemRepository;
@@ -197,6 +198,11 @@ public class ProductMapper {
                 .stockTotal(stockTotal)
                 .createdAt(product.getCreatedAt())
                 .updatedAt(product.getUpdatedAt());
+
+        if (product.getCodeBarre() != null && !product.getCodeBarre().isBlank() && barcodeService != null) {
+            builder.barcodeImageBase64(barcodeService.generateBase64(
+                    product.getCodeBarre().trim(), BarcodeType.EAN13));
+        }
 
         if (product.getCategorie() != null) {
             builder.categorieId(product.getCategorie().getId())

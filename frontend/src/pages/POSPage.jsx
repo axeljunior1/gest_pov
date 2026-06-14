@@ -14,6 +14,7 @@ import CashSessionCloseModal from '../components/pos/CashSessionCloseModal'
 import CashSessionOpenModal from '../components/pos/CashSessionOpenModal'
 import { notifyPosSessionChanged } from '../utils/posSession'
 import { notifyPosSaleStateChanged } from '../utils/posSaleEvents'
+import { formatStockIssueLine, getSaleStockIssueLines, saleHasStockIssues } from '../utils/posStock'
 import { PosSessionChip, PosSessionTypeBadge, PosWrongSessionPanel } from '../components/pos/PosWorkspaceNav'
 import ResumeSalesModal from '../components/pos/ResumeSalesModal'
 import ModalOverlay from '../components/ui/ModalOverlay'
@@ -408,6 +409,10 @@ export default function POSPage() {
 
   const sendSaleToCashier = useCallback(async () => {
     if (!sale?.id || !sale.lignes?.length) return
+    if (saleHasStockIssues(sale)) {
+      notify.error('Stock insuffisant — corrigez les quantités avant l’envoi à la caisse.')
+      return
+    }
     try {
       await posApi.sendToPayment(sale.id)
       setSale(null)
@@ -794,6 +799,26 @@ export default function POSPage() {
     return () => window.removeEventListener('pos-sale-state-changed', onSaleChange)
   }, [isCentralCashier, canPrepareSales, loadResumeSales])
 
+  const stockAlertShownRef = useRef(false)
+
+  useEffect(() => {
+    if (!showSendToCash) {
+      stockAlertShownRef.current = false
+      return
+    }
+    if (saleHasStockIssues(sale)) {
+      if (!stockAlertShownRef.current) {
+        const issueLines = getSaleStockIssueLines(sale)
+        const detail = issueLines.slice(0, 2).map(formatStockIssueLine).join(' · ')
+        const suffix = issueLines.length > 2 ? ` (+${issueLines.length - 2})` : ''
+        notify.error(`Stock insuffisant — envoi à la caisse bloqué. ${detail}${suffix}`)
+        stockAlertShownRef.current = true
+      }
+    } else {
+      stockAlertShownRef.current = false
+    }
+  }, [sale, showSendToCash, notify])
+
   useEffect(() => {
     const onKey = (e) => {
       if (e.key === 'F2') { e.preventDefault(); searchRef.current?.focus() }
@@ -801,8 +826,13 @@ export default function POSPage() {
       if (e.key === 'F4') {
         e.preventDefault()
         if (sale?.lignes?.length) {
-          if (showSendToCash) sendSaleToCashier()
-          else if (showPaymentButton) setShowPayment(true)
+          if (showSendToCash) {
+            if (saleHasStockIssues(sale)) {
+              notify.error('Stock insuffisant — corrigez les quantités avant l’envoi à la caisse.')
+            } else {
+              sendSaleToCashier()
+            }
+          } else if (showPaymentButton) setShowPayment(true)
         }
       }
       if (e.key === 'F8' && sale?.id) {
@@ -828,7 +858,7 @@ export default function POSPage() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [sale, searchOpen, clearSearch, showSendToCash, showPaymentButton, sendSaleToCashier, pauseClientSale, openResumeModal])
+  }, [sale, searchOpen, clearSearch, showSendToCash, showPaymentButton, sendSaleToCashier, pauseClientSale, openResumeModal, notify])
 
   const openSession = async (openingCashAmount = 0) => {
     setOpeningSession(true)
@@ -993,6 +1023,8 @@ export default function POSPage() {
 
   const categories = flatCategories(catalog?.categories)
   const lines = sale?.lignes || []
+  const stockIssues = saleHasStockIssues(sale)
+  const canSendToCashier = showSendToCash && lines.length > 0 && !stockIssues
   const pendingQty = parseQty(nextQty, 1)
 
   return (
@@ -1053,7 +1085,16 @@ export default function POSPage() {
         </div>
       )}
 
-      {isCentralCashier && showSendToCash && (
+      {isCentralCashier && showSendToCash && stockIssues && (
+        <div className="px-4 py-2 bg-red-950/70 border-b border-red-800 text-red-200 text-xs text-center">
+          <strong>Stock insuffisant</strong> — corrigez les quantités du panier avant l’envoi à la caisse.
+          {getSaleStockIssueLines(sale).slice(0, 3).map((l) => (
+            <span key={l.id} className="block mt-1 text-red-300/90">{formatStockIssueLine(l)}</span>
+          ))}
+        </div>
+      )}
+
+      {isCentralCashier && showSendToCash && !stockIssues && (
         <div className="px-4 py-2 bg-amber-950/40 border-b border-amber-900/50 text-amber-100 text-xs text-center">
           Panier prêt ? Utilisez <strong>Envoyer à la caisse</strong> (F4) — la « Pause client » (F8) ne part pas en caisse.
         </div>
@@ -1190,7 +1231,7 @@ export default function POSPage() {
               <li className="p-4 text-slate-500 text-sm text-center">Panier vide</li>
             )}
             {lines.map((l) => (
-              <li key={l.id} className="p-3 text-sm">
+              <li key={l.id} className={`p-3 text-sm ${l.stockInsufficient ? 'bg-red-950/30' : ''}`}>
                 <div className="flex justify-between gap-2">
                   <span className="font-medium line-clamp-1">
                     {l.variantNameSnapshot ? `${l.productNom} — ${l.variantNameSnapshot}` : l.productNom}
@@ -1200,6 +1241,11 @@ export default function POSPage() {
                   </span>
                   <span>{formatMoney(l.lineTotal, currency)}</span>
                 </div>
+                {l.stockInsufficient && (
+                  <p className="text-xs text-red-400 mt-1">
+                    Stock insuffisant — {Number(l.quantityInput)} en panier, {Number(l.stockAvailable ?? 0)} disponible(s)
+                  </p>
+                )}
                 <div className="flex items-center gap-2 mt-2 text-slate-400">
                   <button
                     type="button"
@@ -1250,16 +1296,27 @@ export default function POSPage() {
             )}
             <div className="flex justify-between text-slate-400"><span>Taxes</span><span>{formatMoney(sale?.taxTotal, currency)}</span></div>
             <div className="flex justify-between text-lg font-bold pt-2"><span>Total</span><span className="text-emerald-400">{formatMoney(sale?.total, currency)}</span></div>
-            {showSendToCash && (
+            {canSendToCashier && (
               <button
                 type="button"
-                disabled={!lines.length}
                 onClick={sendSaleToCashier}
-                className="w-full mt-3 py-3 bg-amber-600 hover:bg-amber-500 rounded-xl font-semibold disabled:opacity-40 disabled:cursor-not-allowed"
+                className="w-full mt-3 py-3 bg-amber-600 hover:bg-amber-500 rounded-xl font-semibold"
               >
-                {lines.length
-                  ? 'Envoyer à la caisse — à encaisser (F4)'
-                  : 'Envoyer à la caisse (F4) — ajoutez des produits'}
+                Envoyer à la caisse — à encaisser (F4)
+              </button>
+            )}
+            {showSendToCash && stockIssues && lines.length > 0 && (
+              <p className="w-full mt-3 py-3 rounded-xl text-center text-sm font-medium bg-red-950/50 border border-red-800 text-red-300">
+                Envoi à la caisse indisponible — stock insuffisant
+              </p>
+            )}
+            {showSendToCash && !lines.length && (
+              <button
+                type="button"
+                disabled
+                className="w-full mt-3 py-3 bg-amber-600 rounded-xl font-semibold opacity-40 cursor-not-allowed"
+              >
+                Envoyer à la caisse (F4) — ajoutez des produits
               </button>
             )}
             {showPaymentButton && (

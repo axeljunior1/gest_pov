@@ -41,6 +41,7 @@ public class ProductResponse {
     private Boolean hasVariants;
     private Boolean stockable;
     private Integer stockTotal;
+    private String barcodeImageBase64;
     private List<ProductVariantResponse> variantes;
     private List<ProductPackagingResponse> conditionnements;
     private List<ProductSupplierResponse> fournisseurs;

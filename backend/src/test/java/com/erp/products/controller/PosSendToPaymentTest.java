@@ -254,6 +254,21 @@ class PosSendToPaymentTest extends com.erp.products.AbstractIntegrationTest {
     }
 
     @Test
+    void shouldRejectSendToPaymentWhenStockInsufficient() throws Exception {
+        openSalesSession(sellerToken);
+        Long saleId = createDraftSale(sellerToken, 100);
+
+        mockMvc.perform(auth(sellerToken, get("/api/pos/sales/" + saleId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.hasStockIssues", is(true)))
+                .andExpect(jsonPath("$.lignes[0].stockInsufficient", is(true)));
+
+        mockMvc.perform(auth(sellerToken, post("/api/pos/sales/" + saleId + "/send-to-payment")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message", containsString("Stock insuffisant")));
+    }
+
+    @Test
     void newSaleShouldAlwaysHaveSellerId() throws Exception {
         openSalesSession(sellerToken);
         MvcResult saleResult = mockMvc.perform(auth(sellerToken, post("/api/pos/sales")))

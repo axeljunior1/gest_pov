@@ -25,4 +25,8 @@ public class SaleLineResponse {
     private BigDecimal discountAmount;
     private BigDecimal taxRate;
     private BigDecimal lineTotal;
+    /** Stock disponible (unité de base) dans l'entrepôt de la vente. */
+    private BigDecimal stockAvailable;
+    /** True si la quantité en panier dépasse le stock disponible. */
+    private Boolean stockInsufficient;
 }

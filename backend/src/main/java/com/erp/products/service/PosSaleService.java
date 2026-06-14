@@ -109,6 +109,7 @@ public class PosSaleService {
             throw new BusinessException("Panier vide");
         }
         recalculateTotals(sale);
+        ensureSufficientStock(sale);
         clearOrphanPayments(sale);
         ensureSellerAndCashier(sale);
         sale.setStatus(SaleStatus.PENDING_PAYMENT);
@@ -495,21 +496,7 @@ public class PosSaleService {
         }
 
         if (!settingsService.getStockConfig().isAllowNegativeStock()) {
-            for (SaleLine line : sale.getLignes()) {
-                variantPolicyService.resolveForSale(line.getProduct(),
-                        line.getVariant() != null ? line.getVariant().getId() : null);
-                BigDecimal available = ledger.getAvailable(
-                        line.getProduct().getId(),
-                        line.getVariant() != null ? line.getVariant().getId() : null,
-                        sale.getWarehouse().getId());
-                if (available.compareTo(line.getQuantityInBaseUnit()) < 0) {
-                    String label = line.getVariantNameSnapshot() != null
-                            ? line.getProductNameSnapshot() + " — " + line.getVariantNameSnapshot()
-                            : (line.getProductNameSnapshot() != null ? line.getProductNameSnapshot() : line.getProduct().getNom());
-                    throw new BusinessException("Stock insuffisant pour " + label
-                            + " (disponible: " + available.stripTrailingZeros().toPlainString() + ")");
-                }
-            }
+            ensureSufficientStock(sale);
         }
 
         attachPayments(sale, paymentCollector, paymentSession, inputs);
@@ -635,6 +622,31 @@ public class PosSaleService {
             return qtyInput.multiply(packaging.getQuantiteBase()).setScale(6, RoundingMode.HALF_UP);
         }
         return qtyInput.setScale(6, RoundingMode.HALF_UP);
+    }
+
+    private void ensureSufficientStock(Sale sale) {
+        if (settingsService.getStockConfig().isAllowNegativeStock()) {
+            return;
+        }
+        for (SaleLine line : sale.getLignes()) {
+            variantPolicyService.resolveForSale(line.getProduct(),
+                    line.getVariant() != null ? line.getVariant().getId() : null);
+            BigDecimal available = ledger.getAvailable(
+                    line.getProduct().getId(),
+                    line.getVariant() != null ? line.getVariant().getId() : null,
+                    sale.getWarehouse().getId());
+            if (available.compareTo(line.getQuantityInBaseUnit()) < 0) {
+                throw new BusinessException(buildStockInsufficientMessage(line, available));
+            }
+        }
+    }
+
+    private String buildStockInsufficientMessage(SaleLine line, BigDecimal available) {
+        String label = line.getVariantNameSnapshot() != null
+                ? line.getProductNameSnapshot() + " — " + line.getVariantNameSnapshot()
+                : (line.getProductNameSnapshot() != null ? line.getProductNameSnapshot() : line.getProduct().getNom());
+        return "Stock insuffisant pour " + label
+                + " (disponible: " + available.stripTrailingZeros().toPlainString() + ")";
     }
 
     private BigDecimal resolveLineUnitPrice(

@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
-  productsApi, categoriesApi, suppliersApi, unitsApi, attributesApi, barcodesApi,
+  productsApi, categoriesApi, suppliersApi, unitsApi, attributesApi,
 } from '../api'
 import { PageHeader, Card, Button, Badge, Tabs, Loading, Alert } from '../components/ui'
+import ProductBarcodesGallery from '../components/ProductBarcodesGallery'
 import { useAsyncAction } from '../hooks/useAsyncAction'
 import { useNotification } from '../context/NotificationContext'
 import { getErrorMessage } from '../utils/errors'
@@ -55,7 +56,6 @@ export default function ProductDetailPage() {
   const [newSupplier, setNewSupplier] = useState({ supplierId: '', principal: false, referenceFournisseur: '', delaiLivraisonJours: '', prixNegocie: '' })
   const [priceForm, setPriceForm] = useState({ type: 'VENTE', nouveauPrix: '' })
   const [lifecycleForm, setLifecycleForm] = useState({ cycleVie: 'BROUILLON' })
-  const [barcodePreview, setBarcodePreview] = useState(null)
   const [packagingForm, setPackagingForm] = useState({
     nom: '', symbole: '', quantiteBase: '', prixVente: '',
     usableForSale: true, usableForPurchase: true,
@@ -276,15 +276,6 @@ export default function ProductDetailPage() {
       () => productsApi.updateLifecycle(id, lifecycleForm),
       { successMessage: 'Cycle de vie mis à jour', onSuccess: loadProduct },
     )
-  }
-
-  const handleGenerateBarcode = async (content, type) => {
-    try {
-      const result = await barcodesApi.generate({ content, type })
-      setBarcodePreview(result)
-    } catch (error) {
-      notify.error(getErrorMessage(error))
-    }
   }
 
   const handleImageUpload = async (e) => {
@@ -569,6 +560,8 @@ export default function ProductDetailPage() {
             <textarea value={form.description} onChange={(e) => setField('description', e.target.value)} rows={3} className="w-full" />
           </div>
 
+          {!isNew && product && <ProductBarcodesGallery product={product} />}
+
           {isNew && (
             <div className="pt-4 border-t border-gray-100">
               <h3 className="text-sm font-medium mb-3">Variantes initiales</h3>
@@ -791,13 +784,7 @@ export default function ProductDetailPage() {
                     <td className="px-5 py-3">
                       <input type="checkbox" checked={v.active !== false} onChange={(e) => handleToggleVariantFlag(v, 'active', e.target.checked)} />
                     </td>
-                    <td className="px-5 py-3">
-                      {v.codeBarre ? (
-                        <button className="text-xs text-blue-600 hover:underline" onClick={() => handleGenerateBarcode(v.codeBarre, v.barcodeType || 'EAN13')}>
-                          {v.codeBarre}
-                        </button>
-                      ) : '—'}
-                    </td>
+                    <td className="px-5 py-3 font-mono text-xs">{v.codeBarre || '—'}</td>
                     <td className="px-5 py-3">
                       <div className="flex gap-1">
                         <Button variant="ghost" className="text-xs" onClick={() => handleDuplicateVariant(v)}>
@@ -813,12 +800,6 @@ export default function ProductDetailPage() {
               </tbody>
             </table>
           </Card>
-
-          {barcodePreview && (
-            <Card className="p-4 inline-block">
-              <img src={`data:image/png;base64,${barcodePreview.imageBase64}`} alt="Code-barres" className="max-h-32" />
-            </Card>
-          )}
 
           <Card className="p-5">
             <h3 className="text-sm font-medium mb-3">Ajouter une variante</h3>

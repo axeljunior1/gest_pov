@@ -3,13 +3,21 @@ package com.erp.products.mapper;
 import com.erp.products.domain.entity.*;
 import com.erp.products.domain.enums.*;
 import com.erp.products.dto.*;
+import com.erp.products.service.SettingsService;
+import com.erp.products.service.StockService;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.stream.Collectors;
 
 @Component
+@RequiredArgsConstructor
 public class PosMapper {
+
+    private final StockService stockService;
+    private final SettingsService settingsService;
 
     public PosSessionResponse toSessionResponse(PosSession session) {
         return PosSessionResponse.builder()
@@ -66,12 +74,44 @@ public class PosMapper {
                 .validatedAt(sale.getValidatedAt())
                 .paidAt(sale.getPaidAt() != null ? sale.getPaidAt() : sale.getValidatedAt())
                 .cancelledAt(sale.getCancelledAt())
-                .lignes(sale.getLignes().stream().map(this::toLineResponse).collect(Collectors.toList()))
+                .lignes(enrichLines(sale))
+                .hasStockIssues(hasStockIssues(sale))
                 .payments(sale.getPayments().stream().map(this::toPaymentResponse).collect(Collectors.toList()))
                 .build();
     }
 
     public SaleLineResponse toLineResponse(SaleLine line) {
+        return toLineResponse(line, null, false);
+    }
+
+    private List<SaleLineResponse> enrichLines(Sale sale) {
+        Long warehouseId = sale.getWarehouse().getId();
+        boolean checkStock = !settingsService.getStockConfig().isAllowNegativeStock();
+        return sale.getLignes().stream()
+                .map(line -> toLineResponse(line, warehouseId, checkStock))
+                .collect(Collectors.toList());
+    }
+
+    private Boolean hasStockIssues(Sale sale) {
+        if (settingsService.getStockConfig().isAllowNegativeStock()) {
+            return false;
+        }
+        Long warehouseId = sale.getWarehouse().getId();
+        return sale.getLignes().stream()
+                .anyMatch(line -> isStockInsufficient(line, warehouseId));
+    }
+
+    private SaleLineResponse toLineResponse(SaleLine line, Long warehouseId, boolean checkStock) {
+        BigDecimal stockAvailable = null;
+        Boolean stockInsufficient = null;
+        if (checkStock && warehouseId != null && isLineStockable(line)) {
+            stockAvailable = stockService.getAvailable(
+                    line.getProduct().getId(),
+                    line.getVariant() != null ? line.getVariant().getId() : null,
+                    warehouseId).getQuantityAvailable();
+            stockInsufficient = line.getQuantityInBaseUnit().compareTo(stockAvailable) > 0;
+        }
+
         return SaleLineResponse.builder()
                 .id(line.getId())
                 .productId(line.getProduct().getId())
@@ -90,7 +130,27 @@ public class PosMapper {
                 .discountAmount(line.getDiscountAmount())
                 .taxRate(line.getTaxRate())
                 .lineTotal(line.getLineTotal())
+                .stockAvailable(stockAvailable)
+                .stockInsufficient(stockInsufficient)
                 .build();
+    }
+
+    private boolean isLineStockable(SaleLine line) {
+        if (line.getVariant() != null) {
+            return !Boolean.FALSE.equals(line.getVariant().getIsStockable());
+        }
+        return !Boolean.FALSE.equals(line.getProduct().getIsStockable());
+    }
+
+    private boolean isStockInsufficient(SaleLine line, Long warehouseId) {
+        if (!isLineStockable(line)) {
+            return false;
+        }
+        BigDecimal available = stockService.getAvailable(
+                line.getProduct().getId(),
+                line.getVariant() != null ? line.getVariant().getId() : null,
+                warehouseId).getQuantityAvailable();
+        return line.getQuantityInBaseUnit().compareTo(available) > 0;
     }
 
     public PaymentResponse toPaymentResponse(Payment payment) {
