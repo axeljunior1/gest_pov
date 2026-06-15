@@ -63,3 +63,25 @@ export function canBrowseSalesBackOffice(hasPermission, hasAnyPermission) {
     'pos.report.read',
   )
 }
+
+export function canBrowseReturnsBackOffice(hasPermission, hasAnyPermission) {
+  return hasAnyPermission(
+    'pos.return.read',
+    'analytics.sales.read',
+    'pos.report.read',
+  )
+}
+
+export const PAYMENT_METHOD_LABELS = {
+  CASH: 'Espèces',
+  CARD: 'Carte',
+  MOBILE_MONEY: 'Mobile money',
+  BANK_TRANSFER: 'Virement',
+  CHECK: 'Chèque',
+  OTHER: 'Autre',
+}
+
+export function paymentMethodLabel(method) {
+  if (!method) return '—'
+  return PAYMENT_METHOD_LABELS[method] || method
+}

@@ -70,11 +70,13 @@ class SalesBrowseControllerTest extends com.erp.products.AbstractIntegrationTest
                 .andExpect(jsonPath("$.sale.id", is(saleId.intValue())))
                 .andExpect(jsonPath("$.sale.saleNumber", notNullValue()))
                 .andExpect(jsonPath("$.refunds", hasSize(greaterThanOrEqualTo(1))))
-                .andExpect(jsonPath("$.refunds[0].id", is(returnId.intValue())));
+                .andExpect(jsonPath("$.refunds[0].id", is(returnId.intValue())))
+                .andExpect(jsonPath("$.timeline[?(@.eventType == 'PAYMENT_VALIDATED')]", not(empty())));
 
         mockMvc.perform(auth(adminToken, get("/api/sales/returns/browse")))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.items[?(@.id == " + returnId + ")].saleId", hasItem(saleId.intValue())));
+                .andExpect(jsonPath("$.items[?(@.id == " + returnId + ")].saleId", hasItem(saleId.intValue())))
+                .andExpect(jsonPath("$.items[?(@.id == " + returnId + ")].lineCount", hasItem(greaterThanOrEqualTo(1))));
 
         mockMvc.perform(auth(adminToken, get("/api/sales/returns/browse/export")))
                 .andExpect(status().isOk())

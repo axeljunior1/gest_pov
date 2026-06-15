@@ -9,7 +9,7 @@ import { getErrorMessage } from '../utils/errors'
 import { refundStatusLabel, saleStatusLabel } from '../utils/saleStatus'
 import { formatPosDateTime, formatPosMoney } from '../utils/posMoney'
 import { isReprintableSaleStatus } from '../types/sales'
-import { refundStatusTone, saleStatusTone } from '../utils/saleDisplay'
+import { refundStatusTone, saleStatusTone, paymentMethodLabel } from '../utils/saleDisplay'
 
 function InfoRow({ label, value }) {
   return (
@@ -175,7 +175,7 @@ export default function SaleDetailPage() {
             <ul className="divide-y text-sm">
               {sale.payments.map((p) => (
                 <li key={p.id} className="px-4 py-2 flex justify-between">
-                  <span>{p.method}</span>
+                  <span>{paymentMethodLabel(p.method)}</span>
                   <span className="font-medium">{formatPosMoney(p.amount, currency)}</span>
                 </li>
               ))}
@@ -234,7 +234,10 @@ export default function SaleDetailPage() {
               <li key={ev.id || `${ev.eventType}-${ev.occurredAt}`} className="relative">
                 <span className="absolute -left-[1.35rem] top-1.5 w-2 h-2 rounded-full bg-emerald-500" />
                 <p className="text-sm font-medium">{ev.eventTypeLabel || ev.eventType}</p>
-                {ev.description && <p className="text-xs text-gray-600">{ev.description}</p>}
+                {ev.description && ev.description !== ev.eventTypeLabel && (
+                  <p className="text-xs text-gray-600">{ev.description}</p>
+                )}
+                {ev.details && <p className="text-xs text-gray-500">{ev.details}</p>}
                 <p className="text-xs text-gray-400 mt-0.5">
                   {formatPosDateTime(ev.occurredAt)}
                   {ev.actorName ? ` · ${ev.actorName}` : ''}

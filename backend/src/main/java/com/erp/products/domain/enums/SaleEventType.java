@@ -17,7 +17,7 @@ public enum SaleEventType {
     SENT_TO_CASHIER("Envoi caisse"),
     RECALLED_FROM_CASHIER("Retour vendeur"),
     PAYMENT_STARTED("Paiement commencé"),
-    PAYMENT_VALIDATED("Paiement validé"),
+    PAYMENT_VALIDATED("Encaissement"),
     CANCELLED("Annulation");
 
     private final String label;

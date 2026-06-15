@@ -85,7 +85,7 @@ public interface SaleRefundRepository extends JpaRepository<SaleRefund, Long> {
             """)
     List<Object[]> countLinesByRefundIds(@Param("refundIds") Collection<Long> refundIds);
 
-    @EntityGraph(attributePaths = {"sale"})
+    @EntityGraph(attributePaths = {"sale", "sale.customer", "cashier"})
     @Query("""
             SELECT sr FROM SaleRefund sr
             JOIN sr.sale s

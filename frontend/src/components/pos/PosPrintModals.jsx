@@ -140,3 +140,46 @@ export function PosInvoiceModal({ invoice, onClose }) {
     </div>
   )
 }
+
+export function ReturnReceiptModal({ receipt, onClose }) {
+  if (!receipt) return null
+  return (
+    <div className="pos-print-overlay fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+      <div className="pos-print-root pos-print-close-report pos-light-panel rounded-xl w-full max-w-lg p-6 text-sm">
+        <div className="text-center border-b border-dashed pb-3 mb-4">
+          <p className="font-bold text-lg">{receipt.companyName}</p>
+          <p className="font-semibold mt-1">Reçu de retour</p>
+          <p className="font-mono text-xs text-gray-500">{receipt.returnNumber}</p>
+          <p className="text-xs text-gray-500">Vente {receipt.originalSaleNumber}</p>
+        </div>
+        {receipt.lines?.map((l, i) => (
+          <div key={i} className="flex justify-between py-1 border-b border-gray-100 text-xs gap-3">
+            <span>
+              {l.productNom}
+              {l.variantNameSnapshot ? ` — ${l.variantNameSnapshot}` : ''}
+              {' '}x{Number(l.quantity)} {l.restock ? '↩ stock' : '✗ hors stock'}
+            </span>
+            <span>{Number(l.refundAmount).toFixed(2)}</span>
+          </div>
+        ))}
+        <div className="flex justify-between font-bold mt-3 pt-2 border-t">
+          <span>Remboursé</span>
+          <span>{formatPosMoney(receipt.refundTotal, receipt.currency)}</span>
+        </div>
+        {receipt.payments?.map((p, i) => (
+          <p key={i} className="text-xs text-gray-500 mt-1">
+            {p.method} : {formatPosMoney(p.amount, receipt.currency)}
+          </p>
+        ))}
+        <div className="pos-print-actions flex gap-2 mt-4">
+          <button type="button" onClick={() => window.print()} className="flex-1 py-2 bg-gray-900 text-white rounded-lg text-xs">
+            Imprimer
+          </button>
+          <button type="button" onClick={onClose} className="flex-1 py-2 bg-gray-200 rounded-lg text-xs">
+            Fermer
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}

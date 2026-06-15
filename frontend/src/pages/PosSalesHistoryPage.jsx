@@ -6,7 +6,7 @@ import { useNotification } from '../context/NotificationContext'
 import { getErrorMessage } from '../utils/errors'
 import { formatPosMoney } from '../utils/posMoney'
 import { saleStatusLabel } from '../utils/saleStatus'
-import { canBrowseSalesBackOffice } from '../utils/saleDisplay'
+import { canBrowseSalesBackOffice, canBrowseReturnsBackOffice } from '../utils/saleDisplay'
 import {
   canCollectPayment,
   canPrepareSales,
@@ -59,6 +59,7 @@ export default function PosSalesHistoryPage() {
   const [currency, setCurrency] = useState('EUR')
   const canPrint = hasPermission('pos.ticket.print') || hasPermission('pos.ticket.reprint')
   const canOpenBackOfficeSale = canBrowseSalesBackOffice(hasPermission, hasAnyPermission)
+  const canOpenBackOfficeReturns = canBrowseReturnsBackOffice(hasPermission, hasAnyPermission)
   const roleLabel = getPosRoleLabel(user)
   const scopeHint = canPrepareSales(user) && canCollectPayment(user)
     ? 'Ventes où vous êtes vendeur ou caissier'
@@ -143,6 +144,14 @@ export default function PosSalesHistoryPage() {
               className="px-3 py-2 rounded-lg border border-emerald-700/50 text-sm text-emerald-300 hover:bg-emerald-950/40"
             >
               Consultation ventes →
+            </Link>
+          )}
+          {canOpenBackOfficeReturns && (
+            <Link
+              to="/returns"
+              className="px-3 py-2 rounded-lg border border-amber-700/50 text-sm text-amber-200 hover:bg-amber-950/40"
+            >
+              Consultation retours →
             </Link>
           )}
           <Link

@@ -19,6 +19,7 @@ public class SaleRefundResponse {
     private String refundNumber;
     private Long saleId;
     private String saleNumber;
+    private String customerName;
     private SaleRefundStatus status;
     private RefundFulfillmentStatus refundStatus;
     private BigDecimal totalAmount;

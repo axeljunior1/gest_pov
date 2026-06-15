@@ -1,10 +1,16 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useNotification } from '../context/NotificationContext'
 import { getErrorMessage } from '../utils/errors'
 import { buildBrowseDateParams } from '../utils/saleDisplay'
 
 export const DEFAULT_BROWSE_PAGE_SIZE = 25
+
+/** Référence stable pour les pages sans paramètre URL additionnel. */
+export const EMPTY_BROWSE_EXTRA_KEYS = []
+
+/** Clés URL additionnelles — page retours. */
+export const RETURN_BROWSE_EXTRA_KEYS = ['saleId']
 
 /** @typedef {import('../types/browse').BrowseFilters} BrowseFilters */
 /** @typedef {import('../types/browse').BrowsePageResponse} BrowsePageResponse */
@@ -15,10 +21,15 @@ export const DEFAULT_BROWSE_PAGE_SIZE = 25
  */
 export function useSalesBrowseFilters({
   fetchFn,
-  extraParamKeys = [],
+  extraParamKeys = EMPTY_BROWSE_EXTRA_KEYS,
   pageSize = DEFAULT_BROWSE_PAGE_SIZE,
 }) {
   const notify = useNotification()
+  const fetchFnRef = useRef(fetchFn)
+  const notifyRef = useRef(notify)
+  fetchFnRef.current = fetchFn
+  notifyRef.current = notify
+
   const [searchParams, setSearchParams] = useSearchParams()
   const [loading, setLoading] = useState(true)
   const [exporting, setExporting] = useState(false)
@@ -29,6 +40,9 @@ export function useSalesBrowseFilters({
     size: pageSize,
     totalPages: 0,
   })
+
+  /** Chaîne stable — évite les re-fetch si le parent passe un nouveau tableau à contenu identique. */
+  const extraKeysKey = extraParamKeys.join('\0')
 
   const readFromUrl = useCallback(() => {
     /** @type {BrowseFilters} */
@@ -43,10 +57,10 @@ export function useSalesBrowseFilters({
       draft[key] = searchParams.get(key) || ''
     }
     return draft
-  }, [searchParams, extraParamKeys])
+  }, [searchParams, extraKeysKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const [draft, setDraft] = useState(readFromUrl)
-  const [applied, setApplied] = useState(readFromUrl)
+  const [draft, setDraft] = useState(() => readFromUrl())
+  const [applied, setApplied] = useState(() => readFromUrl())
 
   const buildApiParams = useCallback((filters, page) => {
     const params = {
@@ -63,7 +77,7 @@ export function useSalesBrowseFilters({
       }
     }
     return params
-  }, [extraParamKeys, pageSize])
+  }, [extraKeysKey, pageSize]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const syncUrl = useCallback((filters) => {
     const params = {}
@@ -76,12 +90,13 @@ export function useSalesBrowseFilters({
       if (filters[key]) params[key] = filters[key]
     }
     setSearchParams(params, { replace: true })
-  }, [extraParamKeys, setSearchParams])
+  }, [extraKeysKey, setSearchParams]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const loadPage = useCallback(async (filters) => {
+  const loadPage = useCallback(async (filters, signal) => {
     setLoading(true)
     try {
-      const data = await fetchFn(buildApiParams(filters, filters.page))
+      const data = await fetchFnRef.current(buildApiParams(filters, filters.page))
+      if (signal?.aborted) return
       setPageData({
         items: data.items ?? [],
         totalElements: data.totalElements ?? 0,
@@ -90,15 +105,23 @@ export function useSalesBrowseFilters({
         totalPages: data.totalPages ?? 0,
       })
     } catch (e) {
-      notify.error(getErrorMessage(e))
+      if (signal?.aborted) return
+      notifyRef.current.error(getErrorMessage(e))
     } finally {
-      setLoading(false)
+      if (!signal?.aborted) setLoading(false)
     }
-  }, [buildApiParams, fetchFn, notify, pageSize])
+  }, [buildApiParams, pageSize])
+
+  const appliedKey = useMemo(
+    () => JSON.stringify(applied),
+    [applied],
+  )
 
   useEffect(() => {
-    loadPage(applied)
-  }, [applied, loadPage])
+    const controller = new AbortController()
+    loadPage(applied, controller.signal)
+    return () => controller.abort()
+  }, [appliedKey, loadPage]) // appliedKey remplace applied (objet recréé)
 
   const applyFilters = useCallback(() => {
     const next = { ...draft, page: 0 }
@@ -112,13 +135,15 @@ export function useSalesBrowseFilters({
     setDraft(empty)
     setApplied(empty)
     setSearchParams({}, { replace: true })
-  }, [extraParamKeys, setSearchParams])
+  }, [extraKeysKey, setSearchParams]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const goToPage = useCallback((page) => {
-    const next = { ...applied, page }
-    setApplied(next)
-    syncUrl(next)
-  }, [applied, syncUrl])
+    setApplied((prev) => {
+      const next = { ...prev, page }
+      syncUrl(next)
+      return next
+    })
+  }, [syncUrl])
 
   const updateDraft = useCallback((patch) => {
     setDraft((prev) => ({ ...prev, ...patch }))
@@ -129,13 +154,13 @@ export function useSalesBrowseFilters({
     setExporting(true)
     try {
       await exportFn(buildApiParams({ ...applied, page: 0 }, 0))
-      notify.success('Export téléchargé')
+      notifyRef.current.success('Export téléchargé')
     } catch (e) {
-      notify.error(getErrorMessage(e))
+      notifyRef.current.error(getErrorMessage(e))
     } finally {
       setExporting(false)
     }
-  }, [applied, buildApiParams, notify])
+  }, [applied, buildApiParams])
 
   const pagination = useMemo(() => ({
     page: pageData.page,

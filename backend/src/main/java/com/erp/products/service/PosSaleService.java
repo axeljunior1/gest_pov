@@ -26,6 +26,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -526,6 +527,15 @@ public class PosSaleService {
         sale.setPaidAt(paidAt);
 
         Sale saved = saleRepository.save(sale);
+        String paymentDetails = inputs.stream()
+                .map(p -> p.getMethod().name() + " " + p.getAmount().setScale(2, RoundingMode.HALF_UP))
+                .collect(Collectors.joining(", "));
+        saleEventService.record(
+                saved,
+                SaleEventType.PAYMENT_VALIDATED,
+                "Encaissement — " + paid.setScale(2, RoundingMode.HALF_UP),
+                paymentDetails,
+                paymentCollector);
         auditService.log("Sale", saved.getId(), AuditAction.MODIFICATION,
                 "Vente POS validee " + saved.getSaleNumber(), currentUserService.requireCurrentUser().getEmail());
         return mapper.toSaleResponse(saved);

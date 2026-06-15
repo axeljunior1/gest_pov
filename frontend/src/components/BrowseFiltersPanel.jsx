@@ -11,6 +11,7 @@ export default function BrowseFiltersPanel({
   statusOptions,
   extraFields,
   exportButton,
+  searchPlaceholder = 'N° vente, client…',
 }) {
   return (
     <div className="flex flex-wrap gap-3 items-end">
@@ -21,7 +22,7 @@ export default function BrowseFiltersPanel({
           value={draft.q}
           onChange={(e) => updateDraft({ q: e.target.value })}
           onKeyDown={(e) => e.key === 'Enter' && onApply()}
-          placeholder="N° vente, client…"
+          placeholder={searchPlaceholder}
           className="w-full rounded-lg border px-3 py-2 text-sm"
         />
       </div>

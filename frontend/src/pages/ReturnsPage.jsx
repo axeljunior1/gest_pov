@@ -4,7 +4,7 @@ import { salesBrowseApi, settingsApi } from '../api'
 import { PageHeader, Card, Loading, Badge, EmptyState, Button } from '../components/ui'
 import BrowsePagination from '../components/BrowsePagination'
 import BrowseFiltersPanel from '../components/BrowseFiltersPanel'
-import { useSalesBrowseFilters } from '../hooks/useSalesBrowseFilters'
+import { useSalesBrowseFilters, RETURN_BROWSE_EXTRA_KEYS } from '../hooks/useSalesBrowseFilters'
 import { useAuth } from '../context/AuthContext'
 import { refundStatusLabel } from '../utils/saleStatus'
 import { formatPosDateTime, formatPosMoney } from '../utils/posMoney'
@@ -28,7 +28,7 @@ export default function ReturnsPage() {
     runExport,
   } = useSalesBrowseFilters({
     fetchFn: salesBrowseApi.listReturns,
-    extraParamKeys: ['saleId'],
+    extraParamKeys: RETURN_BROWSE_EXTRA_KEYS,
   })
 
   useEffect(() => {
@@ -56,6 +56,7 @@ export default function ReturnsPage() {
           onApply={applyFilters}
           onReset={resetFilters}
           statusOptions={REFUND_STATUS_FILTER_OPTIONS}
+          searchPlaceholder="N° retour, vente, client…"
           extraFields={(
             <div>
               <label className="text-xs text-gray-500 block mb-1">N° vente (ID)</label>
@@ -82,6 +83,13 @@ export default function ReturnsPage() {
         />
       </Card>
 
+      {pagination.totalElements > 0 && (
+        <p className="text-sm text-gray-500">
+          {pagination.totalElements} retour{pagination.totalElements > 1 ? 's' : ''}
+          {loading ? ' — chargement…' : ''}
+        </p>
+      )}
+
       <Card className="p-0 overflow-hidden">
         {returns.length === 0 ? (
           <div className="p-8"><EmptyState message="Aucun retour trouvé." /></div>
@@ -95,7 +103,10 @@ export default function ReturnsPage() {
                     <th className="px-4 py-3 font-medium">Vente</th>
                     <th className="px-4 py-3 font-medium">Date</th>
                     <th className="px-4 py-3 font-medium">Statut</th>
+                    <th className="px-4 py-3 font-medium">Client</th>
+                    <th className="px-4 py-3 font-medium">Caissier</th>
                     <th className="px-4 py-3 font-medium">Motif</th>
+                    <th className="px-4 py-3 font-medium text-right">Lignes</th>
                     <th className="px-4 py-3 font-medium text-right">Montant</th>
                     <th className="px-4 py-3 font-medium" />
                   </tr>
@@ -115,7 +126,12 @@ export default function ReturnsPage() {
                       <td className="px-4 py-3">
                         <Badge tone={refundStatusTone(r.status)}>{refundStatusLabel(r.status)}</Badge>
                       </td>
-                      <td className="px-4 py-3 text-gray-600">{r.reason || '—'}</td>
+                      <td className="px-4 py-3">{r.customerName || '—'}</td>
+                      <td className="px-4 py-3">{r.createdBy || '—'}</td>
+                      <td className="px-4 py-3 text-gray-600 max-w-[12rem] truncate" title={r.reason || ''}>
+                        {r.reason || '—'}
+                      </td>
+                      <td className="px-4 py-3 text-right text-gray-600">{r.lineCount ?? '—'}</td>
                       <td className="px-4 py-3 text-right font-medium">{formatPosMoney(r.totalAmount, currency)}</td>
                       <td className="px-4 py-3 text-right">
                         <Link to={`/returns/${r.id}`} className="text-emerald-600 hover:underline">

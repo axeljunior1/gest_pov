@@ -37,6 +37,10 @@ public class SalesBrowseService {
 
     private static final int MAX_PAGE_SIZE = 100;
     private static final int EXPORT_LIMIT = 5000;
+    /** Valeurs sentinelle pour PostgreSQL (typage des paramètres JPQL inactifs). */
+    private static final Instant UNUSED_DATE_FROM = Instant.EPOCH;
+    private static final Instant UNUSED_DATE_TO = Instant.parse("9999-12-31T23:59:59Z");
+    private static final Long UNUSED_ID = -1L;
 
     private final SaleRepository saleRepository;
     private final SaleRefundRepository refundRepository;
@@ -55,11 +59,11 @@ public class SalesBrowseService {
                 filters.filterQ(),
                 filters.q(),
                 filters.filterDateFrom(),
-                filters.dateFrom(),
+                bindDateFrom(filters),
                 filters.filterDateTo(),
-                filters.dateTo(),
+                bindDateTo(filters),
                 filters.filterUserId(),
-                filters.userId(),
+                bindUserId(filters),
                 PageRequest.of(filters.page(), filters.size()));
 
         long total = saleRepository.countBrowseSales(
@@ -68,11 +72,11 @@ public class SalesBrowseService {
                 filters.filterQ(),
                 filters.q(),
                 filters.filterDateFrom(),
-                filters.dateFrom(),
+                bindDateFrom(filters),
                 filters.filterDateTo(),
-                filters.dateTo(),
+                bindDateTo(filters),
                 filters.filterUserId(),
-                filters.userId());
+                bindUserId(filters));
 
         Map<Long, RefundAggregate> aggregates = loadRefundAggregates(
                 sales.stream().map(Sale::getId).toList());
@@ -93,11 +97,11 @@ public class SalesBrowseService {
                 filters.filterQ(),
                 filters.q(),
                 filters.filterDateFrom(),
-                filters.dateFrom(),
+                bindDateFrom(filters),
                 filters.filterDateTo(),
-                filters.dateTo(),
+                bindDateTo(filters),
                 filters.filterUserId(),
-                filters.userId(),
+                bindUserId(filters),
                 PageRequest.of(0, EXPORT_LIMIT));
 
         Map<Long, RefundAggregate> aggregates = loadRefundAggregates(
@@ -163,30 +167,30 @@ public class SalesBrowseService {
                 filters.filterStatus(),
                 filters.status(),
                 filters.filterSaleId(),
-                filters.saleId(),
+                bindSaleId(filters),
                 filters.filterQ(),
                 filters.q(),
                 filters.filterDateFrom(),
-                filters.dateFrom(),
+                bindReturnDateFrom(filters),
                 filters.filterDateTo(),
-                filters.dateTo(),
+                bindReturnDateTo(filters),
                 filters.filterUserId(),
-                filters.userId(),
+                bindReturnUserId(filters),
                 PageRequest.of(filters.page(), filters.size()));
 
         long total = refundRepository.countBrowseReturns(
                 filters.filterStatus(),
                 filters.status(),
                 filters.filterSaleId(),
-                filters.saleId(),
+                bindSaleId(filters),
                 filters.filterQ(),
                 filters.q(),
                 filters.filterDateFrom(),
-                filters.dateFrom(),
+                bindReturnDateFrom(filters),
                 filters.filterDateTo(),
-                filters.dateTo(),
+                bindReturnDateTo(filters),
                 filters.filterUserId(),
-                filters.userId());
+                bindReturnUserId(filters));
 
         Map<Long, Integer> lineCounts = loadRefundLineCounts(
                 refunds.stream().map(SaleRefund::getId).toList());
@@ -205,22 +209,22 @@ public class SalesBrowseService {
                 filters.filterStatus(),
                 filters.status(),
                 filters.filterSaleId(),
-                filters.saleId(),
+                bindSaleId(filters),
                 filters.filterQ(),
                 filters.q(),
                 filters.filterDateFrom(),
-                filters.dateFrom(),
+                bindReturnDateFrom(filters),
                 filters.filterDateTo(),
-                filters.dateTo(),
+                bindReturnDateTo(filters),
                 filters.filterUserId(),
-                filters.userId(),
+                bindReturnUserId(filters),
                 PageRequest.of(0, EXPORT_LIMIT));
 
         Map<Long, Integer> lineCounts = loadRefundLineCounts(
                 refunds.stream().map(SaleRefund::getId).toList());
 
         List<String> headers = List.of(
-                "id", "refundNumber", "saleId", "saleNumber", "status", "reason",
+                "id", "refundNumber", "saleId", "saleNumber", "customerName", "status", "reason",
                 "createdBy", "createdAt", "validatedAt", "totalAmount", "lineCount");
 
         List<List<String>> rows = refunds.stream()
@@ -231,6 +235,7 @@ public class SalesBrowseService {
                             str(refund.getRefundNumber()),
                             str(sale.getId()),
                             str(sale.getSaleNumber()),
+                            str(resolveRefundCustomerName(refund, sale)),
                             str(refund.getStatus()),
                             str(refund.getReason()),
                             str(refund.getCashier() != null ? refund.getCashier().fullName() : null),
@@ -359,12 +364,13 @@ public class SalesBrowseService {
 
     private SaleRefundSummaryResponse toRefundSummary(SaleRefund refund, int lineCount) {
         Sale sale = refund.getSale();
-        String createdBy = refund.getCashier() != null ? refund.getCashier().fullName() : null;
+        String createdBy = refund.getCashier() != null ? refund.getCashier().fullName() : refund.getCreatedBy();
         return SaleRefundSummaryResponse.builder()
                 .id(refund.getId())
                 .refundNumber(refund.getRefundNumber())
                 .saleId(sale.getId())
                 .saleNumber(sale.getSaleNumber())
+                .customerName(resolveRefundCustomerName(refund, sale))
                 .status(refund.getStatus())
                 .totalAmount(refund.getTotalAmount())
                 .reason(refund.getReason())
@@ -390,7 +396,8 @@ public class SalesBrowseService {
     private Long resolveRestrictUserId(Authentication auth) {
         if (permissionChecker.has(auth, "analytics.sales.read")
                 || permissionChecker.has(auth, "pos.report.read")
-                || permissionChecker.has(auth, "pos.sale.read")) {
+                || permissionChecker.has(auth, "pos.sale.read")
+                || permissionChecker.has(auth, "pos.return.read")) {
             return null;
         }
         if (permissionChecker.has(auth, "pos.sale.read_own")) {
@@ -429,6 +436,44 @@ public class SalesBrowseService {
 
     private String str(Object value) {
         return value != null ? String.valueOf(value) : "";
+    }
+
+    private String resolveRefundCustomerName(SaleRefund refund, Sale sale) {
+        if (refund.getCustomer() != null) {
+            return refund.getCustomer().fullName();
+        }
+        if (sale.getCustomer() != null) {
+            return sale.getCustomer().fullName();
+        }
+        return null;
+    }
+
+    private Instant bindDateFrom(SaleBrowseFilters filters) {
+        return filters.filterDateFrom() ? filters.dateFrom() : UNUSED_DATE_FROM;
+    }
+
+    private Instant bindDateTo(SaleBrowseFilters filters) {
+        return filters.filterDateTo() ? filters.dateTo() : UNUSED_DATE_TO;
+    }
+
+    private Long bindUserId(SaleBrowseFilters filters) {
+        return filters.filterUserId() ? filters.userId() : UNUSED_ID;
+    }
+
+    private Instant bindReturnDateFrom(ReturnBrowseFilters filters) {
+        return filters.filterDateFrom() ? filters.dateFrom() : UNUSED_DATE_FROM;
+    }
+
+    private Instant bindReturnDateTo(ReturnBrowseFilters filters) {
+        return filters.filterDateTo() ? filters.dateTo() : UNUSED_DATE_TO;
+    }
+
+    private Long bindReturnUserId(ReturnBrowseFilters filters) {
+        return filters.filterUserId() ? filters.userId() : UNUSED_ID;
+    }
+
+    private Long bindSaleId(ReturnBrowseFilters filters) {
+        return filters.filterSaleId() ? filters.saleId() : UNUSED_ID;
     }
 
     private record RefundAggregate(int count, BigDecimal totalRefunded) {

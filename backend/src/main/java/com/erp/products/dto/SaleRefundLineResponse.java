@@ -13,6 +13,7 @@ public class SaleRefundLineResponse {
     private Long saleLineId;
     private Long productId;
     private String productNom;
+    private String variantNameSnapshot;
     private Long packagingId;
     private String packagingNameSnapshot;
     private BigDecimal quantity;

@@ -33,6 +33,7 @@ export interface SaleRefundSummary {
   refundNumber: string
   saleId: number
   saleNumber: string
+  customerName?: string
   status: RefundStatus
   totalAmount?: number
   reason?: string

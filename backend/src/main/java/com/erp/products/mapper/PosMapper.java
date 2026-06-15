@@ -172,6 +172,7 @@ public class PosMapper {
                 .refundNumber(refund.getRefundNumber())
                 .saleId(sale.getId())
                 .saleNumber(sale.getSaleNumber())
+                .customerName(resolveRefundCustomerName(refund, sale))
                 .status(refund.getStatus())
                 .refundStatus(refund.getRefundStatus())
                 .totalAmount(refund.getTotalAmount())
@@ -190,6 +191,7 @@ public class PosMapper {
                             .saleLineId(l.getSaleLine().getId())
                             .productId(p.getId())
                             .productNom(p.getNom())
+                            .variantNameSnapshot(l.getSaleLine().getVariantNameSnapshot())
                             .packagingId(l.getPackaging() != null ? l.getPackaging().getId() : null)
                             .packagingNameSnapshot(l.getPackagingNameSnapshot())
                             .quantity(l.getQuantity())
@@ -210,5 +212,15 @@ public class PosMapper {
                         .originalPaymentId(p.getOriginalPayment() != null ? p.getOriginalPayment().getId() : null)
                         .build()).collect(Collectors.toList()))
                 .build();
+    }
+
+    private String resolveRefundCustomerName(SaleRefund refund, Sale sale) {
+        if (refund.getCustomer() != null) {
+            return refund.getCustomer().fullName();
+        }
+        if (sale.getCustomer() != null) {
+            return sale.getCustomer().fullName();
+        }
+        return null;
     }
 }
