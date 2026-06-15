@@ -10,6 +10,7 @@ import com.erp.products.mapper.UserMapper;
 import com.erp.products.repository.RoleRepository;
 import com.erp.products.repository.UserRepository;
 import com.erp.products.security.CurrentUserService;
+import com.erp.products.license.LicenseService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -30,6 +31,7 @@ public class UserService {
     private final UserMapper userMapper;
     private final AuditService auditService;
     private final CurrentUserService currentUserService;
+    private final LicenseService licenseService;
 
     @Transactional(readOnly = true)
     public List<UserResponse> findAll() {
@@ -55,6 +57,7 @@ public class UserService {
         if (request.getPassword() == null || request.getPassword().isBlank()) {
             throw new BusinessException("Mot de passe obligatoire a la creation");
         }
+        licenseService.assertCanCreateUser();
 
         User user = User.builder()
                 .firstName(request.getFirstName().trim())

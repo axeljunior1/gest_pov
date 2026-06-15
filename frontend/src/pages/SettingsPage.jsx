@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { settingsApi } from '../api'
 import { useAuth } from '../context/AuthContext'
 import { PageHeader, Card, Button, Loading } from '../components/ui'
+import InstallationIdPanel from '../components/InstallationIdPanel'
 import { useNotification } from '../context/NotificationContext'
 import { getErrorMessage } from '../utils/errors'
 
@@ -111,6 +112,9 @@ export default function SettingsPage() {
       />
 
       <div className="space-y-6">
+        <Card className="p-6">
+          <InstallationIdPanel />
+        </Card>
         {GROUPS.map((group) => (
           <Card key={group.title} className="p-6">
             <h3 className="text-sm font-semibold text-gray-900 mb-4">{group.title}</h3>

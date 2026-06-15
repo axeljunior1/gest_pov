@@ -1,6 +1,7 @@
 package com.erp.products.config;
 
 import com.erp.products.security.JwtAuthenticationFilter;
+import com.erp.products.license.LicenseEnforcementFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -25,6 +26,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final LicenseEnforcementFilter licenseEnforcementFilter;
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -44,11 +46,13 @@ public class SecurityConfig {
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        .requestMatchers("/api/license/**").permitAll()
                         .requestMatchers("/api/auth/login").permitAll()
                         .requestMatchers("/api/settings/public").permitAll()
                         .requestMatchers("/uploads/**").permitAll()
                         .requestMatchers("/actuator/health/liveness", "/actuator/health/readiness").permitAll()
                         .anyRequest().authenticated())
+                .addFilterBefore(licenseEnforcementFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }
@@ -60,6 +64,7 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth.anyRequest().permitAll())
+                .addFilterBefore(licenseEnforcementFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }

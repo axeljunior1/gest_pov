@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { settingsApi } from '../api'
 import SectionSubNav from './SectionSubNav'
 import NotificationBell from './NotificationBell'
+import LicenseExpiryBanner from './LicenseExpiryBanner'
 import { filterVisibleGroups, isNavItemActive, navGroups } from '../config/navGroups'
 
 function NavItem({ item, pathname }) {
@@ -139,6 +140,7 @@ export default function Layout() {
           <div className="flex justify-end mb-4">
             <NotificationBell />
           </div>
+          <LicenseExpiryBanner />
           <SectionSubNav />
           <Outlet />
         </div>

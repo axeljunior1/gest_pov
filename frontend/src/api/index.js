@@ -5,6 +5,18 @@ export const authApi = {
   me: () => api.get('/auth/me').then(r => r.data),
 }
 
+export const licenseApi = {
+  status: () => api.get('/license/status').then(r => r.data),
+  installationId: () => api.get('/license/installation-id').then(r => r.data),
+  importFile: (file) => {
+    const form = new FormData()
+    form.append('file', file)
+    return api.post('/license/import', form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }).then(r => r.data)
+  },
+}
+
 export const productsApi = {
   search: (params) => api.get('/products', { params }).then(r => r.data),
   getById: (id) => api.get(`/products/${id}`).then(r => r.data),

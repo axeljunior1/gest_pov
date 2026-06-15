@@ -47,6 +47,9 @@ app:
     expiration-ms: 86400000
   admin:
     reset-token: dev-reset-token-change-me
+  license:
+    data-dir: ./gest-pov-data
+    enforcement-enabled: true
 
 management:
   endpoints:

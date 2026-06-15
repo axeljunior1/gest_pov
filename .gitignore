@@ -32,6 +32,13 @@ desktop.ini
 .env.*
 !.env.example
 
+# Données licence locale (installation + .lic client)
+gest-pov-data/
+
+# Générateur éditeur (clé privée jamais versionnée)
+gest-pov-licgen/keys/private_key.pem
+gest-pov-licgen/*.lic
+
 # Tests / couverture
 coverage/
 .nyc_output/

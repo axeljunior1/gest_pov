@@ -19,3 +19,6 @@ spring:
 app:
   upload:
     dir: target/test-uploads
+  license:
+    data-dir: target/test-gest-pov-data
+    enforcement-enabled: false

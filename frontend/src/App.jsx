@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
-import { NotificationProvider } from './context/NotificationContext'
+import { LicenseGate } from './pages/ActivationPage'
 import ProtectedRoute from './components/ProtectedRoute'
 import PermissionRoute from './components/PermissionRoute'
 import BackOfficeRoute from './components/BackOfficeRoute'
@@ -44,8 +44,8 @@ import PosReturnsPage from './pages/PosReturnsPage'
 
 export default function App() {
   return (
-    <AuthProvider>
-      <NotificationProvider>
+    <LicenseGate>
+      <AuthProvider>
         <BrowserRouter>
           <Routes>
             <Route path="/login" element={<LoginPage />} />
@@ -139,7 +139,7 @@ export default function App() {
             </Route>
           </Routes>
         </BrowserRouter>
-      </NotificationProvider>
-    </AuthProvider>
+      </AuthProvider>
+    </LicenseGate>
   )
 }
