@@ -1,0 +1,5 @@
+# Dossier des archives Docker livrées au client (rempli par export-images.sh)
+# Contenu attendu :
+#   monapp-backend-1.0.0.tar
+#   monapp-frontend-1.0.0.tar
+#   postgres.tar

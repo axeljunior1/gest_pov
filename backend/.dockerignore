@@ -1,0 +1,7 @@
+target/
+.idea/
+*.iml
+uploads/
+gest-pov-data/
+.git/
+.gitignore

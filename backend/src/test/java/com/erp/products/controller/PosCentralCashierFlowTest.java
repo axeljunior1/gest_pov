@@ -224,14 +224,9 @@ class PosCentralCashierFlowTest extends com.erp.products.AbstractIntegrationTest
     void insufficientStockIsRejectedAtPayment() throws Exception {
         openSalesSession(sellerToken);
         Long saleId = createDraftSale(sellerToken, 50);
-        sendToPayment(sellerToken, saleId);
-        openCashierSession(cashierToken);
-        double total = getSaleTotal(sellerToken, saleId);
 
-        mockMvc.perform(auth(cashierToken, post("/api/pos/sales/" + saleId + "/validate"))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(Map.of(
-                                "payments", List.of(Map.of("method", "CASH", "amount", total))))))
+        // Depuis le controle stock a l'envoi caisse : 50 demandes, 30 en stock
+        mockMvc.perform(auth(sellerToken, post("/api/pos/sales/" + saleId + "/send-to-payment")))
                 .andExpect(status().isBadRequest());
     }
 

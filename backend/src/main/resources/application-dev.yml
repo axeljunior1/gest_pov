@@ -7,6 +7,8 @@ spring:
 app:
   admin:
     reset-enabled: true
+  license:
+    enforcement-enabled: false
 
 springdoc:
   api-docs:

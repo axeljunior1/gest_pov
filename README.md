@@ -32,6 +32,34 @@ Branches : `main` (stable) · `feature/nom-feature` (travail en cours)
 .\dev.ps1     # Backend (profil dev) + frontend
 ```
 
+### JAR exécutable (production / livraison client)
+
+`dev.ps1` et `mvn spring-boot:run` **ne produisent pas** de fichier JAR — ils lancent l'app directement depuis les sources.
+
+Pour obtenir le JAR :
+
+```powershell
+.\build-backend.ps1
+```
+
+Fichier généré : `backend/target/gest-pov-backend.jar` (~80 Mo, Spring Boot « fat jar »).
+
+```powershell
+# Lancer le JAR (PostgreSQL doit tourner)
+$env:SPRING_PROFILES_ACTIVE = "prod"
+java -jar backend\target\gest-pov-backend.jar
+```
+
+Équivalent Maven manuel :
+
+```powershell
+cd backend
+mvn clean package -DskipTests
+# JAR -> target\gest-pov-backend.jar
+```
+
+> **Note :** `mvn install` sans `-DskipTests` exécute tous les tests ; si un test échoue, Maven s'arrête **avant** de créer le JAR.
+
 Comptes par défaut : `admin@erp.local` / `ErpAdmin2026!` · caissier : `caissier@erp.local` / `Caissier2026!`
 
 ## Base de données et migrations (Flyway)

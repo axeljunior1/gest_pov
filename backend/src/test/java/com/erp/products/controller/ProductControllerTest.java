@@ -293,9 +293,9 @@ class ProductControllerTest extends AbstractIntegrationTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.sku").value(containsString("RUNNING-PRO")))
-                .andExpect(jsonPath("$.variantes[0].sku").value(containsString("BK-M")))
+                .andExpect(jsonPath("$.variantes[0].sku").value(containsString("NOIR-M")))
                 .andExpect(jsonPath("$.variantes[0].prix").value(99.99))
-                .andExpect(jsonPath("$.variantes[1].sku").value(containsString("RD-L")));
+                .andExpect(jsonPath("$.variantes[1].sku").value(containsString("ROUGE-L")));
     }
 
     private ProductRequest buildProductRequest() {

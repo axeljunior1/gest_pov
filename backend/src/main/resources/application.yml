@@ -7,9 +7,10 @@ spring:
     livereload:
       enabled: false
   datasource:
-    url: jdbc:postgresql://127.0.0.1:5432/erp_products
-    username: erp_user
-    password: ErpProd2026!
+    # Variables d'environnement pour Docker ; valeurs par défaut = dev local (IDE / dev.ps1)
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://127.0.0.1:5432/erp_products}
+    username: ${SPRING_DATASOURCE_USERNAME:erp_user}
+    password: ${SPRING_DATASOURCE_PASSWORD:ErpProd2026!}
     driver-class-name: org.postgresql.Driver
     hikari:
       connection-timeout: 10000

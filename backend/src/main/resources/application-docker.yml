@@ -1,0 +1,13 @@
+# Profil Docker (docker compose) — chemins persistants dans le conteneur
+spring:
+  config:
+    activate:
+      on-profile: docker
+
+app:
+  upload:
+    dir: /app/uploads
+  license:
+    data-dir: /app/gest-pov-data
+  jwt:
+    secret: ${APP_JWT_SECRET:erp-docker-change-me-min-256-bits-long-key!!}

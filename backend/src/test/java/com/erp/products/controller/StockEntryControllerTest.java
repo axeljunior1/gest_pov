@@ -144,13 +144,41 @@ class StockEntryControllerTest extends com.erp.products.AbstractIntegrationTest 
 
     @Test
     void shouldSyncProductStockTotalWhenEntryHasNoVariantId() throws Exception {
+        // Produit sans variante : seul cas où variantId peut être omis
+        String simpleSku = "ENT-SIMPLE-" + UUID.randomUUID().toString().substring(0, 8);
+        MvcResult unitList = mockMvc.perform(get("/api/units")).andReturn();
+        JsonNode units = objectMapper.readTree(unitList.getResponse().getContentAsString());
+        Long unitId = units.get(units.size() - 1).get("id").asLong();
+
+        MvcResult catResult = mockMvc.perform(post("/api/categories")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("nom", "Simple Cat"))))
+                .andExpect(status().isCreated())
+                .andReturn();
+        Long categoryId = objectMapper.readTree(catResult.getResponse().getContentAsString()).get("id").asLong();
+
+        MvcResult simpleProductResult = mockMvc.perform(post("/api/products")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "nom", "Produit simple stock",
+                                "sku", simpleSku,
+                                "categorieId", categoryId,
+                                "unitId", unitId,
+                                "prixVente", 10,
+                                "statut", "ACTIF",
+                                "cycleVie", "ACTIF"
+                        ))))
+                .andExpect(status().isCreated())
+                .andReturn();
+        Long simpleProductId = objectMapper.readTree(simpleProductResult.getResponse().getContentAsString()).get("id").asLong();
+
         MvcResult createResult = mockMvc.perform(post("/api/stock/entries")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
                                 "warehouseId", warehouseId,
                                 "locationId", locationId,
                                 "lignes", List.of(Map.of(
-                                        "productId", productId,
+                                        "productId", simpleProductId,
                                         "quantityInput", 25
                                 ))
                         ))))
@@ -164,7 +192,7 @@ class StockEntryControllerTest extends com.erp.products.AbstractIntegrationTest 
                         .content("{}"))
                 .andExpect(status().isOk());
 
-        mockMvc.perform(get("/api/products/" + productId))
+        mockMvc.perform(get("/api/products/" + simpleProductId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.stockTotal", is(25)));
     }

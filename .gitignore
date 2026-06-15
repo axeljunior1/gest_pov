@@ -32,12 +32,20 @@ desktop.ini
 .env.*
 !.env.example
 
+# Archives Docker livraison client
+images/*.tar
+
 # Données licence locale (installation + .lic client)
 gest-pov-data/
 
 # Générateur éditeur (clé privée jamais versionnée)
 gest-pov-licgen/keys/private_key.pem
 gest-pov-licgen/*.lic
+
+# Ancien générateur local (licen/) — clés et deps
+licen/private_key.pem
+licen/node_modules/
+licen/*.lic
 
 # Tests / couverture
 coverage/
