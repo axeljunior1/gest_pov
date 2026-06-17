@@ -8,9 +8,9 @@ spring:
       enabled: false
   datasource:
     # Variables d'environnement pour Docker ; valeurs par défaut = dev local (IDE / dev.ps1)
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://127.0.0.1:5432/erp_products}
-    username: ${SPRING_DATASOURCE_USERNAME:erp_user}
-    password: ${SPRING_DATASOURCE_PASSWORD:ErpProd2026!}
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://127.0.0.1:5432/monapp}
+    username: ${SPRING_DATASOURCE_USERNAME:monapp}
+    password: ${SPRING_DATASOURCE_PASSWORD:monapp}
     driver-class-name: org.postgresql.Driver
     hikari:
       connection-timeout: 10000

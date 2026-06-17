@@ -1,59 +1,38 @@
-# =============================================================================
-# Gest_POV — stack complète (PostgreSQL + backend + frontend)
-# Usage client : ./install.sh puis ./start.sh
-# Usage éditeur : ./build-images.sh
-# =============================================================================
-
 services:
-  db:
+  postgres:
     image: postgres:16-alpine
-    container_name: ges-pov-db
+    container_name: monapp-postgres1
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: monapp
+      POSTGRES_USER: monapp
+      POSTGRES_PASSWORD: monapp
     volumes:
-      - ges-pov_pgdata:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
-      interval: 5s
-      timeout: 5s
-      retries: 12
-      start_period: 15s
+      - postgres_data1:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
 
   backend:
-    image: ges-pov-backend:1.0.0
-    container_name: ges-pov-backend
+    image: axelmengue1/monapp-backend:1.0.0
+    container_name: monapp-backend1
     restart: unless-stopped
     depends_on:
-      db:
-        condition: service_healthy
+      - postgres
     environment:
-      SPRING_PROFILES_ACTIVE: docker
-      SPRING_DATASOURCE_URL: ${SPRING_DATASOURCE_URL}
-      SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME}
-      SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD}
-      APP_JWT_SECRET: ${APP_JWT_SECRET:-erp-docker-change-me-min-256-bits-long-key!!}
-    volumes:
-      - ges-pov_uploads:/app/uploads
-      - ges-pov_license:/app/gest-pov-data
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/monapp
+      SPRING_DATASOURCE_USERNAME: monapp
+      SPRING_DATASOURCE_PASSWORD: monapp
     ports:
-      - "${BACKEND_PORT:-8080}:8080"
+      - "8080:8080"
 
   frontend:
-    image: ges-pov-frontend:1.0.0
-    container_name: ges-pov-frontend
+    image: axelmengue1/monapp-frontend:1.0.0
+    container_name: monapp-frontend1
     restart: unless-stopped
     depends_on:
       - backend
     ports:
-      - "${FRONTEND_PORT:-80}:80"
+      - "80:80"
 
 volumes:
-  ges-pov_pgdata:
-    name: ges-pov_pgdata
-  ges-pov_uploads:
-    name: ges-pov_uploads
-  ges-pov_license:
-    name: ges-pov_license
+  postgres_data1:
