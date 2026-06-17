@@ -86,14 +86,35 @@ public class SettingsService {
 
     @Transactional(readOnly = true)
     public PublicSettingsResponse getPublicSettings() {
+        String logoPath = getSetting(SettingKeys.COMPANY_LOGO);
         return PublicSettingsResponse.builder()
                 .companyName(getSetting(SettingKeys.COMPANY_NAME))
-                .companyLogo(getSetting(SettingKeys.COMPANY_LOGO))
+                .companyLogo(logoPath)
+                .companyLogoUrl(resolveLogoUrl(logoPath))
+                .companyAddress(getSetting(SettingKeys.COMPANY_ADDRESS))
+                .companyCity(getSetting(SettingKeys.COMPANY_CITY))
+                .companyCountry(getSetting(SettingKeys.COMPANY_COUNTRY))
+                .companyPhone(getSetting(SettingKeys.COMPANY_PHONE))
+                .companyEmail(getSetting(SettingKeys.COMPANY_EMAIL))
+                .companyTaxId(getSetting(SettingKeys.COMPANY_TAX_ID))
                 .currency(getSetting(SettingKeys.APP_CURRENCY))
                 .language(getSetting(SettingKeys.APP_LANGUAGE))
                 .timezone(getSetting(SettingKeys.APP_TIMEZONE))
                 .dateFormat(getSetting(SettingKeys.APP_DATE_FORMAT))
+                .taxName(getSetting(SettingKeys.TAX_NAME))
+                .taxEnabled(getBoolean(SettingKeys.TAX_ENABLED))
+                .pricesIncludeTax(getBoolean(SettingKeys.TAX_PRICES_INCLUDE_TAX))
                 .build();
+    }
+
+    public String resolveLogoUrl(String logoPath) {
+        if (logoPath == null || logoPath.isBlank()) {
+            return null;
+        }
+        if (logoPath.startsWith("http://") || logoPath.startsWith("https://")) {
+            return logoPath;
+        }
+        return "/uploads/" + logoPath.replace('\\', '/');
     }
 
     @Transactional(readOnly = true)
@@ -113,6 +134,8 @@ public class SettingsService {
                 .allowNegativeStock(getBoolean(SettingKeys.STOCK_ALLOW_NEGATIVE))
                 .lowStockThresholdDefault(getDecimal(SettingKeys.STOCK_LOW_THRESHOLD))
                 .valuationMethod(parseStockValuationMethod(getSetting(SettingKeys.STOCK_VALUATION_METHOD)))
+                .lowStockAlertsEnabled(getBoolean(SettingKeys.STOCK_LOW_ALERTS_ENABLED))
+                .multiWarehouseEnabled(getBoolean(SettingKeys.STOCK_MULTI_WAREHOUSE_ENABLED))
                 .build();
     }
 
@@ -325,6 +348,12 @@ public class SettingsService {
         Map<String, DefaultSetting> map = new LinkedHashMap<>();
         map.put(SettingKeys.COMPANY_NAME, def("ERP Produits", AppSettingType.STRING, "Nom de l'entreprise", true));
         map.put(SettingKeys.COMPANY_LOGO, def("", AppSettingType.STRING, "URL ou chemin du logo", true));
+        map.put(SettingKeys.COMPANY_ADDRESS, def("", AppSettingType.STRING, "Adresse de l'entreprise", true));
+        map.put(SettingKeys.COMPANY_CITY, def("", AppSettingType.STRING, "Ville", true));
+        map.put(SettingKeys.COMPANY_COUNTRY, def("", AppSettingType.STRING, "Pays", true));
+        map.put(SettingKeys.COMPANY_PHONE, def("", AppSettingType.STRING, "Telephone", true));
+        map.put(SettingKeys.COMPANY_EMAIL, def("", AppSettingType.STRING, "Email", true));
+        map.put(SettingKeys.COMPANY_TAX_ID, def("", AppSettingType.STRING, "Numero fiscal / RCCM / NIF", true));
         map.put(SettingKeys.APP_CURRENCY, def("EUR", AppSettingType.STRING, "Devise par defaut", true));
         map.put(SettingKeys.APP_LANGUAGE, def("fr", AppSettingType.STRING, "Langue par defaut", true));
         map.put(SettingKeys.APP_TIMEZONE, def("Europe/Paris", AppSettingType.STRING, "Fuseau horaire", true));
@@ -333,6 +362,8 @@ public class SettingsService {
         map.put(SettingKeys.STOCK_LOW_THRESHOLD, def("10", AppSettingType.NUMBER, "Seuil stock faible par defaut", false));
         map.put(SettingKeys.STOCK_VALUATION_METHOD, def("PURCHASE_COST", AppSettingType.STRING,
                 "Methode de valorisation du stock (PURCHASE_COST ou SALE_PRICE)", false));
+        map.put(SettingKeys.STOCK_LOW_ALERTS_ENABLED, def("true", AppSettingType.BOOLEAN, "Activer alertes stock faible", false));
+        map.put(SettingKeys.STOCK_MULTI_WAREHOUSE_ENABLED, def("true", AppSettingType.BOOLEAN, "Gestion multi-entrepot", false));
         map.put(SettingKeys.ALERT_EXPIRY_DAYS, def("30", AppSettingType.NUMBER, "Delai alerte peremption (jours)", false));
         map.put(SettingKeys.NUMBERING_ENTRY_PREFIX, def("SE", AppSettingType.STRING, "Prefixe numerotation entrees", false));
         map.put(SettingKeys.NUMBERING_EXIT_PREFIX, def("SX", AppSettingType.STRING, "Prefixe numerotation sorties", false));
@@ -340,6 +371,13 @@ public class SettingsService {
         map.put(SettingKeys.NUMBERING_MOVEMENT_PREFIX, def("MV", AppSettingType.STRING, "Prefixe numerotation mouvements", false));
         map.put(SettingKeys.NUMBERING_SALE_PREFIX, def("TK", AppSettingType.STRING, "Prefixe numerotation ventes POS", false));
         map.put(SettingKeys.POS_REGISTER_NAME, def("Caisse 1", AppSettingType.STRING, "Nom de la caisse POS", true));
+        map.put(SettingKeys.POS_TICKET_FORMAT, def("SIMPLE", AppSettingType.STRING, "Format ticket (SIMPLE ou DETAILED)", true));
+        map.put(SettingKeys.POS_TICKET_FOOTER, def("Merci de votre visite !", AppSettingType.STRING, "Message pied de ticket", true));
+        map.put(SettingKeys.POS_TICKET_SHOW_LOGO, def("true", AppSettingType.BOOLEAN, "Afficher le logo sur le ticket", true));
+        map.put(SettingKeys.POS_AUTO_PRINT_AFTER_SALE, def("false", AppSettingType.BOOLEAN, "Impression auto apres vente", false));
+        map.put(SettingKeys.POS_CHANGE_GIVING_ENABLED, def("true", AppSettingType.BOOLEAN, "Activer le rendu monnaie", false));
+        map.put(SettingKeys.POS_PAYMENT_METHODS_ENABLED, def(ClientConfigurationService.DEFAULT_PAYMENT_METHODS_JSON,
+                AppSettingType.JSON, "Moyens de paiement actives (JSON)", false));
         map.put(SettingKeys.POS_TAX_RATE_DEFAULT, def("0", AppSettingType.NUMBER, "Taux TVA par defaut (%)", false));
         map.put(SettingKeys.POS_DEFAULT_WAREHOUSE_CODE, def("WH-MAIN", AppSettingType.STRING, "Code entrepot POS par defaut", false));
         map.put(SettingKeys.POS_SALES_FLOW_MODE, def("CENTRAL_CASHIER", AppSettingType.STRING,
@@ -376,6 +414,10 @@ public class SettingsService {
         map.put(SettingKeys.LOYALTY_EARN_ON_TAX_INCLUDED, def("false", AppSettingType.BOOLEAN, "Calcul points TTC", false));
         map.put(SettingKeys.LOYALTY_ALLOW_REDEMPTION, def("true", AppSettingType.BOOLEAN, "Autoriser utilisation points", false));
         map.put(SettingKeys.LOYALTY_TIERS_CONFIG, def(DEFAULT_LOYALTY_TIERS, AppSettingType.JSON, "Niveaux fidelite (JSON)", false));
+        map.put(SettingKeys.TAX_ENABLED, def("false", AppSettingType.BOOLEAN, "Activer les taxes", false));
+        map.put(SettingKeys.TAX_NAME, def("TVA", AppSettingType.STRING, "Nom de la taxe", true));
+        map.put(SettingKeys.TAX_PRICES_INCLUDE_TAX, def("true", AppSettingType.BOOLEAN, "Prix affiches TTC", true));
+        map.put(SettingKeys.TAX_AUTO_APPLY_ON_SALES, def("true", AppSettingType.BOOLEAN, "Appliquer la taxe automatiquement", false));
         return map;
     }
 

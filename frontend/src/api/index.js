@@ -367,6 +367,15 @@ export const settingsApi = {
   getPublic: () => api.get('/settings/public').then(r => r.data),
   getReferenceValues: () => api.get('/settings/reference-values').then(r => r.data),
   getAll: () => api.get('/settings').then(r => r.data),
+  getClientConfig: () => api.get('/settings/client-config').then(r => r.data),
+  updateClientConfig: (data) => api.put('/settings/client-config', data).then(r => r.data),
+  uploadCompanyLogo: (file) => {
+    const form = new FormData()
+    form.append('file', file)
+    return api.post('/settings/company/logo', form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }).then(r => r.data)
+  },
   update: (key, value) =>
     api.put(`/settings/${encodeURIComponent(key)}`, { value }).then(r => r.data),
   updateBulk: (settings) =>

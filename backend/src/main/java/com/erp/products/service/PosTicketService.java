@@ -35,10 +35,18 @@ public class PosTicketService {
         }
 
         var publicSettings = settingsService.getPublicSettings();
+        String taxLabel = publicSettings.isTaxEnabled() ? publicSettings.getTaxName() : null;
+        boolean showLogo = settingsService.getBoolean(com.erp.products.settings.SettingKeys.POS_TICKET_SHOW_LOGO);
         return TicketResponse.builder()
                 .ticketNumber(sale.getSaleNumber())
                 .saleDate(sale.getPaidAt() != null ? sale.getPaidAt() : sale.getValidatedAt())
                 .companyName(publicSettings.getCompanyName())
+                .companyLogoUrl(showLogo ? publicSettings.getCompanyLogoUrl() : null)
+                .companyAddress(publicSettings.getCompanyAddress())
+                .companyPhone(publicSettings.getCompanyPhone())
+                .ticketFooter(settingsService.getSetting(com.erp.products.settings.SettingKeys.POS_TICKET_FOOTER))
+                .taxName(taxLabel)
+                .pricesIncludeTax(publicSettings.isPricesIncludeTax())
                 .registerName(settingsService.getSetting(com.erp.products.settings.SettingKeys.POS_REGISTER_NAME))
                 .cashierName(sale.getCashier().fullName())
                 .lines(sale.getLignes().stream().map(l -> TicketResponse.TicketLine.builder()

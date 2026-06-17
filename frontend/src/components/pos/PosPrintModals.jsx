@@ -1,11 +1,24 @@
+import { useEffect } from 'react'
 import { formatPosMoney } from '../../utils/posMoney'
 
-export function PosTicketModal({ ticket, onClose }) {
+export function PosTicketModal({ ticket, onClose, autoPrint = false }) {
+  useEffect(() => {
+    if (!autoPrint || !ticket) return undefined
+    const timer = setTimeout(() => window.print(), 250)
+    return () => clearTimeout(timer)
+  }, [autoPrint, ticket])
+
   if (!ticket) return null
+  const totalLabel = ticket.pricesIncludeTax ? 'TOTAL TTC' : 'TOTAL HT'
   return (
     <div className="pos-print-overlay fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
       <div className="pos-print-root pos-print-ticket pos-light-panel rounded-xl w-full max-w-sm p-6 font-mono text-sm">
+        {ticket.companyLogoUrl && (
+          <img src={ticket.companyLogoUrl} alt="Logo" className="h-10 mx-auto mb-2 object-contain" />
+        )}
         <p className="font-bold text-center">{ticket.companyName}</p>
+        {ticket.companyAddress && <p className="text-center text-xs text-gray-500">{ticket.companyAddress}</p>}
+        {ticket.companyPhone && <p className="text-center text-xs text-gray-500">{ticket.companyPhone}</p>}
         <p className="text-center text-xs text-gray-500">{ticket.registerName}</p>
         <p className="text-center text-xs mb-1">Ticket {ticket.ticketNumber}</p>
         {ticket.saleDate && (
@@ -24,12 +37,21 @@ export function PosTicketModal({ ticket, onClose }) {
           </div>
         ))}
         <hr className="my-2 border-dashed" />
+        {Number(ticket.taxTotal) > 0 && (
+          <div className="flex justify-between text-xs text-gray-600">
+            <span>{ticket.taxName || 'TVA'}</span>
+            <span>{formatPosMoney(ticket.taxTotal, ticket.currency)}</span>
+          </div>
+        )}
         <div className="flex justify-between font-bold">
-          <span>TOTAL</span>
+          <span>{totalLabel}</span>
           <span>{Number(ticket.total).toFixed(2)} {ticket.currency}</span>
         </div>
         {ticket.changeAmount > 0 && (
           <p className="text-xs mt-1">Monnaie : {Number(ticket.changeAmount).toFixed(2)}</p>
+        )}
+        {ticket.ticketFooter && (
+          <p className="text-center text-xs text-gray-500 mt-3 whitespace-pre-wrap">{ticket.ticketFooter}</p>
         )}
         <div className="pos-print-actions flex gap-2 mt-4">
           <button type="button" onClick={() => window.print()} className="flex-1 py-2 bg-gray-900 text-white rounded-lg text-xs">

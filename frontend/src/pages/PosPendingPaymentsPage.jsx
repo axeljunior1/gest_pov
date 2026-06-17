@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { posApi } from '../api'
 import { useAuth } from '../context/AuthContext'
@@ -16,18 +16,29 @@ import ModalOverlay from '../components/ui/ModalOverlay'
 import { PosSessionChip, PosSessionTypeBadge, PosWrongSessionPanel } from '../components/pos/PosWorkspaceNav'
 import { PosTicketModal } from '../components/pos/PosPrintModals'
 
-function PaymentModal({ sale, currency, onClose, onPaid, onRecallToDraft }) {
-  const [payments, setPayments] = useState([{ method: 'CASH', amount: sale?.total || 0 }])
+function PaymentModal({ sale, currency, paymentMethods, changeGivingEnabled, onClose, onPaid, onRecallToDraft }) {
+  const enabledMethods = useMemo(
+    () => (paymentMethods || []).filter((m) => m.enabled),
+    [paymentMethods],
+  )
+  const defaultMethod = enabledMethods[0]?.code || 'CASH'
+  const [payments, setPayments] = useState([{ method: defaultMethod, amount: sale?.total || 0 }])
   const [cashReceived, setCashReceived] = useState('')
   const [loading, setLoading] = useState(false)
   const [recalling, setRecalling] = useState(false)
   const notify = useNotification()
 
+  useEffect(() => {
+    setPayments([{ method: defaultMethod, amount: sale?.total || 0 }])
+  }, [sale?.id, sale?.total, defaultMethod])
+
   const total = Number(sale?.total || 0)
   const paid = payments.reduce((s, p) => s + Number(p.amount || 0), 0)
-  const change = payments.some((p) => p.method === 'CASH') && cashReceived
+  const change = changeGivingEnabled && payments.some((p) => p.method === 'CASH') && cashReceived
     ? Math.max(0, Number(cashReceived) - total)
-    : Math.max(0, paid - total)
+    : changeGivingEnabled
+      ? Math.max(0, paid - total)
+      : 0
 
   const submit = async () => {
     setLoading(true)
@@ -72,11 +83,9 @@ function PaymentModal({ sale, currency, onClose, onPaid, onRecallToDraft }) {
                 setPayments(next)
               }}
             >
-              <option value="CASH">Espèces</option>
-              <option value="CARD">Carte</option>
-              <option value="MOBILE_MONEY">Mobile money</option>
-              <option value="BANK_TRANSFER">Virement</option>
-              <option value="OTHER">Autre</option>
+              {enabledMethods.map((m) => (
+                <option key={m.code} value={m.code}>{m.label}</option>
+              ))}
             </select>
             <input
               type="number"
@@ -90,19 +99,21 @@ function PaymentModal({ sale, currency, onClose, onPaid, onRecallToDraft }) {
             />
           </div>
         ))}
-        <div className="mb-4">
-          <label className="text-xs text-slate-400 block mb-1">Montant reçu (espèces)</label>
-          <input
-            type="number"
-            className="w-full rounded-lg px-3 py-2 border border-slate-600 bg-slate-800"
-            value={cashReceived}
-            onChange={(e) => setCashReceived(e.target.value)}
-            placeholder="Optionnel"
-          />
-          {change > 0 && (
-            <p className="text-emerald-400 text-sm mt-2">Monnaie à rendre : {formatPosMoney(change, currency)}</p>
-          )}
-        </div>
+        {changeGivingEnabled && (
+          <div className="mb-4">
+            <label className="text-xs text-slate-400 block mb-1">Montant reçu (espèces)</label>
+            <input
+              type="number"
+              className="w-full rounded-lg px-3 py-2 border border-slate-600 bg-slate-800"
+              value={cashReceived}
+              onChange={(e) => setCashReceived(e.target.value)}
+              placeholder="Optionnel"
+            />
+            {change > 0 && (
+              <p className="text-emerald-400 text-sm mt-2">Monnaie à rendre : {formatPosMoney(change, currency)}</p>
+            )}
+          </div>
+        )}
         <div className="flex flex-wrap gap-2 justify-between">
           <div className="flex gap-2">
             <button type="button" onClick={onClose} className="px-4 py-2 rounded-lg bg-slate-700 text-sm">Fermer</button>
@@ -123,10 +134,6 @@ function PaymentModal({ sale, currency, onClose, onPaid, onRecallToDraft }) {
   )
 }
 
-function TicketModal({ ticket, onClose }) {
-  return <PosTicketModal ticket={ticket} onClose={onClose} />
-}
-
 export default function PosPendingPaymentsPage() {
   const { user, hasPermission } = useAuth()
   const notify = useNotification()
@@ -140,10 +147,15 @@ export default function PosPendingPaymentsPage() {
   const [selected, setSelected] = useState(null)
   const [detail, setDetail] = useState(null)
   const [ticket, setTicket] = useState(null)
+  const [autoPrintTicket, setAutoPrintTicket] = useState(false)
   const [cancelTarget, setCancelTarget] = useState(null)
   const [cancelling, setCancelling] = useState(false)
 
   const currency = context?.publicSettings?.currency || 'EUR'
+  const clientConfig = context?.clientConfig
+  const paymentMethods = clientConfig?.pos?.paymentMethods
+  const changeGivingEnabled = clientConfig?.pos?.changeGivingEnabled !== false
+  const autoPrintAfterSale = !!clientConfig?.pos?.autoPrintAfterSale
   const isCentralCashier = context?.posConfig?.salesFlowMode === 'CENTRAL_CASHIER'
     || context?.posConfig?.cashHandlingMode === 'CENTRAL_CASHIER'
   const cashierOnly = isCashierOnlyUser(user)
@@ -249,6 +261,7 @@ export default function PosPendingPaymentsPage() {
     setSelected(null)
     try {
       const t = await posApi.ticket(validatedSale.id)
+      setAutoPrintTicket(autoPrintAfterSale)
       setTicket(t)
     } catch { /* optional */ }
     notify.success(`Vente ${validatedSale.saleNumber} encaissée`)
@@ -452,12 +465,20 @@ export default function PosPendingPaymentsPage() {
         <PaymentModal
           sale={selected}
           currency={currency}
+          paymentMethods={paymentMethods}
+          changeGivingEnabled={changeGivingEnabled}
           onClose={() => setSelected(null)}
           onPaid={onPaid}
           onRecallToDraft={recallToDraft}
         />
       )}
-      {ticket && <TicketModal ticket={ticket} onClose={() => setTicket(null)} />}
+      {ticket && (
+        <PosTicketModal
+          ticket={ticket}
+          autoPrint={autoPrintTicket}
+          onClose={() => { setTicket(null); setAutoPrintTicket(false) }}
+        />
+      )}
       {showOpenModal && (
         <CashSessionOpenModal
           currency={currency}

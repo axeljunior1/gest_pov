@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import POSCustomerPanel from '../components/POSCustomerPanel'
 import { posApi } from '../api'
@@ -30,17 +30,28 @@ function flatCategories(nodes, depth = 0) {
   ])
 }
 
-function PaymentModal({ sale, currency, onClose, onPaid }) {
-  const [payments, setPayments] = useState([{ method: 'CASH', amount: sale?.total || 0 }])
+function PaymentModal({ sale, currency, paymentMethods, changeGivingEnabled, onClose, onPaid }) {
+  const enabledMethods = useMemo(
+    () => (paymentMethods || []).filter((m) => m.enabled),
+    [paymentMethods],
+  )
+  const defaultMethod = enabledMethods[0]?.code || 'CASH'
+  const [payments, setPayments] = useState([{ method: defaultMethod, amount: sale?.total || 0 }])
   const [cashReceived, setCashReceived] = useState('')
   const [loading, setLoading] = useState(false)
   const notify = useNotification()
 
+  useEffect(() => {
+    setPayments([{ method: defaultMethod, amount: sale?.total || 0 }])
+  }, [sale?.id, sale?.total, defaultMethod])
+
   const total = Number(sale?.total || 0)
   const paid = payments.reduce((s, p) => s + Number(p.amount || 0), 0)
-  const change = payments.some((p) => p.method === 'CASH') && cashReceived
+  const change = changeGivingEnabled && payments.some((p) => p.method === 'CASH') && cashReceived
     ? Math.max(0, Number(cashReceived) - total)
-    : Math.max(0, paid - total)
+    : changeGivingEnabled
+      ? Math.max(0, paid - total)
+      : 0
 
   const submit = async () => {
     setLoading(true)
@@ -72,11 +83,9 @@ function PaymentModal({ sale, currency, onClose, onPaid }) {
                 setPayments(next)
               }}
             >
-              <option value="CASH">Espèces</option>
-              <option value="CARD">Carte</option>
-              <option value="MOBILE_MONEY">Mobile money</option>
-              <option value="BANK_TRANSFER">Virement</option>
-              <option value="OTHER">Autre</option>
+              {enabledMethods.map((m) => (
+                <option key={m.code} value={m.code}>{m.label}</option>
+              ))}
             </select>
             <input
               type="number"
@@ -93,23 +102,25 @@ function PaymentModal({ sale, currency, onClose, onPaid }) {
         <button
           type="button"
           className="text-xs text-slate-400 mb-4 hover:text-white"
-          onClick={() => setPayments([...payments, { method: 'CARD', amount: 0 }])}
+          onClick={() => setPayments([...payments, { method: defaultMethod, amount: 0 }])}
         >
           + Mode de paiement
         </button>
-        <div className="mb-4">
-          <label className="text-xs text-slate-400 block mb-1">Montant reçu (espèces)</label>
-          <input
-            type="number"
-            className="w-full rounded-lg px-3 py-2 border border-slate-600"
-            value={cashReceived}
-            onChange={(e) => setCashReceived(e.target.value)}
-            placeholder="Optionnel"
-          />
-          {change > 0 && (
-            <p className="text-emerald-400 text-sm mt-2">Monnaie à rendre : {formatPosMoney(change, currency)}</p>
-          )}
-        </div>
+        {changeGivingEnabled && (
+          <div className="mb-4">
+            <label className="text-xs text-slate-400 block mb-1">Montant reçu (espèces)</label>
+            <input
+              type="number"
+              className="w-full rounded-lg px-3 py-2 border border-slate-600"
+              value={cashReceived}
+              onChange={(e) => setCashReceived(e.target.value)}
+              placeholder="Optionnel"
+            />
+            {change > 0 && (
+              <p className="text-emerald-400 text-sm mt-2">Monnaie à rendre : {formatPosMoney(change, currency)}</p>
+            )}
+          </div>
+        )}
         <div className="flex gap-2 justify-end">
           <button type="button" onClick={onClose} className="px-4 py-2 rounded-lg bg-slate-700 text-sm">Retour à la saisie (Esc)</button>
           <button type="button" disabled={loading || paid < total} onClick={submit}
@@ -242,6 +253,7 @@ export default function POSPage() {
   const [showResumeModal, setShowResumeModal] = useState(false)
   const [showPayment, setShowPayment] = useState(false)
   const [ticket, setTicket] = useState(null)
+  const [autoPrintTicket, setAutoPrintTicket] = useState(false)
   const [clock, setClock] = useState(new Date())
   const [online] = useState(true)
   const [openingSession, setOpeningSession] = useState(false)
@@ -252,6 +264,10 @@ export default function POSPage() {
   const [variantPicker, setVariantPicker] = useState(null)
 
   const currency = context?.publicSettings?.currency || 'EUR'
+  const clientConfig = context?.clientConfig
+  const paymentMethods = clientConfig?.pos?.paymentMethods
+  const changeGivingEnabled = clientConfig?.pos?.changeGivingEnabled !== false
+  const autoPrintAfterSale = !!clientConfig?.pos?.autoPrintAfterSale
   const warehouseId = session?.warehouseId
   const posConfig = context?.posConfig
   const salesFlowMode = posConfig?.salesFlowMode
@@ -834,6 +850,7 @@ export default function POSPage() {
     setSale(null)
     try {
       const t = await posApi.ticket(validatedSale.id)
+      setAutoPrintTicket(autoPrintAfterSale)
       setTicket(t)
     } catch { /* ticket optional */ }
     notify.success(`Vente ${validatedSale.saleNumber} validée`)
@@ -1239,7 +1256,14 @@ export default function POSPage() {
       />
 
       {showPayment && sale && (
-        <PaymentModal sale={sale} currency={currency} onClose={() => setShowPayment(false)} onPaid={onPaid} />
+        <PaymentModal
+          sale={sale}
+          currency={currency}
+          paymentMethods={paymentMethods}
+          changeGivingEnabled={changeGivingEnabled}
+          onClose={() => setShowPayment(false)}
+          onPaid={onPaid}
+        />
       )}
       {variantPicker && (
         <VariantPickerModal
@@ -1270,7 +1294,13 @@ export default function POSPage() {
           }}
         />
       )}
-      {ticket && <PosTicketModal ticket={ticket} onClose={() => setTicket(null)} />}
+      {ticket && (
+        <PosTicketModal
+          ticket={ticket}
+          autoPrint={autoPrintTicket}
+          onClose={() => { setTicket(null); setAutoPrintTicket(false) }}
+        />
+      )}
       {showOpenModal && (
         <CashSessionOpenModal
           currency={currency}

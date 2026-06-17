@@ -4,9 +4,13 @@ import com.erp.products.dto.*;
 import com.erp.products.security.CurrentUserService;
 import com.erp.products.service.ReferenceValueService;
 import com.erp.products.service.SettingsService;
+import com.erp.products.service.ClientConfigurationService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.Map;
@@ -17,6 +21,7 @@ import java.util.Map;
 public class SettingsController {
 
     private final SettingsService settingsService;
+    private final ClientConfigurationService clientConfigurationService;
     private final ReferenceValueService referenceValueService;
     private final CurrentUserService currentUserService;
 
@@ -84,5 +89,24 @@ public class SettingsController {
     @PreAuthorize("@permissionChecker.hasAny(authentication, 'settings.read', 'loyalty.read', 'loyalty.settings.update')")
     public LoyaltyConfigResponse loyaltyConfig() {
         return settingsService.getLoyaltyConfig();
+    }
+
+    @GetMapping("/client-config")
+    @PreAuthorize("@permissionChecker.has(authentication, 'settings.read')")
+    public ClientConfigurationResponse clientConfig() {
+        return clientConfigurationService.getClientConfiguration();
+    }
+
+    @PutMapping("/client-config")
+    @PreAuthorize("@permissionChecker.has(authentication, 'settings.update')")
+    public ClientConfigurationResponse updateClientConfig(@Valid @RequestBody ClientConfigurationUpdateRequest request) {
+        return clientConfigurationService.updateClientConfiguration(
+                request, currentUserService.getCurrentUserEmailOrDefault());
+    }
+
+    @PostMapping(value = "/company/logo", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("@permissionChecker.has(authentication, 'settings.update')")
+    public ClientConfigurationResponse uploadCompanyLogo(@RequestParam("file") MultipartFile file) {
+        return clientConfigurationService.uploadCompanyLogo(file, currentUserService.getCurrentUserEmailOrDefault());
     }
 }

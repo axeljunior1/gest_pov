@@ -30,6 +30,7 @@ export default function Layout() {
   const { user, logout, hasPermission } = useAuth()
   const location = useLocation()
   const [companyName, setCompanyName] = useState('ERP Produits')
+  const [companyLogoUrl, setCompanyLogoUrl] = useState(null)
 
   const visibleGroups = useMemo(
     () => filterVisibleGroups(navGroups, hasPermission, { userRoles: user?.roles ?? [] }),
@@ -53,7 +54,10 @@ export default function Layout() {
 
   useEffect(() => {
     settingsApi.getPublic()
-      .then((s) => { if (s.companyName) setCompanyName(s.companyName) })
+      .then((s) => {
+        if (s.companyName) setCompanyName(s.companyName)
+        if (s.companyLogoUrl) setCompanyLogoUrl(s.companyLogoUrl)
+      })
       .catch(() => {})
   }, [])
 
@@ -73,8 +77,15 @@ export default function Layout() {
         style={{ width: 'var(--layout-sidebar-width)' }}
       >
         <div className="px-5 py-6 border-b border-gray-100 shrink-0 min-w-0">
-          <h1 className="text-lg font-semibold tracking-tight leading-snug truncate" title={companyName}>{companyName}</h1>
-          <p className="text-xs text-gray-500 mt-0.5">Gestion produits & stock</p>
+          <div className="flex items-center gap-3 min-w-0">
+            {companyLogoUrl && (
+              <img src={companyLogoUrl} alt="" className="h-9 w-9 object-contain shrink-0 rounded" />
+            )}
+            <div className="min-w-0">
+              <h1 className="text-lg font-semibold tracking-tight leading-snug truncate" title={companyName}>{companyName}</h1>
+              <p className="text-xs text-gray-500 mt-0.5">Gestion produits & stock</p>
+            </div>
+          </div>
         </div>
         <nav className="layout-sidebar-nav flex-1 p-3.5 space-y-3 min-h-0">
           {visibleGroups.map((group) => {

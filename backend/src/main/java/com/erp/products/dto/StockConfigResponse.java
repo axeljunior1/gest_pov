@@ -13,4 +13,6 @@ public class StockConfigResponse {
     private boolean allowNegativeStock;
     private BigDecimal lowStockThresholdDefault;
     private StockValuationMethod valuationMethod;
+    private boolean lowStockAlertsEnabled;
+    private boolean multiWarehouseEnabled;
 }

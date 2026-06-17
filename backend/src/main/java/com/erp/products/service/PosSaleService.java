@@ -55,6 +55,7 @@ public class PosSaleService {
     private final SaleCancellationService saleCancellationService;
     private final SaleEventService saleEventService;
     private final com.erp.products.service.stockvaluation.StockCmpValuationService cmpValuationService;
+    private final ClientConfigurationService clientConfigurationService;
 
     @Transactional
     public SaleResponse createSale() {
@@ -246,12 +247,7 @@ public class PosSaleService {
 
         BigDecimal qtyBase = resolveBaseQuantity(product, packaging, qtyInput);
         BigDecimal unitPrice = resolveLineUnitPrice(product, variant, packaging, request);
-        BigDecimal taxRate = request.getTaxRate() != null
-                ? request.getTaxRate()
-                : settingsService.getDecimal(com.erp.products.settings.SettingKeys.POS_TAX_RATE_DEFAULT);
-        if (taxRate == null) {
-            taxRate = BigDecimal.ZERO;
-        }
+        BigDecimal taxRate = clientConfigurationService.resolveSaleLineTaxRate(request.getTaxRate());
         BigDecimal discount = request.getDiscountAmount() != null
                 ? request.getDiscountAmount() : BigDecimal.ZERO;
 
@@ -501,10 +497,17 @@ public class PosSaleService {
             ensureSufficientStock(sale);
         }
 
+        for (SaleValidateRequest.PaymentInput input : inputs) {
+            if (input.getMethod() == null || !clientConfigurationService.isPaymentMethodEnabled(input.getMethod().name())) {
+                throw new BusinessException("Moyen de paiement non autorise: " + (input.getMethod() != null ? input.getMethod() : "?"));
+            }
+        }
+
         attachPayments(sale, paymentCollector, paymentSession, inputs);
 
         BigDecimal change;
-        if (request.getCashReceived() != null && request.getCashReceived().compareTo(BigDecimal.ZERO) > 0) {
+        if (settingsService.getBoolean(com.erp.products.settings.SettingKeys.POS_CHANGE_GIVING_ENABLED)
+                && request.getCashReceived() != null && request.getCashReceived().compareTo(BigDecimal.ZERO) > 0) {
             change = request.getCashReceived().subtract(total).max(BigDecimal.ZERO);
         } else {
             change = paid.subtract(total).max(BigDecimal.ZERO);

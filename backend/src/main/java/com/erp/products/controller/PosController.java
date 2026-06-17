@@ -23,6 +23,7 @@ public class PosController {
     private final PosRefundService refundService;
     private final SettingsService settingsService;
     private final PosConfigService posConfigService;
+    private final ClientConfigurationService clientConfigurationService;
     private final CustomerService customerService;
 
     @GetMapping("/context")
@@ -33,6 +34,7 @@ public class PosController {
         body.put("posConfig", posConfigService.getConfig());
         body.put("registerName", settingsService.getSetting(com.erp.products.settings.SettingKeys.POS_REGISTER_NAME));
         body.put("publicSettings", settingsService.getPublicSettings());
+        body.put("clientConfig", clientConfigurationService.getClientConfiguration());
         body.put("barcodeScanConfig", settingsService.getBarcodeScanConfig());
         body.put("loyaltyConfig", settingsService.getLoyaltyConfig());
         return body;

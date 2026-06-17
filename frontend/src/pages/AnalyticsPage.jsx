@@ -66,6 +66,7 @@ export default function AnalyticsPage() {
   const [period, setPeriod] = useState('THIS_MONTH')
   const [granularity, setGranularity] = useState('DAY')
   const [currency, setCurrency] = useState('EUR')
+  const [companyName, setCompanyName] = useState('')
 
   const [overview, setOverview] = useState(null)
   const [timeline, setTimeline] = useState(null)
@@ -117,7 +118,12 @@ export default function AnalyticsPage() {
   }, [filters, hasPermission, notify])
 
   useEffect(() => {
-    settingsApi.getPublic().then((s) => setCurrency(s.currency || 'EUR')).catch(() => {})
+    settingsApi.getPublic()
+      .then((s) => {
+        setCurrency(s.currency || 'EUR')
+        setCompanyName(s.companyName || '')
+      })
+      .catch(() => {})
   }, [])
 
   useEffect(() => { load() }, [load])
@@ -147,7 +153,9 @@ export default function AnalyticsPage() {
     <div className="space-y-6 pb-8">
       <PageHeader
         title="Analytics POS & Stock"
-        subtitle="Pilotage des ventes, paiements, produits et alertes"
+        subtitle={companyName
+          ? `${companyName} · ${PERIODS.find((p) => p.value === period)?.label || period} · ${currency}`
+          : 'Pilotage des ventes, paiements, produits et alertes'}
         action={hasPermission('analytics.export') && (
           <div className="flex gap-2">
             <button type="button" onClick={() => handleExport('products')} className="px-3 py-1.5 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50">

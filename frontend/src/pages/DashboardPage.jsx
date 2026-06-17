@@ -111,7 +111,9 @@ export default function DashboardPage() {
     <div>
       <PageHeader
         title="Tableau de bord"
-        subtitle="Vue d'ensemble de l'état du stock"
+        subtitle={publicSettings.companyName
+          ? `${publicSettings.companyName} · devise ${publicSettings.currency || 'EUR'}`
+          : 'Vue d\'ensemble de l\'état du stock'}
       />
 
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">

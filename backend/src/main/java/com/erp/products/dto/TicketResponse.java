@@ -24,6 +24,12 @@ public class TicketResponse {
     private List<PaymentResponse> payments;
     private BigDecimal changeAmount;
     private String currency;
+    private String companyLogoUrl;
+    private String companyAddress;
+    private String companyPhone;
+    private String ticketFooter;
+    private String taxName;
+    private boolean pricesIncludeTax;
 
     @Data
     @Builder

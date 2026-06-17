@@ -4,12 +4,20 @@ public final class SettingKeys {
 
     public static final String COMPANY_NAME = "company.name";
     public static final String COMPANY_LOGO = "company.logo";
+    public static final String COMPANY_ADDRESS = "company.address";
+    public static final String COMPANY_CITY = "company.city";
+    public static final String COMPANY_COUNTRY = "company.country";
+    public static final String COMPANY_PHONE = "company.phone";
+    public static final String COMPANY_EMAIL = "company.email";
+    public static final String COMPANY_TAX_ID = "company.tax_id";
     public static final String APP_CURRENCY = "app.currency";
     public static final String APP_LANGUAGE = "app.language";
     public static final String APP_TIMEZONE = "app.timezone";
     public static final String APP_DATE_FORMAT = "app.date_format";
     public static final String STOCK_ALLOW_NEGATIVE = "stock.allow_negative";
     public static final String STOCK_LOW_THRESHOLD = "stock.low_threshold_default";
+    public static final String STOCK_LOW_ALERTS_ENABLED = "stock.low_alerts_enabled";
+    public static final String STOCK_MULTI_WAREHOUSE_ENABLED = "stock.multi_warehouse_enabled";
     public static final String STOCK_VALUATION_METHOD = "stock.valuation_method";
     public static final String ALERT_EXPIRY_DAYS = "alert.expiry_days_default";
     public static final String NUMBERING_ENTRY_PREFIX = "numbering.entry_prefix";
@@ -18,6 +26,12 @@ public final class SettingKeys {
     public static final String NUMBERING_MOVEMENT_PREFIX = "numbering.movement_prefix";
     public static final String NUMBERING_SALE_PREFIX = "numbering.sale_prefix";
     public static final String POS_REGISTER_NAME = "pos.register_name";
+    public static final String POS_TICKET_FORMAT = "pos.ticket_format";
+    public static final String POS_TICKET_FOOTER = "pos.ticket_footer";
+    public static final String POS_TICKET_SHOW_LOGO = "pos.ticket_show_logo";
+    public static final String POS_AUTO_PRINT_AFTER_SALE = "pos.auto_print_after_sale";
+    public static final String POS_CHANGE_GIVING_ENABLED = "pos.change_giving_enabled";
+    public static final String POS_PAYMENT_METHODS_ENABLED = "pos.payment_methods_enabled";
     public static final String POS_TAX_RATE_DEFAULT = "pos.tax_rate_default";
     public static final String POS_DEFAULT_WAREHOUSE_CODE = "pos.default_warehouse_code";
     public static final String POS_SALES_FLOW_MODE = "pos_sales_flow_mode";
@@ -51,6 +65,11 @@ public final class SettingKeys {
     public static final String LOYALTY_EARN_ON_TAX_INCLUDED = "loyalty.earn_points_on_tax_included_amount";
     public static final String LOYALTY_ALLOW_REDEMPTION = "loyalty.allow_points_redemption";
     public static final String LOYALTY_TIERS_CONFIG = "loyalty.tiers_config";
+
+    public static final String TAX_ENABLED = "tax.enabled";
+    public static final String TAX_NAME = "tax.name";
+    public static final String TAX_PRICES_INCLUDE_TAX = "tax.prices_include_tax";
+    public static final String TAX_AUTO_APPLY_ON_SALES = "tax.auto_apply_on_sales";
 
     private SettingKeys() {}
 }

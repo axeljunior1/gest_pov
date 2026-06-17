@@ -9,6 +9,7 @@ import PosWorkspaceNav from './pos/PosWorkspaceNav'
 export default function POSLayout() {
   const { user, logout, hasPermission } = useAuth()
   const [companyName, setCompanyName] = useState('ERP')
+  const [companyLogoUrl, setCompanyLogoUrl] = useState(null)
   const roleLabel = getPosRoleLabel(user)
   const navOptions = { userRoles: user?.roles ?? [] }
   const backOfficePath = getBackOfficeEntryPath(hasPermission, navOptions)
@@ -16,16 +17,24 @@ export default function POSLayout() {
 
   useEffect(() => {
     settingsApi.getPublic()
-      .then((s) => { if (s.companyName) setCompanyName(s.companyName) })
+      .then((s) => {
+        if (s.companyName) setCompanyName(s.companyName)
+        if (s.companyLogoUrl) setCompanyLogoUrl(s.companyLogoUrl)
+      })
       .catch(() => {})
   }, [])
 
   return (
     <div className="min-h-screen bg-slate-950 text-white flex flex-col pos-theme">
       <div className="px-4 py-3 border-b border-slate-800 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="font-semibold text-base">{companyName}</p>
-          <p className="text-xs text-slate-500">Point de vente</p>
+        <div className="flex items-center gap-3">
+          {companyLogoUrl && (
+            <img src={companyLogoUrl} alt="" className="h-8 w-8 object-contain rounded bg-white/10" />
+          )}
+          <div>
+            <p className="font-semibold text-base">{companyName}</p>
+            <p className="text-xs text-slate-500">Point de vente</p>
+          </div>
         </div>
         <div className="flex flex-wrap items-center gap-3 text-sm">
           <span className="hidden sm:inline text-slate-500">
