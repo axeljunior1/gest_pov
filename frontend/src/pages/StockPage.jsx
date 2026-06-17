@@ -47,7 +47,7 @@ export default function StockPage() {
         if (locs.length) setForm((f) => ({ ...f, locationId: String(locs[0].id) }))
       }
     } catch (e) {
-      notify.error(getErrorMessage(e))
+      notify.error(getErrorMessage(e, { module: 'stock' }))
     } finally {
       setLoading(false)
     }

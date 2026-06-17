@@ -68,7 +68,7 @@ export default function StockEntriesPage() {
       setSuppliers(sups)
       await loadEntries()
     } catch (e) {
-      notify.error(getErrorMessage(e))
+      notify.error(getErrorMessage(e, { module: 'stock' }))
     } finally {
       setLoading(false)
     }
@@ -196,7 +196,7 @@ export default function StockEntriesPage() {
       setSelected(detail)
       setTab('detail')
     } catch (e) {
-      notify.error(getErrorMessage(e))
+      notify.error(getErrorMessage(e, { module: 'stock' }))
     }
   }
 

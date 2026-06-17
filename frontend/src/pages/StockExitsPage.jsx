@@ -73,7 +73,7 @@ export default function StockExitsPage() {
       setProducts(prods)
       await loadExits()
     } catch (e) {
-      notify.error(getErrorMessage(e))
+      notify.error(getErrorMessage(e, { module: 'stock' }))
     } finally {
       setLoading(false)
     }
@@ -189,7 +189,7 @@ export default function StockExitsPage() {
       setSelected(await stockExitsApi.getById(id))
       setTab('detail')
     } catch (e) {
-      notify.error(getErrorMessage(e))
+      notify.error(getErrorMessage(e, { module: 'stock' }))
     }
   }
 

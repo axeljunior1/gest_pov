@@ -26,6 +26,7 @@ function PaymentModal({ sale, currency, paymentMethods, changeGivingEnabled, onC
   const [cashReceived, setCashReceived] = useState('')
   const [loading, setLoading] = useState(false)
   const [recalling, setRecalling] = useState(false)
+  const [paymentError, setPaymentError] = useState('')
   const notify = useNotification()
 
   useEffect(() => {
@@ -41,6 +42,8 @@ function PaymentModal({ sale, currency, paymentMethods, changeGivingEnabled, onC
       : 0
 
   const submit = async () => {
+    if (loading || recalling) return
+    setPaymentError('')
     setLoading(true)
     try {
       const result = await posApi.validateSale(sale.id, {
@@ -49,7 +52,9 @@ function PaymentModal({ sale, currency, paymentMethods, changeGivingEnabled, onC
       })
       onPaid(result)
     } catch (e) {
-      notify.error(getErrorMessage(e))
+      const message = getErrorMessage(e, { module: 'pos' })
+      setPaymentError(message)
+      notify.error(message)
     } finally {
       setLoading(false)
     }
@@ -61,7 +66,7 @@ function PaymentModal({ sale, currency, paymentMethods, changeGivingEnabled, onC
     try {
       await onRecallToDraft(sale.id)
     } catch (e) {
-      notify.error(getErrorMessage(e))
+      notify.error(getErrorMessage(e, { module: 'pos' }))
     } finally {
       setRecalling(false)
     }
@@ -72,6 +77,11 @@ function PaymentModal({ sale, currency, paymentMethods, changeGivingEnabled, onC
       <div className="bg-slate-900 border border-slate-700 rounded-xl w-full max-w-lg p-6">
         <h3 className="text-lg font-semibold mb-1">Encaisser — {sale?.saleNumber}</h3>
         <p className="text-sm text-slate-400 mb-4">Vendeur : {sale?.sellerName || sale?.cashierName} · Total {formatPosMoney(total, currency)}</p>
+        {paymentError && (
+          <div className="mb-4 rounded-lg border border-red-500/50 bg-red-950/40 px-3 py-2 text-sm text-red-200" role="alert">
+            {paymentError}
+          </div>
+        )}
         {payments.map((p, i) => (
           <div key={i} className="flex gap-2 mb-2">
             <select
@@ -174,7 +184,7 @@ export default function PosPendingPaymentsPage() {
         setPending([])
       }
     } catch (e) {
-      notify.error(getErrorMessage(e))
+      notify.error(getErrorMessage(e, { module: 'pos' }))
     } finally {
       setLoading(false)
     }
@@ -190,7 +200,7 @@ export default function PosPendingPaymentsPage() {
       notifyPosSessionChanged()
       await refresh()
     } catch (e) {
-      notify.error(getErrorMessage(e))
+      notify.error(getErrorMessage(e, { module: 'pos' }))
     } finally {
       setOpeningSession(false)
     }
@@ -222,7 +232,7 @@ export default function PosPendingPaymentsPage() {
       const full = await posApi.getSale(sale.id)
       setDetail(full)
     } catch (e) {
-      notify.error(getErrorMessage(e))
+      notify.error(getErrorMessage(e, { module: 'pos' }))
     }
   }
 
@@ -237,7 +247,7 @@ export default function PosPendingPaymentsPage() {
       await refresh()
       notifyPosSaleStateChanged()
     } catch (e) {
-      notify.error(getErrorMessage(e))
+      notify.error(getErrorMessage(e, { module: 'pos' }))
     } finally {
       setCancelling(false)
     }
@@ -252,7 +262,7 @@ export default function PosPendingPaymentsPage() {
       await refresh()
       notifyPosSaleStateChanged()
     } catch (e) {
-      notify.error(getErrorMessage(e))
+      notify.error(getErrorMessage(e, { module: 'pos' }))
       throw e
     }
   }
@@ -263,7 +273,12 @@ export default function PosPendingPaymentsPage() {
       const t = await posApi.ticket(validatedSale.id)
       setAutoPrintTicket(autoPrintAfterSale)
       setTicket(t)
-    } catch { /* optional */ }
+    } catch (e) {
+      notify.error(getErrorMessage(e, {
+        module: 'pos',
+        fallback: 'Le ticket n\'a pas pu être affiché, mais la vente est bien enregistrée.',
+      }))
+    }
     notify.success(`Vente ${validatedSale.saleNumber} encaissée`)
     await refresh()
     notifyPosSaleStateChanged()
@@ -277,7 +292,7 @@ export default function PosPendingPaymentsPage() {
       notifyPosSessionChanged()
       await refresh()
     } catch (e) {
-      notify.error(getErrorMessage(e))
+      notify.error(getErrorMessage(e, { module: 'pos' }))
     }
   }
 

@@ -111,7 +111,7 @@ export default function AnalyticsPage() {
       setCashiers(hasPermission('analytics.cashier.read') || hasPermission('analytics.read') ? results[i++] : null)
       setCustomers(hasPermission('analytics.read') || hasPermission('analytics.sales.read') ? results[i++] : null)
     } catch (e) {
-      notify.error(getErrorMessage(e))
+      notify.error(getErrorMessage(e, { module: 'analytics' }))
     } finally {
       setLoading(false)
     }
@@ -138,7 +138,7 @@ export default function AnalyticsPage() {
       a.click()
       URL.revokeObjectURL(url)
     } catch (e) {
-      notify.error(getErrorMessage(e))
+      notify.error(getErrorMessage(e, { module: 'analytics' }))
     }
   }
 

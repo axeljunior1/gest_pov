@@ -1,17 +1,25 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useNotification } from '../context/NotificationContext'
 import { getDefaultAppPath } from '../utils/auth'
-import { getErrorMessage } from '../utils/errors'
+import { consumeSessionExpiredFlag, getErrorMessage, SESSION_EXPIRED_MESSAGE } from '../utils/errors'
 
 export default function LoginPage() {
   const { login, isAuthenticated, user, hasPermission } = useAuth()
   const notify = useNotification()
   const location = useLocation()
-  const [email, setEmail] = useState('admin@erp.local')
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [formError, setFormError] = useState('')
+
+  useEffect(() => {
+    if (consumeSessionExpiredFlag()) {
+      setFormError(SESSION_EXPIRED_MESSAGE)
+      notify.error(SESSION_EXPIRED_MESSAGE)
+    }
+  }, [notify])
 
   if (isAuthenticated) {
     const from = location.state?.from?.pathname
@@ -22,11 +30,15 @@ export default function LoginPage() {
 
   async function handleSubmit(e) {
     e.preventDefault()
+    if (submitting) return
+    setFormError('')
     setSubmitting(true)
     try {
       await login(email.trim(), password)
     } catch (err) {
-      notify.error(getErrorMessage(err, 'Connexion impossible'))
+      const message = getErrorMessage(err, { module: 'login', fallback: 'Connexion impossible.' })
+      setFormError(message)
+      notify.error(message)
     } finally {
       setSubmitting(false)
     }
@@ -41,6 +53,11 @@ export default function LoginPage() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {formError && (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800" role="alert">
+              {formError}
+            </div>
+          )}
           <div>
             <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
               Email

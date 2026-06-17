@@ -3,7 +3,7 @@ import { settingsApi } from '../api'
 import { useAuth } from '../context/AuthContext'
 import { PageHeader, Card, Button, Loading } from '../components/ui'
 import { useNotification } from '../context/NotificationContext'
-import { getErrorMessage } from '../utils/errors'
+import { getErrorDetails, getErrorMessage, validateClientConfig, validateLogoFile } from '../utils/errors'
 
 const PAYMENT_CODES = [
   { code: 'CASH', label: 'Espèces' },
@@ -91,6 +91,19 @@ export default function ClientConfigurationPage() {
   const [uploading, setUploading] = useState(false)
   const [refs, setRefs] = useState({})
   const [config, setConfig] = useState(EMPTY_CONFIG)
+  const [fieldErrors, setFieldErrors] = useState({})
+  const [saveSuccess, setSaveSuccess] = useState(false)
+
+  const fieldError = (key) => fieldErrors[key]
+
+  const clearFieldError = (key) => {
+    setFieldErrors((prev) => {
+      if (!prev[key]) return prev
+      const next = { ...prev }
+      delete next[key]
+      return next
+    })
+  }
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -102,7 +115,7 @@ export default function ClientConfigurationPage() {
       setConfig(mergeConfig(data))
       setRefs(referenceValues)
     } catch (e) {
-      notify.error(getErrorMessage(e))
+      notify.error(getErrorMessage(e, { module: 'config' }))
     } finally {
       setLoading(false)
     }
@@ -110,20 +123,38 @@ export default function ClientConfigurationPage() {
 
   useEffect(() => { load() }, [load])
 
-  const setCompany = (field, value) => setConfig((prev) => ({
-    ...prev, company: { ...prev.company, [field]: value },
-  }))
-  const setPos = (field, value) => setConfig((prev) => ({
-    ...prev, pos: { ...prev.pos, [field]: value },
-  }))
-  const setStock = (field, value) => setConfig((prev) => ({
-    ...prev, stock: { ...prev.stock, [field]: value },
-  }))
-  const setTax = (field, value) => setConfig((prev) => ({
-    ...prev, tax: { ...prev.tax, [field]: value },
-  }))
+  const setCompany = (field, value) => {
+    clearFieldError(`company.${field}`)
+    setSaveSuccess(false)
+    setConfig((prev) => ({
+      ...prev, company: { ...prev.company, [field]: value },
+    }))
+  }
+  const setPos = (field, value) => {
+    clearFieldError(`pos.${field}`)
+    setSaveSuccess(false)
+    setConfig((prev) => ({
+      ...prev, pos: { ...prev.pos, [field]: value },
+    }))
+  }
+  const setStock = (field, value) => {
+    clearFieldError(`stock.${field}`)
+    setSaveSuccess(false)
+    setConfig((prev) => ({
+      ...prev, stock: { ...prev.stock, [field]: value },
+    }))
+  }
+  const setTax = (field, value) => {
+    clearFieldError(`tax.${field}`)
+    setSaveSuccess(false)
+    setConfig((prev) => ({
+      ...prev, tax: { ...prev.tax, [field]: value },
+    }))
+  }
 
   const togglePayment = (code) => {
+    clearFieldError('pos.paymentMethods')
+    setSaveSuccess(false)
     setConfig((prev) => ({
       ...prev,
       pos: {
@@ -135,18 +166,25 @@ export default function ClientConfigurationPage() {
   }
 
   const handleSave = async () => {
-    if (!canUpdate) return
-    if (!config.company.name?.trim()) {
-      notify.error('Le nom de l\'entreprise est obligatoire')
+    if (!canUpdate || saving) return
+    const localErrors = validateClientConfig(config)
+    if (localErrors) {
+      setFieldErrors(localErrors)
+      notify.error('Corrigez les champs signalés avant d\'enregistrer.')
       return
     }
+    setFieldErrors({})
     setSaving(true)
+    setSaveSuccess(false)
     try {
       const saved = await settingsApi.updateClientConfig(config)
       setConfig(mergeConfig(saved))
-      notify.success('Configuration enregistrée')
+      setSaveSuccess(true)
+      notify.success('Configuration enregistrée avec succès.')
     } catch (e) {
-      notify.error(getErrorMessage(e))
+      const details = getErrorDetails(e, { module: 'config' })
+      if (details.fieldErrors) setFieldErrors(details.fieldErrors)
+      notify.error(details.message)
     } finally {
       setSaving(false)
     }
@@ -155,13 +193,25 @@ export default function ClientConfigurationPage() {
   const handleLogoUpload = async (e) => {
     const file = e.target.files?.[0]
     if (!file) return
+    const logoError = validateLogoFile(file)
+    if (logoError) {
+      setFieldErrors((prev) => ({ ...prev, 'company.logo': logoError }))
+      notify.error(logoError)
+      e.target.value = ''
+      return
+    }
+    clearFieldError('company.logo')
+    if (uploading) return
     setUploading(true)
     try {
       const saved = await settingsApi.uploadCompanyLogo(file)
       setConfig(mergeConfig(saved))
-      notify.success('Logo mis à jour')
+      notify.success('Logo mis à jour avec succès.')
     } catch (err) {
-      notify.error(getErrorMessage(err))
+      const details = getErrorDetails(err, { module: 'config' })
+      if (details.fieldErrors) setFieldErrors(details.fieldErrors)
+      else setFieldErrors((prev) => ({ ...prev, 'company.logo': details.message }))
+      notify.error(details.message)
     } finally {
       setUploading(false)
       e.target.value = ''
@@ -181,11 +231,17 @@ export default function ClientConfigurationPage() {
         title="Configuration client"
         subtitle="Paramètres entreprise, caisse, stock et taxes pour le déploiement"
         action={canUpdate && (
-          <Button onClick={handleSave} disabled={saving}>
+          <Button onClick={handleSave} disabled={saving || uploading}>
             {saving ? 'Enregistrement…' : 'Enregistrer'}
           </Button>
         )}
       />
+
+      {saveSuccess && (
+        <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+          Configuration enregistrée avec succès.
+        </div>
+      )}
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         <div className="xl:col-span-2 space-y-6">
@@ -194,8 +250,11 @@ export default function ClientConfigurationPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <label className="block md:col-span-2">
                 <span className="text-xs font-medium text-gray-500 uppercase">Nom *</span>
-                <input className="input mt-1 w-full" value={config.company.name}
+                <input className={`input mt-1 w-full ${fieldError('company.name') ? 'border-red-500' : ''}`} value={config.company.name}
                   disabled={!canUpdate} onChange={(e) => setCompany('name', e.target.value)} />
+                {fieldError('company.name') && (
+                  <p className="text-xs text-red-600 mt-1">{fieldError('company.name')}</p>
+                )}
               </label>
               <label className="block md:col-span-2">
                 <span className="text-xs font-medium text-gray-500 uppercase">Adresse</span>
@@ -219,8 +278,11 @@ export default function ClientConfigurationPage() {
               </label>
               <label className="block">
                 <span className="text-xs font-medium text-gray-500 uppercase">Email</span>
-                <input type="email" className="input mt-1 w-full" value={config.company.email}
+                <input type="email" className={`input mt-1 w-full ${fieldError('company.email') ? 'border-red-500' : ''}`} value={config.company.email}
                   disabled={!canUpdate} onChange={(e) => setCompany('email', e.target.value)} />
+                {fieldError('company.email') && (
+                  <p className="text-xs text-red-600 mt-1">{fieldError('company.email')}</p>
+                )}
               </label>
               <label className="block">
                 <span className="text-xs font-medium text-gray-500 uppercase">N° fiscal / RCCM</span>
@@ -256,6 +318,9 @@ export default function ClientConfigurationPage() {
                   )}
                   {canUpdate && (
                     <input type="file" accept="image/*" disabled={uploading} onChange={handleLogoUpload} />
+                  )}
+                  {fieldError('company.logo') && (
+                    <p className="text-xs text-red-600 mt-1">{fieldError('company.logo')}</p>
                   )}
                 </div>
               </div>
@@ -296,6 +361,9 @@ export default function ClientConfigurationPage() {
             </div>
             <div className="mt-4">
               <p className="text-xs font-medium text-gray-500 uppercase mb-2">Moyens de paiement</p>
+              {fieldError('pos.paymentMethods') && (
+                <p className="text-xs text-red-600 mb-2">{fieldError('pos.paymentMethods')}</p>
+              )}
               <div className="flex flex-wrap gap-3">
                 {config.pos.paymentMethods.map((m) => (
                   <label key={m.code} className="flex items-center gap-2 text-sm border rounded-lg px-3 py-2">
@@ -328,9 +396,12 @@ export default function ClientConfigurationPage() {
               </label>
               <label className="block">
                 <span className="text-xs font-medium text-gray-500 uppercase">Seuil stock faible</span>
-                <input type="number" className="input mt-1 w-full" value={config.stock.lowStockThresholdDefault}
+                <input type="number" className={`input mt-1 w-full ${fieldError('stock.lowStockThresholdDefault') ? 'border-red-500' : ''}`} value={config.stock.lowStockThresholdDefault}
                   disabled={!canUpdate}
                   onChange={(e) => setStock('lowStockThresholdDefault', Number(e.target.value))} />
+                {fieldError('stock.lowStockThresholdDefault') && (
+                  <p className="text-xs text-red-600 mt-1">{fieldError('stock.lowStockThresholdDefault')}</p>
+                )}
               </label>
               <label className="block">
                 <span className="text-xs font-medium text-gray-500 uppercase">Valorisation</span>
@@ -360,8 +431,11 @@ export default function ClientConfigurationPage() {
               </label>
               <label className="block">
                 <span className="text-xs font-medium text-gray-500 uppercase">Taux par défaut (%)</span>
-                <input type="number" step="0.01" className="input mt-1 w-full" value={config.tax.defaultRate}
+                <input type="number" step="0.01" className={`input mt-1 w-full ${fieldError('tax.defaultRate') ? 'border-red-500' : ''}`} value={config.tax.defaultRate}
                   disabled={!canUpdate} onChange={(e) => setTax('defaultRate', Number(e.target.value))} />
+                {fieldError('tax.defaultRate') && (
+                  <p className="text-xs text-red-600 mt-1">{fieldError('tax.defaultRate')}</p>
+                )}
               </label>
               <label className="flex items-center gap-2 text-sm">
                 <input type="checkbox" checked={config.tax.pricesIncludeTax} disabled={!canUpdate}

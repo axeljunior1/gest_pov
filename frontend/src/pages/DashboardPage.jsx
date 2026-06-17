@@ -97,7 +97,7 @@ export default function DashboardPage() {
         setTopProducts(topData)
         setWarehouses(warehousesData)
       } catch (e) {
-        notify.error(getErrorMessage(e))
+        notify.error(getErrorMessage(e, { module: 'analytics' }))
       } finally {
         setLoading(false)
       }

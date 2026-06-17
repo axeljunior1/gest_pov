@@ -39,6 +39,7 @@ function PaymentModal({ sale, currency, paymentMethods, changeGivingEnabled, onC
   const [payments, setPayments] = useState([{ method: defaultMethod, amount: sale?.total || 0 }])
   const [cashReceived, setCashReceived] = useState('')
   const [loading, setLoading] = useState(false)
+  const [paymentError, setPaymentError] = useState('')
   const notify = useNotification()
 
   useEffect(() => {
@@ -54,6 +55,8 @@ function PaymentModal({ sale, currency, paymentMethods, changeGivingEnabled, onC
       : 0
 
   const submit = async () => {
+    if (loading) return
+    setPaymentError('')
     setLoading(true)
     try {
       const result = await posApi.validateSale(sale.id, {
@@ -62,7 +65,9 @@ function PaymentModal({ sale, currency, paymentMethods, changeGivingEnabled, onC
       })
       onPaid(result)
     } catch (e) {
-      notify.error(getErrorMessage(e))
+      const message = getErrorMessage(e, { module: 'pos' })
+      setPaymentError(message)
+      notify.error(message)
     } finally {
       setLoading(false)
     }
@@ -72,6 +77,11 @@ function PaymentModal({ sale, currency, paymentMethods, changeGivingEnabled, onC
     <ModalOverlay open onClose={onClose}>
       <div className="bg-slate-900 border border-slate-700 rounded-xl w-full max-w-lg p-6">
         <h3 className="text-lg font-semibold mb-4">Paiement — {formatPosMoney(total, currency)}</h3>
+        {paymentError && (
+          <div className="mb-4 rounded-lg border border-red-500/50 bg-red-950/40 px-3 py-2 text-sm text-red-200" role="alert">
+            {paymentError}
+          </div>
+        )}
         {payments.map((p, i) => (
           <div key={i} className="flex gap-2 mb-2">
             <select
@@ -325,7 +335,7 @@ export default function POSPage() {
       await loadResumeSales()
       notifyPosSaleStateChanged()
     } catch (e) {
-      notify.error(getErrorMessage(e))
+      notify.error(getErrorMessage(e, { module: 'pos' }))
     }
   }, [sale, notify, loadResumeSales])
 
@@ -339,7 +349,7 @@ export default function POSPage() {
       await loadResumeSales()
       notifyPosSaleStateChanged()
     } catch (e) {
-      notify.error(getErrorMessage(e))
+      notify.error(getErrorMessage(e, { module: 'pos' }))
     }
   }, [sale, notify, loadResumeSales])
 
@@ -348,7 +358,7 @@ export default function POSPage() {
       await loadResumeSales()
       setShowResumeModal(true)
     } catch (e) {
-      notify.error(getErrorMessage(e))
+      notify.error(getErrorMessage(e, { module: 'pos' }))
     }
   }, [loadResumeSales, notify])
 
@@ -359,7 +369,7 @@ export default function POSPage() {
       setShowResumeModal(false)
       await loadResumeSales()
     } catch (e) {
-      notify.error(getErrorMessage(e))
+      notify.error(getErrorMessage(e, { module: 'pos' }))
     }
   }, [notify, loadResumeSales])
 
@@ -370,7 +380,7 @@ export default function POSPage() {
       setShowResumeModal(false)
       await loadResumeSales()
     } catch (e) {
-      notify.error(getErrorMessage(e))
+      notify.error(getErrorMessage(e, { module: 'pos' }))
     }
   }, [notify, loadResumeSales])
 
@@ -411,7 +421,7 @@ export default function POSPage() {
       if (pkg) label += ` — ${pkg.nom}`
       notify.success(`${label} × ${qty}`)
     } catch (e) {
-      notify.error(getErrorMessage(e))
+      notify.error(getErrorMessage(e, { module: 'pos' }))
     }
   }, [ensureSale, notify, nextQty])
 
@@ -470,7 +480,7 @@ export default function POSPage() {
       const updated = await posApi.updateLine(sale.id, lineId, qty)
       setSale(updated)
     } catch (e) {
-      notify.error(getErrorMessage(e))
+      notify.error(getErrorMessage(e, { module: 'pos' }))
     }
   }, [sale?.id, notify])
 
@@ -501,7 +511,7 @@ export default function POSPage() {
       searchRef.current?.focus()
       return true
     } catch (e) {
-      notify.error(getErrorMessage(e))
+      notify.error(getErrorMessage(e, { module: 'pos' }))
       clearSearch()
       searchRef.current?.focus()
       return true
@@ -573,7 +583,7 @@ export default function POSPage() {
       }
     } catch (e) {
       if (requestId === searchRequestRef.current) {
-        notify.error(getErrorMessage(e))
+        notify.error(getErrorMessage(e, { module: 'pos' }))
       }
     }
   }, [warehouseId, pickSearchProduct, notify, context])
@@ -662,7 +672,7 @@ export default function POSPage() {
   }, [user, navigate])
 
   useEffect(() => {
-    refreshContext().catch((e) => notify.error(getErrorMessage(e)))
+    refreshContext().catch((e) => notify.error(getErrorMessage(e, { module: 'pos' })))
     const t = setInterval(() => setClock(new Date()), 1000)
     return () => clearInterval(t)
   }, [refreshContext, notify])
@@ -777,7 +787,7 @@ export default function POSPage() {
       await loadCatalog(s.warehouseId, null)
       await refreshContext()
     } catch (e) {
-      notify.error(getErrorMessage(e))
+      notify.error(getErrorMessage(e, { module: 'pos' }))
     } finally {
       setOpeningSession(false)
     }
@@ -810,7 +820,7 @@ export default function POSPage() {
       setSession(null)
       notifyPosSessionChanged()
     } catch (e) {
-      const msg = getErrorMessage(e)
+      const msg = getErrorMessage(e, { module: 'pos' })
       if (msg.includes('brouillon')) {
         const force = window.confirm(`${msg}\n\nAnnuler toutes les ventes brouillon et fermer ?`)
         if (force) {
@@ -852,7 +862,12 @@ export default function POSPage() {
       const t = await posApi.ticket(validatedSale.id)
       setAutoPrintTicket(autoPrintAfterSale)
       setTicket(t)
-    } catch { /* ticket optional */ }
+    } catch (e) {
+      notify.error(getErrorMessage(e, {
+        module: 'pos',
+        fallback: 'Le ticket n\'a pas pu être affiché, mais la vente est bien enregistrée.',
+      }))
+    }
     notify.success(`Vente ${validatedSale.saleNumber} validée`)
   }
 

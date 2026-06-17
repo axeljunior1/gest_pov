@@ -43,7 +43,7 @@ export default function ImportExportPage() {
       await exp.fn(format)
       notify.success(`Export ${exp.label} téléchargé`)
     } catch (e) {
-      notify.error(getErrorMessage(e))
+      notify.error(getErrorMessage(e, { module: 'import' }))
     } finally {
       setExporting(false)
     }
@@ -63,7 +63,7 @@ export default function ImportExportPage() {
           : await importApi.previewInitialStock(file)
       setPreview(result)
     } catch (e) {
-      notify.error(getErrorMessage(e))
+      notify.error(getErrorMessage(e, { module: 'import' }))
     } finally {
       setLoading(false)
     }
@@ -82,7 +82,7 @@ export default function ImportExportPage() {
       notify.success(`Import terminé — ${result.job.successRows} ligne(s) OK`)
       importApi.history().then(setHistory).catch(() => {})
     } catch (e) {
-      notify.error(getErrorMessage(e))
+      notify.error(getErrorMessage(e, { module: 'import' }))
     } finally {
       setLoading(false)
     }
@@ -92,7 +92,7 @@ export default function ImportExportPage() {
     try {
       await importApi.downloadTemplate(type, format)
     } catch (e) {
-      notify.error(getErrorMessage(e))
+      notify.error(getErrorMessage(e, { module: 'import' }))
     }
   }
 

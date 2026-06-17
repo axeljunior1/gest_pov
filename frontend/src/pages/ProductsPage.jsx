@@ -39,7 +39,7 @@ export default function ProductsPage() {
       const data = await productsApi.search(params)
       setProducts(data)
     } catch (error) {
-      const message = getErrorMessage(error)
+      const message = getErrorMessage(error, { module: 'products' })
       setPageError(message)
       notify.error(message)
     } finally {
