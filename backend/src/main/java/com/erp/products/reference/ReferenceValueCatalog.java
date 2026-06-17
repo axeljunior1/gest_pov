@@ -57,7 +57,9 @@ public final class ReferenceValueCatalog {
                 seed(ReferenceValueCategory.STOCK_VALUATION_METHOD, "PURCHASE_COST",
                         "Prix d'achat (PA)", 1),
                 seed(ReferenceValueCategory.STOCK_VALUATION_METHOD, "SALE_PRICE",
-                        "Prix de vente (PV)", 2)
+                        "Prix de vente (PV)", 2),
+                seed(ReferenceValueCategory.STOCK_VALUATION_METHOD, "WEIGHTED_AVERAGE",
+                        "Coût moyen pondéré (CMP)", 3)
         );
     }
 

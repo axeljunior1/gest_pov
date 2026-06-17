@@ -68,4 +68,8 @@ public class SaleLine {
 
     @Column(name = "line_total", nullable = false, precision = 19, scale = 4)
     private BigDecimal lineTotal;
+
+    /** CMP figé au moment de la vente (coût unitaire). */
+    @Column(name = "unit_cost_at_sale", precision = 19, scale = 6)
+    private BigDecimal unitCostAtSale;
 }

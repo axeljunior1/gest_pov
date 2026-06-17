@@ -20,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Instant;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -35,6 +36,7 @@ public class StockService {
     private final AuditService auditService;
     private final CurrentUserService currentUserService;
     private final SettingsService settingsService;
+    private final com.erp.products.service.stockvaluation.StockCmpValuationService cmpValuationService;
 
     @Transactional
     public StockMovementResponse receive(StockOperationRequest request) {
@@ -53,6 +55,14 @@ public class StockService {
                 meta(StockMovementType.IN, request, null, null, null, null, null, actor));
         auditService.log("Stock", request.getProductId(), com.erp.products.domain.enums.AuditAction.MODIFICATION,
                 "Réception stock: +" + qty.stripTrailingZeros().toPlainString(), actor);
+        cmpValuationService.recordPurchase(
+                request.getProductId(),
+                request.getVariantId(),
+                qty,
+                cmpValuationService.resolveFallbackCost(request.getProductId(), request.getVariantId()),
+                Instant.now(),
+                movement.getId(),
+                "STOCK_RECEIPT");
         return mapper.toMovementResponse(movement);
     }
 
@@ -74,6 +84,13 @@ public class StockService {
                 meta(StockMovementType.OUT, request, null, null, null, null, null, actor));
         auditService.log("Stock", request.getProductId(), com.erp.products.domain.enums.AuditAction.MODIFICATION,
                 "Sortie stock: -" + qty.stripTrailingZeros().toPlainString(), actor);
+        cmpValuationService.recordSale(
+                request.getProductId(),
+                request.getVariantId(),
+                qty,
+                Instant.now(),
+                movement.getId(),
+                "STOCK_ISSUE");
         return mapper.toMovementResponse(movement);
     }
 
@@ -97,6 +114,13 @@ public class StockService {
                 meta(StockMovementType.ADJUSTMENT, request, null, null, null, null, null, actor));
         auditService.log("Stock", request.getProductId(), com.erp.products.domain.enums.AuditAction.MODIFICATION,
                 "Ajustement stock: " + delta.stripTrailingZeros().toPlainString(), actor);
+        cmpValuationService.recordInventoryAdjustment(
+                request.getProductId(),
+                request.getVariantId(),
+                delta,
+                Instant.now(),
+                movement.getId(),
+                "STOCK_ADJUSTMENT");
         return mapper.toMovementResponse(movement);
     }
 
@@ -124,6 +148,14 @@ public class StockService {
                         null, null, null, null, null));
         auditService.log("Stock", request.getProductId(), com.erp.products.domain.enums.AuditAction.MODIFICATION,
                 "Stock initial importe: +" + request.getQuantityBase().stripTrailingZeros().toPlainString(), actor);
+        cmpValuationService.recordPurchase(
+                request.getProductId(),
+                request.getVariantId(),
+                request.getQuantityBase(),
+                cmpValuationService.resolveFallbackCost(request.getProductId(), request.getVariantId()),
+                Instant.now(),
+                movement.getId(),
+                "INITIAL_STOCK");
         return mapper.toMovementResponse(movement);
     }
 

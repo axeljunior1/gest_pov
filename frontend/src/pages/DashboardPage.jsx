@@ -120,7 +120,13 @@ export default function DashboardPage() {
         <KpiCard
           label="Valeur du stock"
           value={formatCurrency(summary?.stockValue, publicSettings.currency)}
-          hint={summary?.stockValuationMethod === 'SALE_PRICE' ? 'Valorisation au PV' : 'Valorisation au PA'}
+          hint={
+            summary?.stockValuationMethod === 'SALE_PRICE'
+              ? 'Valorisation au PV'
+              : summary?.stockValuationMethod === 'WEIGHTED_AVERAGE'
+                ? 'Valorisation CMP'
+                : 'Valorisation au PA'
+          }
         />
         <KpiCard label="Ruptures" value={summary?.outOfStockProducts ?? 0} tone="danger" />
         <KpiCard label="Stock faible" value={summary?.lowStockProducts ?? 0} tone="warning" />

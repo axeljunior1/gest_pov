@@ -71,6 +71,7 @@ export const navGroups = [
       { to: '/stock/exits', label: 'Sorties', permission: 'stock_exit.read' },
       { to: '/stock/movements', label: 'Mouvements', permissions: ['stock_movement.read', 'stock.read'] },
       { to: '/stock/inventories', label: 'Inventaires', permission: 'inventory.read' },
+      { to: '/stock/valuation', label: 'Valorisation CMP', permission: 'stock.read' },
       { to: '/alerts', label: 'Alertes', permission: 'alerts.read' },
     ],
   },

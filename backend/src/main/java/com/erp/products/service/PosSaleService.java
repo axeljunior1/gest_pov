@@ -54,6 +54,7 @@ public class PosSaleService {
     private final BarcodeLookupService barcodeLookupService;
     private final SaleCancellationService saleCancellationService;
     private final SaleEventService saleEventService;
+    private final com.erp.products.service.stockvaluation.StockCmpValuationService cmpValuationService;
 
     @Transactional
     public SaleResponse createSale() {
@@ -511,13 +512,22 @@ public class PosSaleService {
 
         StockExit stockExit = stockExitService.createFromPosSale(sale);
 
+        Instant paidAt = Instant.now();
         for (SaleLine line : sale.getLignes()) {
+            Long variantId = line.getVariant() != null ? line.getVariant().getId() : null;
+            BigDecimal unitCost = cmpValuationService.recordSale(
+                    line.getProduct().getId(),
+                    variantId,
+                    line.getQuantityInBaseUnit(),
+                    paidAt,
+                    sale.getId(),
+                    "SALE");
+            line.setUnitCostAtSale(unitCost);
             postStockMovement(sale, line, stockExit.getId());
         }
 
         loyaltyService.processSaleValidated(sale);
 
-        Instant paidAt = Instant.now();
         sale.setPaymentSession(paymentSession);
         sale.setCashier(paymentCollector);
         sale.setPaidAmount(paid);

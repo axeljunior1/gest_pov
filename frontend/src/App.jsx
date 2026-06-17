@@ -27,6 +27,7 @@ import StockEntriesPage from './pages/StockEntriesPage'
 import StockExitsPage from './pages/StockExitsPage'
 import StockMovementsPage from './pages/StockMovementsPage'
 import InventoryCountsPage from './pages/InventoryCountsPage'
+import StockValuationPage from './pages/StockValuationPage'
 import AlertsPage from './pages/AlertsPage'
 import UsersPage from './pages/UsersPage'
 import RolesPage from './pages/RolesPage'
@@ -97,6 +98,7 @@ export default function App() {
                   </Route>
                   <Route element={<PermissionRoute permission="stock.read" />}>
                     <Route path="stock" element={<StockPage />} />
+                    <Route path="stock/valuation" element={<StockValuationPage />} />
                   </Route>
                   <Route element={<PermissionRoute permission="stock_entry.read" />}>
                     <Route path="stock/entries" element={<StockEntriesPage />} />

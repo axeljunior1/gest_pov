@@ -132,7 +132,25 @@ public class PosMapper {
                 .lineTotal(line.getLineTotal())
                 .stockAvailable(stockAvailable)
                 .stockInsufficient(stockInsufficient)
+                .unitCostAtSale(line.getUnitCostAtSale())
+                .costOfGoodsSold(computeCostOfGoodsSold(line))
+                .grossMargin(computeGrossMargin(line))
                 .build();
+    }
+
+    private BigDecimal computeCostOfGoodsSold(SaleLine line) {
+        if (line.getUnitCostAtSale() == null || line.getQuantityInBaseUnit() == null) {
+            return null;
+        }
+        return line.getUnitCostAtSale().multiply(line.getQuantityInBaseUnit());
+    }
+
+    private BigDecimal computeGrossMargin(SaleLine line) {
+        BigDecimal cogs = computeCostOfGoodsSold(line);
+        if (cogs == null || line.getLineTotal() == null) {
+            return null;
+        }
+        return line.getLineTotal().subtract(cogs);
     }
 
     private boolean isLineStockable(SaleLine line) {

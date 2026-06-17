@@ -43,6 +43,7 @@ public class InventoryService {
     private final StockService stockService;
     private final StockMapper mapper;
     private final AlertRuleEngine alertRuleEngine;
+    private final com.erp.products.service.stockvaluation.StockCmpValuationService cmpValuationService;
     private final AuditService auditService;
     private final CurrentUserService currentUserService;
     private final SettingsService settingsService;
@@ -154,6 +155,14 @@ public class InventoryService {
                     op.getLotId(),
                     ecart,
                     StockService.meta(StockMovementType.INVENTORY, op, null, null, count.getId()));
+
+            cmpValuationService.recordInventoryAdjustment(
+                    op.getProductId(),
+                    op.getVariantId(),
+                    ecart,
+                    Instant.now(),
+                    count.getId(),
+                    "INVENTORY_COUNT");
         }
 
         count.setStatus(InventoryCountStatus.VALIDATED);

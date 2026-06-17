@@ -176,6 +176,16 @@ export const stockExitsApi = {
   delete: (id) => api.delete(`/stock/exits/${id}`),
 }
 
+export const stockValuationApi = {
+  overview: () => api.get('/stock/valuation/overview').then(r => r.data),
+  current: () => api.get('/stock/valuation/current').then(r => r.data),
+  byProduct: () => api.get('/stock/valuation/by-product').then(r => r.data),
+  history: (params) => api.get('/stock/valuation/history', { params }).then(r => r.data),
+  atDate: (date) => api.get('/stock/valuation/at-date', { params: { date } }).then(r => r.data),
+  topProducts: (limit = 10) => api.get('/stock/valuation/top-products', { params: { limit } }).then(r => r.data),
+  stale: (params) => api.get('/stock/valuation/stale', { params }).then(r => r.data),
+}
+
 export const dashboardApi = {
   summary: () => api.get('/dashboard/summary').then(r => r.data),
   alerts: () => api.get('/dashboard/alerts').then(r => r.data),

@@ -45,6 +45,7 @@ public class StockExitService {
     private final CurrentUserService currentUserService;
     private final SettingsService settingsService;
     private final ProductVariantPolicyService variantPolicyService;
+    private final com.erp.products.service.stockvaluation.StockCmpValuationService cmpValuationService;
 
     @Transactional
     public StockExitResponse create(StockExitRequest request) {
@@ -179,14 +180,22 @@ public class StockExitService {
             throw new BusinessException("La sortie doit contenir au moins une ligne");
         }
 
+        Instant validatedAt = Instant.now();
         for (StockExitLine line : exit.getLignes()) {
             ensureAvailable(exit, line);
             postMovement(exit, line, user, StockMovementType.OUT, line.getQuantityInBaseUnit().negate());
+            cmpValuationService.recordSale(
+                    line.getProduct().getId(),
+                    line.getVariant() != null ? line.getVariant().getId() : null,
+                    line.getQuantityInBaseUnit(),
+                    validatedAt,
+                    exit.getId(),
+                    "STOCK_EXIT");
         }
 
         exit.setStatus(StockExitStatus.VALIDATED);
         exit.setValidatedBy(currentUserService.resolveActor(user));
-        exit.setValidatedAt(Instant.now());
+        exit.setValidatedAt(validatedAt);
 
         StockExit saved = exitRepository.save(exit);
         auditService.log("StockExit", saved.getId(), AuditAction.MODIFICATION,
@@ -204,8 +213,20 @@ public class StockExitService {
             throw new BusinessException("Sortie déjà annulée");
         }
         if (exit.getStatus() == StockExitStatus.VALIDATED) {
+            Instant reversedAt = Instant.now();
             for (StockExitLine line : exit.getLignes()) {
                 postMovement(exit, line, user, StockMovementType.IN, line.getQuantityInBaseUnit());
+                Long variantId = line.getVariant() != null ? line.getVariant().getId() : null;
+                BigDecimal unitCost = cmpValuationService.resolveOutboundUnitCostFromSource(
+                        exit.getId(), "STOCK_EXIT", line.getProduct().getId(), variantId);
+                cmpValuationService.recordReturn(
+                        line.getProduct().getId(),
+                        variantId,
+                        line.getQuantityInBaseUnit(),
+                        unitCost,
+                        reversedAt,
+                        exit.getId(),
+                        "STOCK_EXIT_CANCEL");
             }
         }
 

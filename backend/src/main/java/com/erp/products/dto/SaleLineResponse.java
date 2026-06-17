@@ -29,4 +29,10 @@ public class SaleLineResponse {
     private BigDecimal stockAvailable;
     /** True si la quantité en panier dépasse le stock disponible. */
     private Boolean stockInsufficient;
+    /** Coût unitaire CMP figé à la validation de la vente. */
+    private BigDecimal unitCostAtSale;
+    /** Coût total des marchandises vendues (quantité × coût unitaire figé). */
+    private BigDecimal costOfGoodsSold;
+    /** Marge brute réelle (total ligne − coût des marchandises). */
+    private BigDecimal grossMargin;
 }

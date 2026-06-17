@@ -42,6 +42,7 @@ public class PosRefundService {
     private final AuditService auditService;
     private final LoyaltyService loyaltyService;
     private final PasswordEncoder passwordEncoder;
+    private final com.erp.products.service.stockvaluation.StockCmpValuationService cmpValuationService;
 
     @Transactional(readOnly = true)
     public List<SaleResponse> searchRefundableSales(String query, Integer limit) {
@@ -207,6 +208,7 @@ public class PosRefundService {
             throw new BusinessException("Le total des remboursements doit egaler le montant du retour");
         }
 
+        Instant now = Instant.now();
         for (SaleRefundLine rl : refund.getLignes()) {
             if (Boolean.TRUE.equals(rl.getRestock())) {
                 SaleLine saleLine = rl.getSaleLine();
@@ -227,6 +229,19 @@ public class PosRefundService {
                                 rl.getPackaging() != null ? rl.getPackaging().getId() : null,
                                 refund.getId(),
                                 null));
+                Long variantId = saleLine.getVariant() != null ? saleLine.getVariant().getId() : null;
+                BigDecimal unitCost = saleLine.getUnitCostAtSale();
+                if (unitCost == null || unitCost.compareTo(BigDecimal.ZERO) <= 0) {
+                    unitCost = cmpValuationService.resolveFallbackCost(saleLine.getProduct().getId(), variantId);
+                }
+                cmpValuationService.recordReturn(
+                        saleLine.getProduct().getId(),
+                        variantId,
+                        rl.getQuantityInBaseUnit(),
+                        unitCost,
+                        now,
+                        refund.getId(),
+                        "POS_REFUND");
             }
         }
 
@@ -253,7 +268,6 @@ public class PosRefundService {
         refundPaymentRepository.saveAll(refund.getPayments());
 
         updateSaleStatusAfterReturn(sale, refund);
-        Instant now = Instant.now();
         refund.setStatus(SaleRefundStatus.COMPLETED);
         refund.setRefundStatus(resolveFulfillmentStatus(sale));
         refund.setValidatedAt(now);

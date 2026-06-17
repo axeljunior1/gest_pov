@@ -117,10 +117,14 @@ public class SettingsService {
     }
 
     private StockValuationMethod parseStockValuationMethod(String raw) {
-        if (raw != null && "SALE_PRICE".equalsIgnoreCase(raw.trim())) {
-            return StockValuationMethod.SALE_PRICE;
+        if (raw == null || raw.isBlank()) {
+            return StockValuationMethod.PURCHASE_COST;
         }
-        return StockValuationMethod.PURCHASE_COST;
+        try {
+            return StockValuationMethod.valueOf(raw.trim().toUpperCase());
+        } catch (IllegalArgumentException ex) {
+            return StockValuationMethod.PURCHASE_COST;
+        }
     }
 
     @Transactional(readOnly = true)

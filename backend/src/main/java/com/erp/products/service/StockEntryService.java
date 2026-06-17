@@ -44,6 +44,7 @@ public class StockEntryService {
     private final CurrentUserService currentUserService;
     private final SettingsService settingsService;
     private final ProductVariantPolicyService variantPolicyService;
+    private final com.erp.products.service.stockvaluation.StockCmpValuationService cmpValuationService;
 
     @Transactional
     public StockEntryResponse create(StockEntryRequest request) {
@@ -129,6 +130,7 @@ public class StockEntryService {
 
         for (StockEntryLine line : entry.getLignes()) {
             postMovement(entry, line, user, StockMovementType.IN, line.getQuantityInBaseUnit());
+            recordCmpPurchase(entry, line);
         }
 
         entry.setStatus(StockEntryStatus.VALIDATED);
@@ -153,6 +155,7 @@ public class StockEntryService {
             for (StockEntryLine line : entry.getLignes()) {
                 ensureAvailableForCancel(entry, line);
                 postMovement(entry, line, user, StockMovementType.OUT, line.getQuantityInBaseUnit().negate());
+                recordCmpPurchaseReversal(entry, line);
             }
         }
 
@@ -184,6 +187,38 @@ public class StockEntryService {
         entryRepository.delete(entry);
         auditService.log("StockEntry", id, AuditAction.SUPPRESSION,
                 "Entrée stock brouillon supprimée " + entry.getEntryNumber(), entry.getCreatedBy());
+    }
+
+    private void recordCmpPurchase(StockEntry entry, StockEntryLine line) {
+        Long variantId = line.getVariant() != null ? line.getVariant().getId() : null;
+        BigDecimal unitCost = line.getUnitCost();
+        if (unitCost == null || unitCost.compareTo(BigDecimal.ZERO) <= 0) {
+            unitCost = cmpValuationService.resolveFallbackCost(line.getProduct().getId(), variantId);
+        }
+        cmpValuationService.recordPurchase(
+                line.getProduct().getId(),
+                variantId,
+                line.getQuantityInBaseUnit(),
+                unitCost,
+                cmpValuationService.toInstant(entry.getEntryDate()),
+                entry.getId(),
+                "STOCK_ENTRY");
+    }
+
+    private void recordCmpPurchaseReversal(StockEntry entry, StockEntryLine line) {
+        Long variantId = line.getVariant() != null ? line.getVariant().getId() : null;
+        BigDecimal unitCost = line.getUnitCost();
+        if (unitCost == null || unitCost.compareTo(BigDecimal.ZERO) <= 0) {
+            unitCost = cmpValuationService.resolveFallbackCost(line.getProduct().getId(), variantId);
+        }
+        cmpValuationService.recordPurchaseReversal(
+                line.getProduct().getId(),
+                variantId,
+                line.getQuantityInBaseUnit(),
+                unitCost,
+                Instant.now(),
+                entry.getId(),
+                "STOCK_ENTRY_CANCEL");
     }
 
     private void postMovement(
