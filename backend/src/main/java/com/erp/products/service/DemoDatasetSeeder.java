@@ -9,6 +9,7 @@ import com.erp.products.domain.enums.ProductStatus;
 import com.erp.products.domain.enums.SaleCancellationReason;
 import com.erp.products.dto.*;
 import com.erp.products.repository.*;
+import com.erp.products.settings.SettingKeys;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -47,6 +48,7 @@ public class DemoDatasetSeeder {
     private final PosSaleService posSaleService;
     private final PosSessionService posSessionService;
     private final PasswordEncoder passwordEncoder;
+    private final SettingsService settingsService;
 
     @Transactional
     public DemoSeedResult seed() {
@@ -106,8 +108,17 @@ public class DemoDatasetSeeder {
         User admin = loadUser("admin@erp.local");
         int sales = seedPosScenarios(warehouse, seller, cashier, admin);
 
+        applyDemoCurrencyIfUnset();
+
         log.info("Jeu demo V13 — {} produits, {} clients, {} ventes POS", products, customers, sales);
         return DemoSeedResult.created(products, customers, sales);
+    }
+
+    private void applyDemoCurrencyIfUnset() {
+        String currency = settingsService.getSetting(SettingKeys.APP_CURRENCY);
+        if (currency == null || currency.isBlank()) {
+            settingsService.setSetting(SettingKeys.APP_CURRENCY, "EUR", "demo-seed");
+        }
     }
 
     private int seedEauProduct(Category category, Supplier supplier, UnitOfMeasure unit,

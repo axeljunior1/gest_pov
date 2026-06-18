@@ -23,4 +23,5 @@ public class PublicSettingsResponse {
     private String taxName;
     private boolean taxEnabled;
     private boolean pricesIncludeTax;
+    private boolean setupCompleted;
 }

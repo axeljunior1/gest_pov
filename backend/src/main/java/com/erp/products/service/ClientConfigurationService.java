@@ -116,7 +116,19 @@ public class ClientConfigurationService {
             if (t.getPricesIncludeTax() != null) settingsService.setSetting(SettingKeys.TAX_PRICES_INCLUDE_TAX, bool(t.getPricesIncludeTax()), updatedBy);
             if (t.getAutoApplyOnSales() != null) settingsService.setSetting(SettingKeys.TAX_AUTO_APPLY_ON_SALES, bool(t.getAutoApplyOnSales()), updatedBy);
         }
+        markSetupCompletedIfReady(request, updatedBy);
         return getClientConfiguration();
+    }
+
+    private void markSetupCompletedIfReady(ClientConfigurationUpdateRequest request, String updatedBy) {
+        if (request.getCompany() == null) {
+            return;
+        }
+        var c = request.getCompany();
+        if (c.getName() != null && !c.getName().isBlank()
+                && c.getCurrency() != null && !c.getCurrency().isBlank()) {
+            settingsService.markSetupCompleted(updatedBy);
+        }
     }
 
     @Transactional

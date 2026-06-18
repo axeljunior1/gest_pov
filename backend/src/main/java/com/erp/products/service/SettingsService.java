@@ -97,14 +97,24 @@ public class SettingsService {
                 .companyPhone(getSetting(SettingKeys.COMPANY_PHONE))
                 .companyEmail(getSetting(SettingKeys.COMPANY_EMAIL))
                 .companyTaxId(getSetting(SettingKeys.COMPANY_TAX_ID))
-                .currency(getSetting(SettingKeys.APP_CURRENCY))
+                .currency(blankToNull(getSetting(SettingKeys.APP_CURRENCY)))
                 .language(getSetting(SettingKeys.APP_LANGUAGE))
                 .timezone(getSetting(SettingKeys.APP_TIMEZONE))
                 .dateFormat(getSetting(SettingKeys.APP_DATE_FORMAT))
                 .taxName(getSetting(SettingKeys.TAX_NAME))
                 .taxEnabled(getBoolean(SettingKeys.TAX_ENABLED))
                 .pricesIncludeTax(getBoolean(SettingKeys.TAX_PRICES_INCLUDE_TAX))
+                .setupCompleted(isSetupCompleted())
                 .build();
+    }
+
+    @Transactional(readOnly = true)
+    public boolean isSetupCompleted() {
+        return getBoolean(SettingKeys.APP_SETUP_COMPLETED);
+    }
+
+    public void markSetupCompleted(String updatedBy) {
+        setSetting(SettingKeys.APP_SETUP_COMPLETED, "true", updatedBy);
     }
 
     public String resolveLogoUrl(String logoPath) {
@@ -300,6 +310,10 @@ public class SettingsService {
                 .build();
     }
 
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value;
+    }
+
     private static String defaultValue(String key) {
         DefaultSetting def = DEFAULTS.get(key);
         if (def == null) {
@@ -328,7 +342,7 @@ public class SettingsService {
             case STRING, JSON -> { /* ok */ }
         }
         ReferenceValueCategory category = REFERENCE_CATEGORIES.get(key);
-        if (category != null) {
+        if (category != null && value != null && !value.isBlank()) {
             referenceValueService.requireValid(category, value);
         }
     }
@@ -346,7 +360,7 @@ public class SettingsService {
 
     private static Map<String, DefaultSetting> buildDefaults() {
         Map<String, DefaultSetting> map = new LinkedHashMap<>();
-        map.put(SettingKeys.COMPANY_NAME, def("ERP Produits", AppSettingType.STRING, "Nom de l'entreprise", true));
+        map.put(SettingKeys.COMPANY_NAME, def("", AppSettingType.STRING, "Nom de l'entreprise", true));
         map.put(SettingKeys.COMPANY_LOGO, def("", AppSettingType.STRING, "URL ou chemin du logo", true));
         map.put(SettingKeys.COMPANY_ADDRESS, def("", AppSettingType.STRING, "Adresse de l'entreprise", true));
         map.put(SettingKeys.COMPANY_CITY, def("", AppSettingType.STRING, "Ville", true));
@@ -354,7 +368,8 @@ public class SettingsService {
         map.put(SettingKeys.COMPANY_PHONE, def("", AppSettingType.STRING, "Telephone", true));
         map.put(SettingKeys.COMPANY_EMAIL, def("", AppSettingType.STRING, "Email", true));
         map.put(SettingKeys.COMPANY_TAX_ID, def("", AppSettingType.STRING, "Numero fiscal / RCCM / NIF", true));
-        map.put(SettingKeys.APP_CURRENCY, def("EUR", AppSettingType.STRING, "Devise par defaut", true));
+        map.put(SettingKeys.APP_CURRENCY, def("", AppSettingType.STRING, "Devise par defaut (a configurer)", true));
+        map.put(SettingKeys.APP_SETUP_COMPLETED, def("false", AppSettingType.BOOLEAN, "Configuration initiale terminee", true));
         map.put(SettingKeys.APP_LANGUAGE, def("fr", AppSettingType.STRING, "Langue par defaut", true));
         map.put(SettingKeys.APP_TIMEZONE, def("Europe/Paris", AppSettingType.STRING, "Fuseau horaire", true));
         map.put(SettingKeys.APP_DATE_FORMAT, def("dd/MM/yyyy", AppSettingType.STRING, "Format de date", true));
@@ -372,7 +387,7 @@ public class SettingsService {
         map.put(SettingKeys.NUMBERING_SALE_PREFIX, def("TK", AppSettingType.STRING, "Prefixe numerotation ventes POS", false));
         map.put(SettingKeys.POS_REGISTER_NAME, def("Caisse 1", AppSettingType.STRING, "Nom de la caisse POS", true));
         map.put(SettingKeys.POS_TICKET_FORMAT, def("SIMPLE", AppSettingType.STRING, "Format ticket (SIMPLE ou DETAILED)", true));
-        map.put(SettingKeys.POS_TICKET_FOOTER, def("Merci de votre visite !", AppSettingType.STRING, "Message pied de ticket", true));
+        map.put(SettingKeys.POS_TICKET_FOOTER, def("", AppSettingType.STRING, "Message pied de ticket", true));
         map.put(SettingKeys.POS_TICKET_SHOW_LOGO, def("true", AppSettingType.BOOLEAN, "Afficher le logo sur le ticket", true));
         map.put(SettingKeys.POS_AUTO_PRINT_AFTER_SALE, def("false", AppSettingType.BOOLEAN, "Impression auto apres vente", false));
         map.put(SettingKeys.POS_CHANGE_GIVING_ENABLED, def("true", AppSettingType.BOOLEAN, "Activer le rendu monnaie", false));

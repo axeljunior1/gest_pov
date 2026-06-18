@@ -11,6 +11,7 @@ public final class SettingKeys {
     public static final String COMPANY_EMAIL = "company.email";
     public static final String COMPANY_TAX_ID = "company.tax_id";
     public static final String APP_CURRENCY = "app.currency";
+    public static final String APP_SETUP_COMPLETED = "app.setup.completed";
     public static final String APP_LANGUAGE = "app.language";
     public static final String APP_TIMEZONE = "app.timezone";
     public static final String APP_DATE_FORMAT = "app.date_format";

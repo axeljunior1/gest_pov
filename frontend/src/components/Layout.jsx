@@ -5,6 +5,7 @@ import { settingsApi } from '../api'
 import SectionSubNav from './SectionSubNav'
 import NotificationBell from './NotificationBell'
 import LicenseExpiryBanner from './LicenseExpiryBanner'
+import SetupBanner from './SetupBanner'
 import { filterVisibleGroups, isNavItemActive, navGroups } from '../config/navGroups'
 
 function NavItem({ item, pathname }) {
@@ -29,8 +30,9 @@ function NavItem({ item, pathname }) {
 export default function Layout() {
   const { user, logout, hasPermission } = useAuth()
   const location = useLocation()
-  const [companyName, setCompanyName] = useState('ERP Produits')
+  const [companyName, setCompanyName] = useState('Gest_POV')
   const [companyLogoUrl, setCompanyLogoUrl] = useState(null)
+  const [publicSettings, setPublicSettings] = useState(null)
 
   const visibleGroups = useMemo(
     () => filterVisibleGroups(navGroups, hasPermission, { userRoles: user?.roles ?? [] }),
@@ -55,6 +57,7 @@ export default function Layout() {
   useEffect(() => {
     settingsApi.getPublic()
       .then((s) => {
+        setPublicSettings(s)
         if (s.companyName) setCompanyName(s.companyName)
         if (s.companyLogoUrl) setCompanyLogoUrl(s.companyLogoUrl)
       })
@@ -152,6 +155,7 @@ export default function Layout() {
             <NotificationBell />
           </div>
           <LicenseExpiryBanner />
+          <SetupBanner publicSettings={publicSettings} />
           <SectionSubNav />
           <Outlet />
         </div>

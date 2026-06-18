@@ -363,6 +363,12 @@ export const importApi = {
   history: () => api.get('/import/history').then(r => r.data),
 }
 
+export const demoDataApi = {
+  status: () => api.get('/admin/demo-data/status').then(r => r.data),
+  generate: (force = false) => api.post('/admin/demo-data/generate', null, { params: { force } }).then(r => r.data),
+  cleanup: () => api.delete('/admin/demo-data').then(r => r.data),
+}
+
 export const settingsApi = {
   getPublic: () => api.get('/settings/public').then(r => r.data),
   getReferenceValues: () => api.get('/settings/reference-values').then(r => r.data),

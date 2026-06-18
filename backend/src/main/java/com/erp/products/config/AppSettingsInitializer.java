@@ -16,10 +16,15 @@ import org.springframework.transaction.annotation.Transactional;
 public class AppSettingsInitializer implements ApplicationRunner {
 
     private final SettingsService settingsService;
+    private final SeedProperties seedProperties;
 
     @Override
     @Transactional
     public void run(ApplicationArguments args) {
+        if (!seedProperties.isSystemEnabled()) {
+            log.info("Seed systeme desactive (app.seed.system-enabled=false)");
+            return;
+        }
         settingsService.ensureDefaultsSeeded();
         log.info("Parametres applicatifs initialises");
     }

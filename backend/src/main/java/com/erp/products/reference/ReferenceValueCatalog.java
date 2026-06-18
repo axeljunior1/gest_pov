@@ -23,6 +23,7 @@ public final class ReferenceValueCatalog {
                 seed(ReferenceValueCategory.CURRENCY, "TND", "Dinar tunisien (TND)", 8),
                 seed(ReferenceValueCategory.CURRENCY, "DZD", "Dinar algérien (DZD)", 9),
                 seed(ReferenceValueCategory.CURRENCY, "CAD", "Dollar canadien (CAD)", 10),
+                seed(ReferenceValueCategory.CURRENCY, "CDF", "Franc congolais (CDF)", 11),
 
                 // Langues
                 seed(ReferenceValueCategory.LANGUAGE, "fr", "Français", 1),

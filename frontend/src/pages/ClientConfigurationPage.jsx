@@ -15,7 +15,7 @@ const PAYMENT_CODES = [
 const EMPTY_CONFIG = {
   company: {
     name: '', address: '', city: '', country: '', phone: '', email: '', taxId: '',
-    logoUrl: '', currency: 'EUR', language: 'fr', timezone: 'Europe/Paris', dateFormat: 'dd/MM/yyyy',
+    logoUrl: '', currency: '', language: 'fr', timezone: 'Europe/Paris', dateFormat: 'dd/MM/yyyy',
   },
   pos: {
     registerName: 'Caisse 1', salePrefix: 'TK', ticketFormat: 'SIMPLE', ticketFooter: '',

@@ -83,6 +83,7 @@ export const navGroups = [
       { to: '/roles', label: 'Rôles', permission: 'roles.read' },
       { to: '/import-export', label: 'Import / Export', permission: 'import.read' },
       { to: '/configuration', label: 'Configuration client', permission: 'settings.read' },
+      { to: '/demo-data', label: 'Données de démonstration', permission: 'settings.update' },
       { to: '/settings', label: 'Paramètres avancés', permission: 'settings.read' },
       { to: '/dev-tools', label: 'Outils dev', devOnly: true, roles: ['SUPER_ADMIN'] },
     ],

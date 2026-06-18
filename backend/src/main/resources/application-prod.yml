@@ -1,0 +1,25 @@
+# Profil production — aucune donnee commerciale ou demo au demarrage
+spring:
+  config:
+    activate:
+      on-profile: prod
+
+app:
+  seed:
+    system-enabled: true
+    demo-enabled: true
+    demo-auto: false
+  admin:
+    reset-enabled: false
+  jwt:
+    secret: ${APP_JWT_SECRET:erp-dev-secret-change-in-production-min-256-bits-long-key!!}
+
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
+logging:
+  level:
+    com.erp.products: INFO

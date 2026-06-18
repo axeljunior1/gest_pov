@@ -4,9 +4,9 @@ services:
     container_name: monapp-postgres1
     restart: unless-stopped
     environment:
-      POSTGRES_DB: monapp
-      POSTGRES_USER: monapp
-      POSTGRES_PASSWORD: monapp
+      POSTGRES_DB: erp_products
+      POSTGRES_USER: erp_user
+      POSTGRES_PASSWORD: ErpProd2026!
     volumes:
       - postgres_data1:/var/lib/postgresql/data
     ports:
@@ -19,9 +19,9 @@ services:
     depends_on:
       - postgres
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/monapp
-      SPRING_DATASOURCE_USERNAME: monapp
-      SPRING_DATASOURCE_PASSWORD: monapp
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/erp_products
+      SPRING_DATASOURCE_USERNAME: erp_user
+      SPRING_DATASOURCE_PASSWORD: ErpProd2026!
     ports:
       - "8080:8080"
 

@@ -1,0 +1,11 @@
+# Profil demo — generation automatique du jeu de demonstration au demarrage
+spring:
+  config:
+    activate:
+      on-profile: demo
+
+app:
+  seed:
+    system-enabled: true
+    demo-enabled: true
+    demo-auto: true
