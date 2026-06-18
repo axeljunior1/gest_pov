@@ -10,52 +10,24 @@ Application full-stack pour la gestion du catalogue produits (Feature 1).
 | Frontend | React 19, Vite, Tailwind CSS 4 |
 | Tests | JUnit 5, MockMvc (17 tests) |
 
-## Git local (une feature = un commit)
-
-```powershell
-# Premier démarrage (déjà fait si .git existe)
-git init
-
-# Après chaque modification conséquente :
-.\commit-feature.ps1 "nom-feature" "feat: description courte"
-
-# Option : fusionner directement dans main
-.\commit-feature.ps1 "nom-feature" "feat: description" -MergeToMain
-```
-
-Branches : `main` (stable) · `feature/nom-feature` (travail en cours)
-
 ## Démarrage rapide
 
 ```powershell
-.\db.ps1      # PostgreSQL (Docker)
-.\dev.ps1     # Backend (profil dev) + frontend
+.\run.bat       # PostgreSQL + backend + frontend (recommandé Windows)
+# ou :
+.\db.ps1        # PostgreSQL seul (Docker)
+.\dev.ps1       # Backend (profil dev) + frontend
+npm run dev     # équivalent dev.ps1
 ```
 
 ### JAR exécutable (production / livraison client)
 
-`dev.ps1` et `mvn spring-boot:run` **ne produisent pas** de fichier JAR — ils lancent l'app directement depuis les sources.
-
-Pour obtenir le JAR :
-
-```powershell
-.\build-backend.ps1
-```
-
-Fichier généré : `backend/target/gest-pov-backend.jar` (~80 Mo, Spring Boot « fat jar »).
-
-```powershell
-# Lancer le JAR (PostgreSQL doit tourner)
-$env:SPRING_PROFILES_ACTIVE = "prod"
-java -jar backend\target\gest-pov-backend.jar
-```
-
-Équivalent Maven manuel :
+`run.bat`, `dev.ps1` et `mvn spring-boot:run` lancent l'app depuis les sources — ils ne produisent pas de JAR.
 
 ```powershell
 cd backend
 mvn clean package -DskipTests
-# JAR -> target\gest-pov-backend.jar
+# JAR -> target\gest-pov-backend.jar (~80 Mo)
 ```
 
 > **Note :** `mvn install` sans `-DskipTests` exécute tous les tests ; si un test échoue, Maven s'arrête **avant** de créer le JAR.

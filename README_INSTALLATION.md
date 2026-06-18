@@ -17,10 +17,7 @@ Ce package permet d'installer Gest_POV **sans code source** : uniquement des ima
 │   ├── monapp-frontend-1.0.0.tar
 │   └── postgres.tar
 ├── docker-compose.yml
-├── .env.example
-├── install.sh
-├── start.sh
-└── stop.sh
+└── .env.example
 ```
 
 ## Installation (première fois)
@@ -35,23 +32,20 @@ Ce package permet d'installer Gest_POV **sans code source** : uniquement des ima
    - `SPRING_DATASOURCE_PASSWORD` (identique à `POSTGRES_PASSWORD`)
    - `APP_JWT_SECRET` (chaîne longue et aléatoire)
 
-3. Lancez l'installation :
+3. Chargez les images et démarrez :
    ```bash
-   chmod +x install.sh start.sh stop.sh
-   ./install.sh
-   ```
-
-   Sous **Windows** (Git Bash ou WSL) :
-   ```bash
-   bash install.sh
+   docker load -i images/postgres.tar
+   docker load -i images/monapp-backend-1.0.0.tar
+   docker load -i images/monapp-frontend-1.0.0.tar
+   docker compose --env-file .env up -d
    ```
 
 ## Utilisation
 
 | Action | Commande |
 |--------|----------|
-| Démarrer | `./start.sh` |
-| Arrêter | `./stop.sh` |
+| Démarrer | `docker compose --env-file .env up -d` |
+| Arrêter | `docker compose --env-file .env down` |
 
 ## Accès application
 
@@ -75,7 +69,7 @@ Les volumes Docker conservent :
 - Fichiers uploadés (`monapp_uploads`)
 - Données licence / installation (`monapp_license`)
 
-`./stop.sh` n'efface pas ces données.
+`docker compose down` n'efface pas ces données.
 
 ## Dépannage
 
@@ -97,8 +91,10 @@ docker logs -f monapp-frontend
 Depuis le dépôt source complet :
 
 ```bash
-./build-images.sh      # compile et crée les images
-./export-images.sh     # exporte images/*.tar pour le client
+docker build -t monapp-backend:1.0.0 -f backend/Dockerfile backend
+docker build -t monapp-frontend:1.0.0 -f frontend/Dockerfile frontend
+docker save monapp-backend:1.0.0 -o images/monapp-backend-1.0.0.tar
+docker save monapp-frontend:1.0.0 -o images/monapp-frontend-1.0.0.tar
 ```
 
 Le client reçoit uniquement le dossier `images/` + scripts + `docker-compose.yml` + `.env.example`.
