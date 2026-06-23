@@ -19,7 +19,7 @@ import { PosSessionChip, PosSessionTypeBadge, PosWrongSessionPanel } from '../co
 import ResumeSalesModal from '../components/pos/ResumeSalesModal'
 import ModalOverlay from '../components/ui/ModalOverlay'
 import { PosTicketModal } from '../components/pos/PosPrintModals'
-import PosSearchResults, { resolvePosVariantId } from '../components/pos/PosSearchResults'
+import PosSearchResults, { expandPosSearchResults, resolvePosVariantId } from '../components/pos/PosSearchResults'
 import SearchCriteriaHelp from '../components/search/SearchCriteriaHelp'
 import { formatPosMoney } from '../utils/posMoney'
 
@@ -629,6 +629,24 @@ export default function POSPage() {
   }
 
   const onSearchKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      clearTimeout(searchTimerRef.current)
+      const minLen = barcodeMinLengthFromContext(context)
+      const { term } = parseSearchWithQty(search)
+      if (looksLikeBarcode(term, minLen) && isBarcodeScanEnabled(context)) {
+        scanBarcode(search)
+        return
+      }
+      const rows = expandPosSearchResults(searchResults, searchMatchType)
+      if (rows.length) {
+        pickSearchProduct(rows[searchHighlight] ?? rows[0])
+      } else if (search.trim()) {
+        runSearch(search, { autoAddExact: true })
+      }
+      return
+    }
+
     const rows = expandPosSearchResults(searchResults, searchMatchType)
     if (e.key === 'ArrowDown') {
       e.preventDefault()
@@ -647,22 +665,6 @@ export default function POSPage() {
     if (e.key === 'Escape') {
       e.preventDefault()
       clearSearch()
-      return
-    }
-    if (e.key === 'Enter') {
-      e.preventDefault()
-      clearTimeout(searchTimerRef.current)
-      const minLen = barcodeMinLengthFromContext(context)
-      const { term } = parseSearchWithQty(search)
-      if (looksLikeBarcode(term, minLen) && isBarcodeScanEnabled(context)) {
-        scanBarcode(search)
-        return
-      }
-      if (rows.length) {
-        pickSearchProduct(rows[searchHighlight] ?? rows[0])
-      } else if (search.trim()) {
-        runSearch(search, { autoAddExact: true })
-      }
     }
   }
 
