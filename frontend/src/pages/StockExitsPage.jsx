@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { stockExitsApi, stockApi, productsApi } from '../api'
+import SmartEntitySelector from '../components/search/SmartEntitySelector'
 import { PageHeader, Card, Button, Loading, Tabs, Badge, EmptyState } from '../components/ui'
 import { useAsyncAction } from '../hooks/useAsyncAction'
 import { useNotification } from '../context/NotificationContext'
@@ -378,16 +379,14 @@ export default function StockExitsPage() {
               const pkgs = packagings[line.productId] || []
               return (
                 <div key={idx} className="grid grid-cols-1 md:grid-cols-5 gap-2 p-3 bg-gray-50 rounded-lg">
-                  <select
+                  <SmartEntitySelector
+                    entityType="product"
                     value={line.productId}
-                    onChange={(e) => onProductChange(idx, e.target.value)}
-                    className="text-sm border rounded-lg px-2 py-2"
-                  >
-                    <option value="">Produit *</option>
-                    {products.map((p) => (
-                      <option key={p.id} value={p.id}>{p.nom}</option>
-                    ))}
-                  </select>
+                    onChange={(id) => onProductChange(idx, id)}
+                    options={products}
+                    variant="compact"
+                    showCriteriaHelp={idx === 0}
+                  />
                   <select
                     value={line.variantId}
                     disabled={!line.productId || variantsLoading}

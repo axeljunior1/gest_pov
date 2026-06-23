@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { productsApi, categoriesApi, suppliersApi } from '../api'
 import { PageHeader, Card, Button, Badge, EmptyState, Loading, Alert } from '../components/ui'
+import EntitySearchField from '../components/search/EntitySearchField'
 import { useAsyncAction } from '../hooks/useAsyncAction'
 import { useNotification } from '../context/NotificationContext'
 import { getErrorMessage } from '../utils/errors'
@@ -91,11 +92,12 @@ export default function ProductsPage() {
 
       <Card className="p-4 mb-6">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-          <input
-            placeholder="Rechercher nom, SKU, marque..."
+          <EntitySearchField
+            entityType="product"
             value={filters.query}
-            onChange={(e) => setFilters({ ...filters, query: e.target.value })}
-            onKeyDown={(e) => e.key === 'Enter' && load()}
+            onChange={(v) => setFilters({ ...filters, query: v })}
+            onSubmit={load}
+            className="md:col-span-2"
           />
           <select
             value={filters.categorieId}

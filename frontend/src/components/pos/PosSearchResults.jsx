@@ -1,4 +1,6 @@
 import { formatPosMoney } from '../../utils/posMoney'
+import { resolvePosProductMatch } from '../../utils/entitySearchMatch'
+import { SearchMatchHint } from '../search/SearchCriteriaHelp'
 
 export function resolvePosVariantId(product, variantId) {
   if (variantId) return variantId
@@ -52,7 +54,7 @@ export function expandPosSearchResults(results, matchType) {
   return rows
 }
 
-export default function PosSearchResults({ results, matchType, highlightIndex, currency, onPick, message }) {
+export default function PosSearchResults({ results, matchType, highlightIndex, currency, onPick, message, searchQuery = '' }) {
   if (results === null) return null
 
   const rows = expandPosSearchResults(results, matchType)
@@ -76,7 +78,11 @@ export default function PosSearchResults({ results, matchType, highlightIndex, c
         <p className="text-xs text-slate-400 px-4 py-2 border-b border-slate-700">{hint}</p>
       )}
       <ul className="max-h-56 overflow-auto">
-        {rows.map((row, index) => (
+        {rows.map((row, index) => {
+          const match = searchQuery.trim()
+            ? resolvePosProductMatch(searchQuery, row.product, matchType)
+            : null
+          return (
           <li key={row.key}>
             <button
               type="button"
@@ -88,6 +94,7 @@ export default function PosSearchResults({ results, matchType, highlightIndex, c
               <span className="min-w-0">
                 <span className="font-medium block truncate">{row.label}</span>
                 <span className="text-xs text-slate-400">{row.product.sku}{row.product.categoryNom ? ` · ${row.product.categoryNom}` : ''}</span>
+                <SearchMatchHint match={match} variant="pos" />
               </span>
               <span className="shrink-0 text-right">
                 <span className="text-emerald-400 font-medium">{formatPosMoney(row.unitPrice ?? row.product.unitPrice, currency)}</span>
@@ -99,7 +106,8 @@ export default function PosSearchResults({ results, matchType, highlightIndex, c
               </span>
             </button>
           </li>
-        ))}
+          )
+        })}
       </ul>
     </div>
   )

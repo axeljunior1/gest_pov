@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { stockApi, productsApi } from '../api'
+import SmartEntitySelector from '../components/search/SmartEntitySelector'
 import { PageHeader, Card, Button, Loading, Alert, Tabs, Badge } from '../components/ui'
 import { useAsyncAction } from '../hooks/useAsyncAction'
 import { useNotification } from '../context/NotificationContext'
@@ -165,10 +166,14 @@ export default function StockPage() {
             ))}
           </div>
           <div className="grid grid-cols-2 gap-4">
-            <select value={form.productId} onChange={(e) => setForm({ ...form, productId: e.target.value, variantId: '' })}>
-              <option value="">Produit</option>
-              {products.map((p) => <option key={p.id} value={p.id}>{p.nom} ({p.sku})</option>)}
-            </select>
+            <SmartEntitySelector
+              entityType="product"
+              value={form.productId}
+              onChange={(id) => setForm({ ...form, productId: id, variantId: '' })}
+              options={products}
+              getOptionLabel={(p) => `${p.nom} (${p.sku})`}
+              variant="compact"
+            />
             <select value={form.variantId} onChange={(e) => setForm({ ...form, variantId: e.target.value })}>
               <option value="">Variante (optionnel)</option>
               {variants.map((v) => <option key={v.id} value={v.id}>{v.sku}</option>)}

@@ -3,6 +3,8 @@ import { posApi } from '../api'
 import { useAuth } from '../context/AuthContext'
 import { useNotification } from '../context/NotificationContext'
 import { getErrorMessage } from '../utils/errors'
+import SearchCriteriaHelp, { SearchMatchHint } from './search/SearchCriteriaHelp'
+import { findEntityMatch } from '../utils/entitySearchMatch'
 
 function formatMoney(value, currency = 'EUR') {
   if (value == null) return '—'
@@ -155,28 +157,34 @@ export default function POSCustomerPanel({ sale, currency, loyaltyConfig, onSale
         <>
           <input
             ref={searchRef}
-            type="text"
+            type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Tél, nom, email, n° client..."
+            placeholder="Rechercher un client (nom, téléphone, email…)"
             className="w-full rounded-lg px-3 py-2 text-sm border border-slate-600"
             disabled={!sale?.id || loading}
+            autoComplete="off"
           />
+          <SearchCriteriaHelp entityType="customer" variant="pos" mode="inline" />
           {results?.length > 0 && (
             <ul className="bg-slate-800 rounded-lg border border-slate-700 max-h-32 overflow-auto">
-              {results.map((c) => (
+              {results.map((c) => {
+                const match = search.trim() ? findEntityMatch(search, c, 'customer') : null
+                return (
                 <li key={c.id}>
                   <button type="button" disabled={loading}
                     onClick={() => assignCustomer(c)}
                     className="w-full text-left px-3 py-2 hover:bg-slate-700 text-xs">
                     <span className="font-medium">{c.fullName}</span>
                     {c.phone && <span className="text-slate-400 ml-2">{c.phone}</span>}
+                    <SearchMatchHint match={match} variant="pos" />
                     {loyaltyEnabled && (
                       <span className="block text-emerald-400">{c.loyaltyPoints} pts · {c.loyaltyTier}</span>
                     )}
                   </button>
                 </li>
-              ))}
+                )
+              })}
             </ul>
           )}
           {showCreate && hasPermission('customer.create') && (

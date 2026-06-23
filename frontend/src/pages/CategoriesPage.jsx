@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react'
 import { categoriesApi } from '../api'
 import { PageHeader, Card, Button, Loading, Alert } from '../components/ui'
+import EntitySearchField from '../components/search/EntitySearchField'
+import { SearchMatchHint } from '../components/search/SearchCriteriaHelp'
+import { findEntityMatch } from '../utils/entitySearchMatch'
 import { useAsyncAction } from '../hooks/useAsyncAction'
 import { getErrorMessage } from '../utils/errors'
 import { useNotification } from '../context/NotificationContext'
@@ -139,10 +142,14 @@ export default function CategoriesPage() {
           <input placeholder="Nouvelle catégorie racine" value={newNom} onChange={(e) => setNewNom(e.target.value)} className="flex-1" onKeyDown={(e) => e.key === 'Enter' && handleCreate()} />
           <Button onClick={handleCreate} disabled={submitting}>Créer</Button>
         </div>
-        <div className="flex gap-3 mt-3">
-          <input placeholder="Rechercher..." value={search} onChange={(e) => setSearch(e.target.value)} className="flex-1" onKeyDown={(e) => e.key === 'Enter' && handleSearch()} />
-          <Button variant="secondary" onClick={handleSearch}>Rechercher</Button>
-        </div>
+        <EntitySearchField
+          entityType="category"
+          value={search}
+          onChange={setSearch}
+          onSubmit={handleSearch}
+          showSearchButton
+          className="mt-3"
+        />
       </Card>
 
       {loading ? <Loading /> : pageError ? (
@@ -155,7 +162,10 @@ export default function CategoriesPage() {
               {searchResults.length === 0 ? (
                 <p className="text-sm text-gray-400">Aucun résultat</p>
               ) : searchResults.map((c) => (
-                <div key={c.id} className="py-1 text-sm">{c.nom} {c.parentNom && <span className="text-gray-400">({c.parentNom})</span>}</div>
+                <div key={c.id} className="py-1 text-sm">
+                  {c.nom} {c.parentNom && <span className="text-gray-400">({c.parentNom})</span>}
+                  {search.trim() && <SearchMatchHint match={findEntityMatch(search, c, 'category')} />}
+                </div>
               ))}
               <Button variant="ghost" className="mt-3 text-xs" onClick={() => setSearchResults(null)}>Retour à l'arborescence</Button>
             </div>

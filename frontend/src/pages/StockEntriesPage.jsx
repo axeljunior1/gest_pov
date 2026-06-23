@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { stockEntriesApi, stockApi, productsApi, suppliersApi } from '../api'
+import SmartEntitySelector from '../components/search/SmartEntitySelector'
 import { PageHeader, Card, Button, Loading, Tabs, Badge, EmptyState } from '../components/ui'
 import { useAsyncAction } from '../hooks/useAsyncAction'
 import { useNotification } from '../context/NotificationContext'
@@ -332,16 +333,14 @@ export default function StockEntriesPage() {
             </div>
             <div>
               <label className="text-xs text-gray-500">Fournisseur</label>
-              <select
+              <SmartEntitySelector
+                entityType="supplier"
                 value={form.supplierId}
-                onChange={(e) => setForm({ ...form, supplierId: e.target.value })}
-                className="w-full mt-1 border rounded-lg px-3 py-2 text-sm"
-              >
-                <option value="">—</option>
-                {suppliers.map((s) => (
-                  <option key={s.id} value={s.id}>{s.nom}</option>
-                ))}
-              </select>
+                onChange={(id) => setForm({ ...form, supplierId: id })}
+                options={suppliers}
+                variant="compact"
+                className="mt-1"
+              />
             </div>
             <div>
               <label className="text-xs text-gray-500">Date d'entrée</label>
@@ -390,16 +389,15 @@ export default function StockEntriesPage() {
               const pkgs = packagings[line.productId] || []
               return (
                 <div key={idx} className="grid grid-cols-1 md:grid-cols-6 gap-2 mb-3 p-3 bg-gray-50 rounded-lg">
-                  <select
+                  <SmartEntitySelector
+                    entityType="product"
                     value={line.productId}
-                    onChange={(e) => onProductChange(idx, e.target.value)}
-                    className="border rounded-lg px-2 py-1.5 text-sm"
-                  >
-                    <option value="">Produit *</option>
-                    {products.map((p) => (
-                      <option key={p.id} value={p.id}>{p.nom}</option>
-                    ))}
-                  </select>
+                    onChange={(id) => onProductChange(idx, id)}
+                    options={products}
+                    variant="compact"
+                    showCriteriaHelp={idx === 0}
+                    className="min-w-0"
+                  />
                   <select
                     value={line.variantId}
                     disabled={!line.productId || variantsLoading}

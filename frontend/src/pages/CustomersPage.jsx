@@ -3,6 +3,9 @@ import { Link, useParams } from 'react-router-dom'
 import { customersApi } from '../api'
 import { useAuth } from '../context/AuthContext'
 import { PageHeader, Card, Button, Loading, Alert } from '../components/ui'
+import EntitySearchField from '../components/search/EntitySearchField'
+import { SearchMatchHint } from '../components/search/SearchCriteriaHelp'
+import { findEntityMatch } from '../utils/entitySearchMatch'
 import { useAsyncAction } from '../hooks/useAsyncAction'
 import { useNotification } from '../context/NotificationContext'
 import { getErrorMessage } from '../utils/errors'
@@ -174,10 +177,14 @@ export default function CustomersPage() {
       )}
 
       <Card className="p-5">
-        <div className="flex gap-2 mb-4">
-          <input placeholder="Rechercher..." value={search} onChange={(e) => setSearch(e.target.value)} className="flex-1" />
-          <Button variant="secondary" onClick={loadList}>Rechercher</Button>
-        </div>
+        <EntitySearchField
+          entityType="customer"
+          value={search}
+          onChange={setSearch}
+          onSubmit={loadList}
+          showSearchButton
+          className="mb-4"
+        />
         {loading ? <Loading /> : (
           <table className="w-full text-sm">
             <thead>
@@ -194,7 +201,12 @@ export default function CustomersPage() {
               {customers.map((c) => (
                 <tr key={c.id} className="border-b border-gray-50">
                   <td className="py-2 font-mono text-xs">{c.customerNumber}</td>
-                  <td className="py-2">{c.fullName}</td>
+                  <td className="py-2">
+                    {c.fullName}
+                    {search.trim() && (
+                      <SearchMatchHint match={findEntityMatch(search, c, 'customer')} className="block" />
+                    )}
+                  </td>
                   <td className="py-2">{c.phone || '—'}</td>
                   <td className="py-2">{c.loyaltyPoints}</td>
                   <td className="py-2">{c.loyaltyTier}</td>

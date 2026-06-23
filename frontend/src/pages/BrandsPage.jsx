@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { brandsApi } from '../api'
 import { PageHeader, Card, Button, Loading, Alert } from '../components/ui'
+import EntitySearchField from '../components/search/EntitySearchField'
+import { SearchMatchHint } from '../components/search/SearchCriteriaHelp'
+import { findEntityMatch } from '../utils/entitySearchMatch'
 import { useAsyncAction } from '../hooks/useAsyncAction'
 import { getErrorMessage } from '../utils/errors'
 import { useNotification } from '../context/NotificationContext'
@@ -117,16 +120,14 @@ export default function BrandsPage() {
           />
           <Button onClick={handleCreate} disabled={submitting}>Créer</Button>
         </div>
-        <div className="flex gap-3 mt-3">
-          <input
-            placeholder="Rechercher..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="flex-1"
-            onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-          />
-          <Button variant="secondary" onClick={handleSearch}>Rechercher</Button>
-        </div>
+        <EntitySearchField
+          entityType="brand"
+          value={search}
+          onChange={setSearch}
+          onSubmit={handleSearch}
+          showSearchButton
+          className="mt-3"
+        />
         <p className="text-xs text-gray-400 mt-3">
           Les marques existantes sur les produits ont été importées automatiquement.{' '}
           <Link to="/products/new" className="text-emerald-600 hover:underline">Créer un produit</Link>
@@ -143,7 +144,10 @@ export default function BrandsPage() {
               {searchResults.length === 0 ? (
                 <p className="text-sm text-gray-400">Aucun résultat</p>
               ) : searchResults.map((b) => (
-                <div key={b.id} className="py-1 text-sm">{b.nom}</div>
+                <div key={b.id} className="py-1 text-sm">
+                  {b.nom}
+                  {search.trim() && <SearchMatchHint match={findEntityMatch(search, b, 'brand')} />}
+                </div>
               ))}
               <Button variant="ghost" className="mt-3 text-xs" onClick={() => setSearchResults(null)}>Retour à la liste</Button>
             </div>

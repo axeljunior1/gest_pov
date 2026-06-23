@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { alertSettingsApi, productsApi, stockApi } from '../api'
+import SmartEntitySelector from './search/SmartEntitySelector'
 import { useAuth } from '../context/AuthContext'
 import { Card, Button, Loading, Badge } from '../components/ui'
 import { useAsyncAction } from '../hooks/useAsyncAction'
@@ -119,10 +120,14 @@ export default function AlertThresholdsPanel() {
               {SCOPES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
             </select>
             {(form.scope === 'PRODUCT' || form.scope === 'PRODUCT_WAREHOUSE') && (
-              <select value={form.productId} onChange={(e) => setForm({ ...form, productId: e.target.value })} className="text-sm">
-                <option value="">Produit *</option>
-                {products.map((p) => <option key={p.id} value={p.id}>{p.sku} — {p.nom}</option>)}
-              </select>
+              <SmartEntitySelector
+                entityType="product"
+                value={form.productId}
+                onChange={(id) => setForm({ ...form, productId: id })}
+                options={products}
+                getOptionLabel={(p) => `${p.sku} — ${p.nom}`}
+                variant="compact"
+              />
             )}
             {(form.scope === 'WAREHOUSE' || form.scope === 'PRODUCT_WAREHOUSE') && (
               <select value={form.warehouseId} onChange={(e) => setForm({ ...form, warehouseId: e.target.value })} className="text-sm">

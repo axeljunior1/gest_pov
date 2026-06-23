@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { stockMovementsApi, stockApi, productsApi } from '../api'
+import SmartEntitySelector from '../components/search/SmartEntitySelector'
 import { PageHeader, Card, Button, Loading, Badge, EmptyState } from '../components/ui'
 import { useNotification } from '../context/NotificationContext'
 import { useAuth } from '../context/AuthContext'
@@ -158,16 +159,14 @@ export default function StockMovementsPage() {
 
       <Card className="p-4 mb-4">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-          <select
+          <SmartEntitySelector
+            entityType="product"
             value={filters.productId}
-            onChange={(e) => setFilters({ ...filters, productId: e.target.value })}
-            className="text-sm border rounded-lg px-2 py-2"
-          >
-            <option value="">Tous produits</option>
-            {products.map((p) => (
-              <option key={p.id} value={p.id}>{p.nom}</option>
-            ))}
-          </select>
+            onChange={(id) => setFilters({ ...filters, productId: id })}
+            options={products}
+            variant="compact"
+            className="text-sm"
+          />
           <select
             value={filters.warehouseId}
             onChange={(e) => onWarehouseFilterChange(e.target.value)}

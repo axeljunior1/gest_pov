@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import {
   purchaseOrdersApi, stockApi, productsApi, suppliersApi,
 } from '../api'
+import SmartEntitySelector from '../components/search/SmartEntitySelector'
 import { useAuth } from '../context/AuthContext'
 import { PageHeader, Card, Button, Loading, Badge, EmptyState } from '../components/ui'
 import { useAsyncAction } from '../hooks/useAsyncAction'
@@ -177,10 +178,13 @@ export default function PurchaseOrdersPage() {
       {showForm && canCreate && (
         <Card className="p-5 mb-6 space-y-4">
           <div className="grid md:grid-cols-3 gap-3">
-            <select value={form.supplierId} onChange={(e) => setForm({ ...form, supplierId: e.target.value })} className="w-full">
-              <option value="">Fournisseur *</option>
-              {suppliers.map((s) => <option key={s.id} value={s.id}>{s.nom}</option>)}
-            </select>
+            <SmartEntitySelector
+              entityType="supplier"
+              value={form.supplierId}
+              onChange={(id) => setForm({ ...form, supplierId: id })}
+              options={suppliers}
+              variant="compact"
+            />
             <select value={form.warehouseId} onChange={(e) => setForm({ ...form, warehouseId: e.target.value })} className="w-full">
               <option value="">Entrepôt (optionnel)</option>
               {warehouses.map((w) => <option key={w.id} value={w.id}>{w.code} — {w.nom}</option>)}
@@ -190,14 +194,19 @@ export default function PurchaseOrdersPage() {
           <textarea placeholder="Notes" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} className="w-full text-sm" rows={2} />
           {form.lines.map((line, idx) => (
             <div key={idx} className="grid md:grid-cols-4 gap-2">
-              <select value={line.productId} onChange={(e) => {
-                const next = [...form.lines]
-                next[idx] = { ...next[idx], productId: e.target.value, variantId: '' }
-                setForm({ ...form, lines: next })
-              }} className="w-full text-sm">
-                <option value="">Produit *</option>
-                {products.map((p) => <option key={p.id} value={p.id}>{p.sku} — {p.nom}</option>)}
-              </select>
+              <SmartEntitySelector
+                entityType="product"
+                value={line.productId}
+                onChange={(id) => {
+                  const next = [...form.lines]
+                  next[idx] = { ...next[idx], productId: id, variantId: '' }
+                  setForm({ ...form, lines: next })
+                }}
+                options={products}
+                getOptionLabel={(p) => `${p.sku} — ${p.nom}`}
+                variant="compact"
+                showCriteriaHelp={idx === 0}
+              />
               <input type="number" placeholder="Qté *" value={line.quantity} onChange={(e) => {
                 const next = [...form.lines]
                 next[idx] = { ...next[idx], quantity: e.target.value }

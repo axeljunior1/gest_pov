@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { rolesApi, usersApi } from '../api'
 import { useAuth } from '../context/AuthContext'
 import { PageHeader, Card, Button, Loading, Alert, Badge } from '../components/ui'
+import EntitySearchField from '../components/search/EntitySearchField'
+import { filterEntities } from '../utils/entitySearchMatch'
 import { useAsyncAction } from '../hooks/useAsyncAction'
 import { useNotification } from '../context/NotificationContext'
 import { getErrorMessage } from '../utils/errors'
@@ -30,6 +32,9 @@ export default function UsersPage() {
   const [pageError, setPageError] = useState('')
   const [form, setForm] = useState(emptyForm())
   const [editingId, setEditingId] = useState(null)
+  const [search, setSearch] = useState('')
+
+  const displayedUsers = search.trim() ? filterEntities(users, search, 'user') : users
 
   const canCreate = hasPermission('users.create')
   const canUpdate = hasPermission('users.update')
@@ -219,6 +224,10 @@ export default function UsersPage() {
         </Card>
       )}
 
+      <Card className="p-5 mb-4">
+        <EntitySearchField entityType="user" value={search} onChange={setSearch} />
+      </Card>
+
       {loading ? <Loading /> : (
         <Card className="overflow-hidden">
           <table className="w-full text-sm">
@@ -233,13 +242,13 @@ export default function UsersPage() {
               </tr>
             </thead>
             <tbody>
-              {users.length === 0 ? (
+              {displayedUsers.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-5 py-8 text-center text-gray-400">
                     Aucun utilisateur
                   </td>
                 </tr>
-              ) : users.map((user) => (
+              ) : displayedUsers.map((user) => (
                 <tr key={user.id} className="border-b border-gray-50">
                   <td className="px-5 py-3 font-medium">
                     {user.firstName} {user.lastName}

@@ -20,6 +20,7 @@ import ResumeSalesModal from '../components/pos/ResumeSalesModal'
 import ModalOverlay from '../components/ui/ModalOverlay'
 import { PosTicketModal } from '../components/pos/PosPrintModals'
 import PosSearchResults, { resolvePosVariantId } from '../components/pos/PosSearchResults'
+import SearchCriteriaHelp from '../components/search/SearchCriteriaHelp'
 import { formatPosMoney } from '../utils/posMoney'
 
 function flatCategories(nodes, depth = 0) {
@@ -1084,11 +1085,12 @@ export default function POSPage() {
                   value={search}
                   onChange={onSearchChange}
                   onKeyDown={onSearchKeyDown}
-                  placeholder="Code-barres, nom… ou 5* puis scan"
+                  placeholder="Rechercher un produit (nom, SKU, code-barres, EAN13, catégorie…)"
                   className="w-full rounded-xl px-4 py-3 text-base border border-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   autoComplete="off"
                   spellCheck={false}
                 />
+                <SearchCriteriaHelp entityType="product" variant="pos" mode="inline" className="mt-1.5 px-0.5" />
                 {searchOpen && (
                   <PosSearchResults
                     results={searchResults}
@@ -1096,6 +1098,7 @@ export default function POSPage() {
                     message={searchMessage}
                     highlightIndex={searchHighlight}
                     currency={currency}
+                    searchQuery={search}
                     onPick={(row) => pickSearchProduct(row, search)}
                   />
                 )}

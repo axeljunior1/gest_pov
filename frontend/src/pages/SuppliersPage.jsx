@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { suppliersApi } from '../api'
 import { PageHeader, Card, Button, Loading, Alert } from '../components/ui'
+import EntitySearchField from '../components/search/EntitySearchField'
+import { filterEntities } from '../utils/entitySearchMatch'
 import { useAsyncAction } from '../hooks/useAsyncAction'
 import { useNotification } from '../context/NotificationContext'
 import { getErrorMessage } from '../utils/errors'
@@ -13,6 +15,11 @@ export default function SuppliersPage() {
   const [pageError, setPageError] = useState('')
   const [form, setForm] = useState({ nom: '', email: '', telephone: '', adresse: '' })
   const [editingId, setEditingId] = useState(null)
+  const [search, setSearch] = useState('')
+
+  const displayedSuppliers = search.trim()
+    ? filterEntities(suppliers, search, 'supplier')
+    : suppliers
 
   const load = async () => {
     setLoading(true)
@@ -83,6 +90,14 @@ export default function SuppliersPage() {
         </div>
       </Card>
 
+      <Card className="p-5 mb-4">
+        <EntitySearchField
+          entityType="supplier"
+          value={search}
+          onChange={setSearch}
+        />
+      </Card>
+
       {loading ? <Loading /> : pageError ? (
         <Card><p className="text-center py-8 text-sm text-gray-400">Impossible de charger les fournisseurs.</p></Card>
       ) : (
@@ -98,9 +113,9 @@ export default function SuppliersPage() {
               </tr>
             </thead>
             <tbody>
-              {suppliers.length === 0 ? (
+              {displayedSuppliers.length === 0 ? (
                 <tr><td colSpan={5} className="px-5 py-8 text-center text-gray-400">Aucun fournisseur</td></tr>
-              ) : suppliers.map((s) => (
+              ) : displayedSuppliers.map((s) => (
                 <tr key={s.id} className="border-b border-gray-50">
                   <td className="px-5 py-3 font-medium">{s.nom}</td>
                   <td className="px-5 py-3 text-gray-600">{s.email || '—'}</td>
