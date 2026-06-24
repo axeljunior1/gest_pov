@@ -9,10 +9,10 @@ export function getSaleStockIssueLines(sale) {
   return sale.lignes.filter((l) => l.stockInsufficient)
 }
 
+import { formatPosSaleLineLabel } from './posSaleLine'
+
 export function formatStockIssueLine(line) {
-  const label = line.variantNameSnapshot
-    ? `${line.productNom} — ${line.variantNameSnapshot}`
-    : line.productNom
+  const label = formatPosSaleLineLabel(line)
   const qty = Number(line.quantityInput)
   const available = line.stockAvailable != null ? Number(line.stockAvailable) : null
   if (available != null) {

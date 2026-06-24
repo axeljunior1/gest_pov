@@ -15,6 +15,8 @@ import CancelSaleModal from '../components/pos/CancelSaleModal'
 import ModalOverlay from '../components/ui/ModalOverlay'
 import { PosSessionChip, PosSessionTypeBadge, PosWrongSessionPanel } from '../components/pos/PosWorkspaceNav'
 import { PosTicketModal } from '../components/pos/PosPrintModals'
+import PosSaleLinesSummary from '../components/pos/PosSaleLinesSummary'
+import PosSaleLineLabel from '../components/pos/PosSaleLineLabel'
 
 function PaymentModal({ sale, currency, paymentMethods, changeGivingEnabled, onClose, onPaid, onRecallToDraft }) {
   const enabledMethods = useMemo(
@@ -77,6 +79,7 @@ function PaymentModal({ sale, currency, paymentMethods, changeGivingEnabled, onC
       <div className="bg-slate-900 border border-slate-700 rounded-xl w-full max-w-lg p-6">
         <h3 className="text-lg font-semibold mb-1">Encaisser — {sale?.saleNumber}</h3>
         <p className="text-sm text-slate-400 mb-4">Vendeur : {sale?.sellerName || sale?.cashierName} · Total {formatPosMoney(total, currency)}</p>
+        <PosSaleLinesSummary lines={sale?.lignes} currency={currency} />
         {paymentError && (
           <div className="mb-4 rounded-lg border border-red-500/50 bg-red-950/40 px-3 py-2 text-sm text-red-200" role="alert">
             {paymentError}
@@ -464,9 +467,12 @@ export default function PosPendingPaymentsPage() {
             <p className="text-xs text-slate-400 mb-4">Vendeur : {detail.sellerName || detail.cashierName}</p>
             <ul className="text-sm space-y-1 mb-4">
               {detail.lignes?.map((l) => (
-                <li key={l.id} className="flex justify-between">
-                  <span>{l.productNom} × {l.quantityInput}</span>
-                  <span>{formatPosMoney(l.lineTotal, currency)}</span>
+                <li key={l.id} className="flex justify-between gap-3 items-start">
+                  <div className="min-w-0">
+                    <PosSaleLineLabel line={l} variant="cart" />
+                    <span className="text-xs text-slate-500">× {l.quantityInput}</span>
+                  </div>
+                  <span className="shrink-0">{formatPosMoney(l.lineTotal, currency)}</span>
                 </li>
               ))}
             </ul>

@@ -20,6 +20,8 @@ import ResumeSalesModal from '../components/pos/ResumeSalesModal'
 import ModalOverlay from '../components/ui/ModalOverlay'
 import { PosTicketModal } from '../components/pos/PosPrintModals'
 import PosSearchResults, { expandPosSearchResults, resolvePosVariantId } from '../components/pos/PosSearchResults'
+import PosSaleLinesSummary from '../components/pos/PosSaleLinesSummary'
+import PosSaleLineLabel from '../components/pos/PosSaleLineLabel'
 import SearchCriteriaHelp from '../components/search/SearchCriteriaHelp'
 import { formatPosMoney } from '../utils/posMoney'
 
@@ -78,6 +80,7 @@ function PaymentModal({ sale, currency, paymentMethods, changeGivingEnabled, onC
     <ModalOverlay open onClose={onClose}>
       <div className="bg-slate-900 border border-slate-700 rounded-xl w-full max-w-lg p-6">
         <h3 className="text-lg font-semibold mb-4">Paiement — {formatPosMoney(total, currency)}</h3>
+        <PosSaleLinesSummary lines={sale?.lignes} currency={currency} />
         {paymentError && (
           <div className="mb-4 rounded-lg border border-red-500/50 bg-red-950/40 px-3 py-2 text-sm text-red-200" role="alert">
             {paymentError}
@@ -1158,13 +1161,8 @@ export default function POSPage() {
             {lines.map((l) => (
               <li key={l.id} className={`p-3 text-sm ${l.stockInsufficient ? 'bg-red-950/30' : ''}`}>
                 <div className="flex justify-between gap-2">
-                  <span className="font-medium line-clamp-1">
-                    {l.variantNameSnapshot ? `${l.productNom} — ${l.variantNameSnapshot}` : l.productNom}
-                    {l.packagingNameSnapshot && (
-                      <span className="block text-xs text-slate-400 font-normal">{l.packagingNameSnapshot}</span>
-                    )}
-                  </span>
-                  <span>{formatPosMoney(l.lineTotal, currency)}</span>
+                  <PosSaleLineLabel line={l} variant="cart" className="flex-1 min-w-0" />
+                  <span className="shrink-0">{formatPosMoney(l.lineTotal, currency)}</span>
                 </div>
                 {l.stockInsufficient && (
                   <p className="text-xs text-red-400 mt-1">

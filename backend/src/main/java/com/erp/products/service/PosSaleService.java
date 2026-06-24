@@ -50,6 +50,7 @@ public class PosSaleService {
     private final PaymentRepository paymentRepository;
     private final PermissionEvaluator permissionChecker;
     private final ProductVariantPolicyService variantPolicyService;
+    private final ProductVariantAttributeService variantAttributeService;
     private final StockExitService stockExitService;
     private final BarcodeLookupService barcodeLookupService;
     private final SaleCancellationService saleCancellationService;
@@ -268,7 +269,7 @@ public class PosSaleService {
                     .variant(variant)
                     .packaging(packaging)
                     .productNameSnapshot(product.getNom())
-                    .variantNameSnapshot(variant != null ? variantPolicyService.buildVariantName(variant) : null)
+                    .variantNameSnapshot(snapshotVariantName(variant))
                     .packagingNameSnapshot(packaging != null ? packaging.getNom() : null)
                     .packagingQuantitySnapshot(packaging != null ? packaging.getQuantiteBase() : null)
                     .quantityInput(qtyInput)
@@ -855,5 +856,15 @@ public class PosSaleService {
                 .orElseThrow(() -> new ResourceNotFoundException("Conditionnement non trouve"));
         PackagingService.assertUsableForSale(packaging);
         return packaging;
+    }
+
+    private String snapshotVariantName(ProductVariant variant) {
+        if (variant == null) {
+            return null;
+        }
+        if (variant.getName() != null && !variant.getName().isBlank()) {
+            return variant.getName().trim();
+        }
+        return variantAttributeService.buildVariantLabel(variant);
     }
 }

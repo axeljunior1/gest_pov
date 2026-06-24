@@ -1,27 +1,32 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { productsApi, categoriesApi, suppliersApi } from '../api'
 import { PageHeader, Card, Button, Badge, EmptyState, Loading, Alert } from '../components/ui'
 import EntitySearchField from '../components/search/EntitySearchField'
 import { useAsyncAction } from '../hooks/useAsyncAction'
 import { useNotification } from '../context/NotificationContext'
+import { useAuth } from '../context/AuthContext'
 import { getErrorMessage } from '../utils/errors'
-import { formatPrice, lifecycleLabel, statusLabel } from '../utils/constants'
+import { formatPrice, lifecycleLabel, statusLabel, LIFECYCLE_STATUS } from '../utils/constants'
 
 export default function ProductsPage() {
   const navigate = useNavigate()
   const notify = useNotification()
+  const { hasPermission } = useAuth()
   const { run, submitting } = useAsyncAction()
+  const canDelete = hasPermission('products.delete')
   const [products, setProducts] = useState([])
   const [categories, setCategories] = useState([])
   const [suppliers, setSuppliers] = useState([])
   const [loading, setLoading] = useState(true)
   const [pageError, setPageError] = useState('')
+  const [selectedIds, setSelectedIds] = useState(() => new Set())
   const [filters, setFilters] = useState({
     query: '',
     categorieId: '',
     fournisseurId: '',
     marque: '',
+    cycleVie: '',
     stockFaible: false,
     rupture: false,
   })
@@ -35,10 +40,12 @@ export default function ProductsPage() {
       if (filters.categorieId) params.categorieId = Number(filters.categorieId)
       if (filters.fournisseurId) params.fournisseurId = Number(filters.fournisseurId)
       if (filters.marque?.trim()) params.marque = filters.marque.trim()
+      if (filters.cycleVie) params.cycleVie = filters.cycleVie
       if (filters.stockFaible) params.stockFaible = true
       if (filters.rupture) params.rupture = true
       const data = await productsApi.search(params)
       setProducts(data)
+      setSelectedIds(new Set())
     } catch (error) {
       const message = getErrorMessage(error, { module: 'products' })
       setPageError(message)
@@ -69,12 +76,52 @@ export default function ProductsPage() {
 
   const categoryOptions = flatCategories(categories)
 
+  const selectedCount = selectedIds.size
+  const allSelected = useMemo(
+    () => products.length > 0 && products.every((p) => selectedIds.has(p.id)),
+    [products, selectedIds],
+  )
+
+  const toggleSelectAll = () => {
+    if (allSelected) {
+      setSelectedIds(new Set())
+    } else {
+      setSelectedIds(new Set(products.map((p) => p.id)))
+    }
+  }
+
+  const toggleSelectOne = (e, productId) => {
+    e.stopPropagation()
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(productId)) next.delete(productId)
+      else next.add(productId)
+      return next
+    })
+  }
+
   const handleDelete = (e, product) => {
     e.stopPropagation()
     if (!confirm(`Supprimer « ${product.nom} » ? Cette action est irréversible.`)) return
     run(
       () => productsApi.delete(product.id),
       { successMessage: 'Produit supprimé', onSuccess: load },
+    )
+  }
+
+  const handleBulkDelete = () => {
+    const ids = [...selectedIds]
+    if (!ids.length) return
+    const message = ids.length === 1
+      ? 'Supprimer le produit sélectionné ? Cette action est irréversible.'
+      : `Supprimer ${ids.length} produits ? Cette action est irréversible.`
+    if (!confirm(message)) return
+    run(
+      () => productsApi.bulkDelete(ids),
+      {
+        successMessage: `${ids.length} produit(s) supprimé(s)`,
+        onSuccess: load,
+      },
     )
   }
 
@@ -122,6 +169,15 @@ export default function ProductsPage() {
             value={filters.marque}
             onChange={(e) => setFilters({ ...filters, marque: e.target.value })}
           />
+          <select
+            value={filters.cycleVie}
+            onChange={(e) => setFilters({ ...filters, cycleVie: e.target.value })}
+          >
+            <option value="">Tous cycles de vie</option>
+            {LIFECYCLE_STATUS.map((s) => (
+              <option key={s} value={s}>{lifecycleLabel[s]}</option>
+            ))}
+          </select>
         </div>
         <div className="flex items-center gap-4 mt-3">
           <label className="flex items-center gap-2 text-sm text-gray-600">
@@ -152,9 +208,34 @@ export default function ProductsPage() {
         <Card><EmptyState message="Aucun produit trouvé" /></Card>
       ) : (
         <Card className="overflow-hidden">
+          {canDelete && selectedCount > 0 && (
+            <div className="flex items-center justify-between gap-3 px-5 py-3 border-b border-gray-100 bg-gray-50">
+              <p className="text-sm text-gray-600">
+                {selectedCount} produit{selectedCount > 1 ? 's' : ''} sélectionné{selectedCount > 1 ? 's' : ''}
+              </p>
+              <div className="flex items-center gap-2">
+                <Button variant="secondary" onClick={() => setSelectedIds(new Set())} disabled={submitting}>
+                  Tout désélectionner
+                </Button>
+                <Button variant="danger" onClick={handleBulkDelete} disabled={submitting}>
+                  Supprimer la sélection
+                </Button>
+              </div>
+            </div>
+          )}
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100 text-left text-gray-500">
+                {canDelete && (
+                  <th className="px-5 py-3 font-medium w-10">
+                    <input
+                      type="checkbox"
+                      checked={allSelected}
+                      onChange={toggleSelectAll}
+                      aria-label="Tout sélectionner"
+                    />
+                  </th>
+                )}
                 <th className="px-5 py-3 font-medium">Produit</th>
                 <th className="px-5 py-3 font-medium">SKU</th>
                 <th className="px-5 py-3 font-medium">Catégorie</th>
@@ -162,16 +243,28 @@ export default function ProductsPage() {
                 <th className="px-5 py-3 font-medium">Stock</th>
                 <th className="px-5 py-3 font-medium">Statut</th>
                 <th className="px-5 py-3 font-medium">Cycle de vie</th>
-                <th className="px-5 py-3 font-medium w-24"></th>
+                {canDelete && <th className="px-5 py-3 font-medium w-24"></th>}
               </tr>
             </thead>
             <tbody>
               {products.map((p) => (
                 <tr
                   key={p.id}
-                  className="border-b border-gray-50 hover:bg-gray-50/50 cursor-pointer"
+                  className={`border-b border-gray-50 hover:bg-gray-50/50 cursor-pointer ${
+                    selectedIds.has(p.id) ? 'bg-gray-50/80' : ''
+                  }`}
                   onClick={() => navigate(`/products/${p.id}`)}
                 >
+                  {canDelete && (
+                    <td className="px-5 py-3.5" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(p.id)}
+                        onChange={(e) => toggleSelectOne(e, p.id)}
+                        aria-label={`Sélectionner ${p.nom}`}
+                      />
+                    </td>
+                  )}
                   <td className="px-5 py-3.5">
                     <div className="font-medium text-gray-900">{p.nom}</div>
                     {p.marque && <div className="text-xs text-gray-400">{p.marque}</div>}
@@ -194,16 +287,18 @@ export default function ProductsPage() {
                       {lifecycleLabel[p.cycleVie] || p.cycleVie}
                     </Badge>
                   </td>
-                  <td className="px-5 py-3.5">
-                    <Button
-                      variant="ghost"
-                      className="text-xs text-red-600"
-                      disabled={submitting}
-                      onClick={(e) => handleDelete(e, p)}
-                    >
-                      Suppr.
-                    </Button>
-                  </td>
+                  {canDelete && (
+                    <td className="px-5 py-3.5">
+                      <Button
+                        variant="ghost"
+                        className="text-xs text-red-600"
+                        disabled={submitting}
+                        onClick={(e) => handleDelete(e, p)}
+                      >
+                        Suppr.
+                      </Button>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>

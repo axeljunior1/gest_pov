@@ -187,6 +187,21 @@ public class ProductService {
     }
 
     @Transactional
+    public ProductBulkDeleteResponse deleteMany(List<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            throw new BusinessException("Aucun produit à supprimer");
+        }
+        List<Long> distinctIds = ids.stream().filter(id -> id != null).distinct().toList();
+        if (distinctIds.isEmpty()) {
+            throw new BusinessException("Aucun produit à supprimer");
+        }
+        for (Long id : distinctIds) {
+            delete(id);
+        }
+        return ProductBulkDeleteResponse.builder().deletedCount(distinctIds.size()).build();
+    }
+
+    @Transactional
     public ProductResponse moveCategory(Long id, MoveCategoryRequest request) {
         Product product = findProduct(id);
         Category oldCategory = product.getCategorie();

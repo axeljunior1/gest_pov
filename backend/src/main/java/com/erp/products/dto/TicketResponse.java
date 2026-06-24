@@ -35,6 +35,8 @@ public class TicketResponse {
     @Builder
     public static class TicketLine {
         private String productNom;
+        private String variantNameSnapshot;
+        private String packagingNameSnapshot;
         private BigDecimal quantity;
         private BigDecimal unitPrice;
         private BigDecimal discountAmount;

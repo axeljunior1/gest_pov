@@ -5,6 +5,7 @@ import com.erp.products.domain.enums.*;
 import com.erp.products.dto.*;
 import com.erp.products.service.SettingsService;
 import com.erp.products.service.StockService;
+import com.erp.products.service.ProductVariantAttributeService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -18,6 +19,7 @@ public class PosMapper {
 
     private final StockService stockService;
     private final SettingsService settingsService;
+    private final ProductVariantAttributeService variantAttributeService;
 
     public PosSessionResponse toSessionResponse(PosSession session) {
         return PosSessionResponse.builder()
@@ -119,7 +121,7 @@ public class PosMapper {
                         ? line.getProductNameSnapshot() : line.getProduct().getNom())
                 .productSku(line.getProduct().getSku())
                 .variantId(line.getVariant() != null ? line.getVariant().getId() : null)
-                .variantNameSnapshot(line.getVariantNameSnapshot())
+                .variantNameSnapshot(resolveVariantNameSnapshot(line))
                 .packagingId(line.getPackaging() != null ? line.getPackaging().getId() : null)
                 .packagingNameSnapshot(line.getPackagingNameSnapshot())
                 .packagingQuantitySnapshot(line.getPackagingQuantitySnapshot())
@@ -238,6 +240,16 @@ public class PosMapper {
         }
         if (sale.getCustomer() != null) {
             return sale.getCustomer().fullName();
+        }
+        return null;
+    }
+
+    private String resolveVariantNameSnapshot(SaleLine line) {
+        if (line.getVariantNameSnapshot() != null && !line.getVariantNameSnapshot().isBlank()) {
+            return line.getVariantNameSnapshot().trim();
+        }
+        if (line.getVariant() != null) {
+            return variantAttributeService.buildVariantLabel(line.getVariant());
         }
         return null;
     }

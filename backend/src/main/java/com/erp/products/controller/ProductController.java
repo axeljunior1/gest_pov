@@ -103,6 +103,12 @@ public class ProductController {
     }
 
     @PreAuthorize("@permissionChecker.has(authentication, 'products.delete')")
+    @PostMapping("/bulk-delete")
+    public ProductBulkDeleteResponse bulkDelete(@Valid @RequestBody ProductBulkDeleteRequest request) {
+        return productService.deleteMany(request.getIds());
+    }
+
+    @PreAuthorize("@permissionChecker.has(authentication, 'products.delete')")
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable Long id) {

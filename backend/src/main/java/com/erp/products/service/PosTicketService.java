@@ -10,6 +10,7 @@ import com.erp.products.exception.BusinessException;
 import com.erp.products.exception.ResourceNotFoundException;
 import com.erp.products.mapper.PosMapper;
 import com.erp.products.repository.SaleRepository;
+import com.erp.products.service.ProductVariantAttributeService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,6 +24,7 @@ public class PosTicketService {
     private final SaleRepository saleRepository;
     private final SettingsService settingsService;
     private final PosMapper mapper;
+    private final ProductVariantAttributeService variantAttributeService;
 
     @Transactional(readOnly = true)
     public TicketResponse buildTicket(Long saleId) {
@@ -49,13 +51,7 @@ public class PosTicketService {
                 .pricesIncludeTax(publicSettings.isPricesIncludeTax())
                 .registerName(settingsService.getSetting(com.erp.products.settings.SettingKeys.POS_REGISTER_NAME))
                 .cashierName(sale.getCashier().fullName())
-                .lines(sale.getLignes().stream().map(l -> TicketResponse.TicketLine.builder()
-                        .productNom(l.getProduct().getNom())
-                        .quantity(l.getQuantityInput())
-                        .unitPrice(l.getUnitPrice())
-                        .discountAmount(l.getDiscountAmount())
-                        .lineTotal(l.getLineTotal())
-                        .build()).collect(Collectors.toList()))
+                .lines(sale.getLignes().stream().map(this::toTicketLine).collect(Collectors.toList()))
                 .subtotal(sale.getSubtotal())
                 .discountTotal(sale.getDiscountTotal())
                 .taxTotal(sale.getTaxTotal())
@@ -97,13 +93,7 @@ public class PosTicketService {
                 .customerEmail(customer != null ? customer.getEmail() : null)
                 .customerAddress(customer != null ? customer.getAddress() : null)
                 .customerCity(customer != null ? customer.getCity() : null)
-                .lines(sale.getLignes().stream().map(l -> TicketResponse.TicketLine.builder()
-                        .productNom(l.getProduct().getNom())
-                        .quantity(l.getQuantityInput())
-                        .unitPrice(l.getUnitPrice())
-                        .discountAmount(l.getDiscountAmount())
-                        .lineTotal(l.getLineTotal())
-                        .build()).collect(Collectors.toList()))
+                .lines(sale.getLignes().stream().map(this::toTicketLine).collect(Collectors.toList()))
                 .subtotal(sale.getSubtotal())
                 .discountTotal(sale.getDiscountTotal())
                 .loyaltyDiscountAmount(sale.getLoyaltyDiscountAmount())
@@ -113,5 +103,30 @@ public class PosTicketService {
                 .changeAmount(sale.getChangeAmount())
                 .currency(publicSettings.getCurrency())
                 .build();
+    }
+
+    private TicketResponse.TicketLine toTicketLine(com.erp.products.domain.entity.SaleLine line) {
+        String productNom = line.getProductNameSnapshot() != null
+                ? line.getProductNameSnapshot() : line.getProduct().getNom();
+        String variantLabel = resolveVariantLabel(line);
+        return TicketResponse.TicketLine.builder()
+                .productNom(productNom)
+                .variantNameSnapshot(variantLabel)
+                .packagingNameSnapshot(line.getPackagingNameSnapshot())
+                .quantity(line.getQuantityInput())
+                .unitPrice(line.getUnitPrice())
+                .discountAmount(line.getDiscountAmount())
+                .lineTotal(line.getLineTotal())
+                .build();
+    }
+
+    private String resolveVariantLabel(com.erp.products.domain.entity.SaleLine line) {
+        if (line.getVariantNameSnapshot() != null && !line.getVariantNameSnapshot().isBlank()) {
+            return line.getVariantNameSnapshot().trim();
+        }
+        if (line.getVariant() != null) {
+            return variantAttributeService.buildVariantLabel(line.getVariant());
+        }
+        return null;
     }
 }

@@ -23,6 +23,7 @@ export const productsApi = {
   create: (data) => api.post('/products', data).then(r => r.data),
   update: (id, data) => api.put(`/products/${id}`, data).then(r => r.data),
   delete: (id) => api.delete(`/products/${id}`),
+  bulkDelete: (ids) => api.post('/products/bulk-delete', { ids }).then(r => r.data),
   updatePrice: (id, data) => api.patch(`/products/${id}/price`, data).then(r => r.data),
   updateLifecycle: (id, data) => api.patch(`/products/${id}/lifecycle`, data).then(r => r.data),
   submitLifecycle: (id) => api.post(`/products/${id}/lifecycle/submit`).then(r => r.data),

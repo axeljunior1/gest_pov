@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { formatPosMoney } from '../../utils/posMoney'
+import PosSaleLineLabel from './PosSaleLineLabel'
 
 export function PosTicketModal({ ticket, onClose, autoPrint = false }) {
   useEffect(() => {
@@ -31,9 +32,12 @@ export function PosTicketModal({ ticket, onClose, autoPrint = false }) {
         )}
         <hr className="my-2 border-dashed" />
         {ticket.lines?.map((l, i) => (
-          <div key={i} className="flex justify-between gap-2 py-0.5">
-            <span>{l.productNom} x{Number(l.quantity)}</span>
-            <span>{Number(l.lineTotal).toFixed(2)}</span>
+          <div key={i} className="flex justify-between gap-2 py-0.5 items-start">
+            <span className="min-w-0">
+              <PosSaleLineLabel line={l} variant="print" />
+              <span className="text-xs text-gray-500">×{Number(l.quantity)}</span>
+            </span>
+            <span className="shrink-0">{Number(l.lineTotal).toFixed(2)}</span>
           </div>
         ))}
         <hr className="my-2 border-dashed" />
@@ -116,8 +120,10 @@ export function PosInvoiceModal({ invoice, onClose }) {
           </thead>
           <tbody>
             {invoice.lines?.map((l, i) => (
-              <tr key={i} className="border-b border-gray-100">
-                <td className="py-2">{l.productNom}</td>
+              <tr key={i} className="border-b border-gray-100 align-top">
+                <td className="py-2">
+                  <PosSaleLineLabel line={l} variant="print" />
+                </td>
                 <td className="py-2 text-right">{Number(l.quantity)}</td>
                 <td className="py-2 text-right">{formatPosMoney(l.unitPrice, invoice.currency)}</td>
                 <td className="py-2 text-right">{formatPosMoney(l.lineTotal, invoice.currency)}</td>
