@@ -47,6 +47,7 @@ public class ProductService {
     private final BarcodeService barcodeService;
     private final FileStorageService fileStorageService;
     private final ProductVariantAttributeService variantAttributeService;
+    private final ProductDeletionService productDeletionService;
     private final ProductVariantPolicyService variantPolicyService;
     private final BarcodeRegistryService barcodeRegistryService;
 
@@ -177,13 +178,7 @@ public class ProductService {
 
     @Transactional
     public void delete(Long id) {
-        Product product = findProduct(id);
-        priceHistoryRepository.deleteByProductId(id);
-        auditLogRepository.deleteByEntityTypeAndEntityId("Product", id);
-        product.getImages().forEach(img -> fileStorageService.delete(img.getFilePath()));
-        product.getDocuments().forEach(doc -> fileStorageService.delete(doc.getFilePath()));
-        productRepository.delete(product);
-        auditService.log("Product", id, AuditAction.SUPPRESSION, "Produit supprimé: " + product.getNom());
+        productDeletionService.delete(id);
     }
 
     @Transactional

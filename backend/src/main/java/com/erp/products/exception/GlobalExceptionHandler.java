@@ -70,11 +70,11 @@ public class GlobalExceptionHandler {
         if (lower.contains("payments") && (lower.contains("cashier_id") || lower.contains("pos_session_id"))) {
             return "Donnees paiement incompletes. Contactez un administrateur pour resynchroniser le POS.";
         }
-        if (lower.contains("foreign key") || lower.contains("violates foreign key")) {
-            return "Operation impossible : reference invalide ou entite liee manquante.";
-        }
-        if (lower.contains("still referenced") || lower.contains("delete") || lower.contains("update or delete")) {
+        if (lower.contains("update or delete") || lower.contains("still referenced")) {
             return "Suppression impossible : cette entite est encore utilisee ailleurs.";
+        }
+        if (lower.contains("foreign key") || lower.contains("violates foreign key")) {
+            return "Suppression impossible : des donnees liees empechent la suppression.";
         }
         return "Operation impossible : contrainte de donnees non respectee.";
     }
