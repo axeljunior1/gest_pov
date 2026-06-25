@@ -13,6 +13,11 @@ export const defaultCashier = {
   password: process.env.PLAYWRIGHT_CASHIER_PASSWORD || 'Caissier2026!',
 }
 
+export const defaultSeller = {
+  email: process.env.PLAYWRIGHT_SELLER_EMAIL || 'vendeur@erp.local',
+  password: process.env.PLAYWRIGHT_SELLER_PASSWORD || 'Vendeur2026!',
+}
+
 export async function login(page, { email, password } = defaultAdmin) {
   await page.goto('/login')
   const emailField = page.locator('#email')
@@ -29,6 +34,10 @@ export async function loginAsAdmin(page) {
 
 export async function loginAsCashier(page) {
   return login(page, defaultCashier)
+}
+
+export async function loginAsSeller(page) {
+  return login(page, defaultSeller)
 }
 
 export async function logout(page) {

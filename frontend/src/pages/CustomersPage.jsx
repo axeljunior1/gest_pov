@@ -22,6 +22,7 @@ export default function CustomersPage() {
   const { run, submitting } = useAsyncAction()
   const [customers, setCustomers] = useState([])
   const [history, setHistory] = useState(null)
+  const [historyLoading, setHistoryLoading] = useState(false)
   const [loading, setLoading] = useState(true)
   const [pageError, setPageError] = useState('')
   const [search, setSearch] = useState('')
@@ -47,11 +48,15 @@ export default function CustomersPage() {
   }
 
   const loadHistory = async (customerId) => {
+    setHistoryLoading(true)
     try {
       const data = await customersApi.history(customerId)
       setHistory(data)
     } catch (e) {
       notify.error(getErrorMessage(e))
+      setHistory(null)
+    } finally {
+      setHistoryLoading(false)
     }
   }
 
@@ -98,7 +103,19 @@ export default function CustomersPage() {
     )
   }
 
-  if (id && history) {
+  if (id) {
+    if (historyLoading) return <Loading />
+    if (!history) {
+      return (
+        <>
+          <PageHeader
+            title="Fiche client"
+            subtitle="Impossible de charger l'historique"
+            action={<Link to="/customers"><Button variant="secondary">← Liste</Button></Link>}
+          />
+        </>
+      )
+    }
     return (
       <>
         <PageHeader

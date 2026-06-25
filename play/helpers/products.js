@@ -27,6 +27,9 @@ export async function createProductViaUi(page, {
   prixVente = '10',
   unitLabel = 'Pièce (pcs)',
   statutLabel = 'Actif',
+  cycleVieLabel = null,
+  categoryLabel = null,
+  supplierLabel = null,
   variants = null,
 } = {}) {
   await page.goto('/products/new')
@@ -35,6 +38,15 @@ export async function createProductViaUi(page, {
   await inputByLabel(page, 'Prix vente').fill(prixVente)
   await selectByLabel(page, 'Unité de base (stock)').selectOption({ label: unitLabel })
   await selectByLabel(page, 'Statut').selectOption({ label: statutLabel })
+  if (cycleVieLabel) {
+    await selectByLabel(page, 'Cycle de vie').selectOption({ label: cycleVieLabel })
+  }
+  if (categoryLabel) {
+    await selectByLabel(page, 'Catégorie').selectOption({ label: categoryLabel })
+  }
+  if (supplierLabel) {
+    await selectByLabel(page, 'Fournisseur principal').selectOption({ label: supplierLabel })
+  }
 
   if (variants?.length) {
     await fillInitialVariants(page, variants)
@@ -88,6 +100,31 @@ export async function searchProducts(page, query) {
   )
   await page.getByRole('button', { name: 'Filtrer' }).click()
   await searchResponse
+}
+
+export async function filterProductsByLifecycle(page, lifecycleLabel) {
+  await goToProductsCatalog(page)
+  await page.locator('select:has(option:text-is("Tous cycles de vie"))').selectOption({ label: lifecycleLabel })
+  const response = page.waitForResponse(
+    (res) => res.request().method() === 'GET' && res.ok() && res.url().includes('/api/products'),
+  )
+  await page.getByRole('button', { name: 'Filtrer' }).click()
+  await response
+}
+
+export async function selectAllProductsOnPage(page) {
+  const rows = page.locator('table tbody tr')
+  await expect(rows.first()).toBeVisible({ timeout: 15_000 })
+  await page.getByRole('checkbox', { name: 'Tout sélectionner' }).click()
+}
+
+export async function bulkDeleteSelectedProducts(page) {
+  page.once('dialog', (dialog) => dialog.accept())
+  const response = page.waitForResponse(
+    (res) => res.url().includes('/api/products/bulk-delete') && res.request().method() === 'POST' && res.ok(),
+  )
+  await page.getByRole('button', { name: 'Supprimer la sélection' }).click()
+  await response
 }
 
 export async function openProductFromList(page, productName) {

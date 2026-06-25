@@ -22,7 +22,7 @@ test.describe('Navigation', () => {
 
     await page.getByRole('link', { name: 'Produits' }).click()
     await expect(page).toHaveURL('/')
-    await expect(page.getByRole('heading', { name: 'Produits' })).toBeVisible()
+    await expect(page.getByPlaceholder(/Rechercher un produit/)).toBeVisible()
   })
 
   test('admin accède au stock via le menu Consultation', async ({ page }) => {

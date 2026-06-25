@@ -54,18 +54,18 @@ public class CustomerService {
     @Transactional(readOnly = true)
     public CustomerHistoryResponse getHistory(Long id) {
         Customer customer = findCustomer(id);
-        Object[] agg = saleRepository.aggregateCustomerPurchases(id);
-        long count = agg[0] != null ? ((Number) agg[0]).longValue() : 0;
-        BigDecimal totalSpent = agg[1] != null ? new BigDecimal(agg[1].toString()) : BigDecimal.ZERO;
-        Instant lastPurchase = agg[2] != null ? (Instant) agg[2] : null;
+        Object[] agg = unwrapScalarRow(saleRepository.aggregateCustomerPurchases(id));
+        long count = scalarLong(agg, 0);
+        BigDecimal totalSpent = scalarBigDecimal(agg, 1);
+        Instant lastPurchase = agg != null && agg.length > 2 && agg[2] instanceof Instant instant ? instant : null;
 
         BigDecimal avgBasket = count > 0
                 ? totalSpent.divide(BigDecimal.valueOf(count), 4, RoundingMode.HALF_UP)
                 : BigDecimal.ZERO;
 
-        Object[] pointsAgg = loyaltyTransactionRepository.sumEarnedAndRedeemed(id);
-        int earned = pointsAgg[0] != null ? ((Number) pointsAgg[0]).intValue() : 0;
-        int redeemed = pointsAgg[1] != null ? ((Number) pointsAgg[1]).intValue() : 0;
+        Object[] pointsAgg = unwrapScalarRow(loyaltyTransactionRepository.sumEarnedAndRedeemed(id));
+        int earned = scalarInt(pointsAgg, 0);
+        int redeemed = scalarInt(pointsAgg, 1);
 
         List<CustomerHistoryResponse.TopProduct> topProducts = saleRepository
                 .findTopProductsByCustomer(id, PageRequest.of(0, 5))
@@ -206,5 +206,37 @@ public class CustomerService {
 
     private String normalizeEmail(String email) {
         return email != null && !email.isBlank() ? email.trim().toLowerCase() : null;
+    }
+
+    /** Hibernate peut renvoyer une ligne scalaire imbriquée dans un Object[] à un seul élément. */
+    private static Object[] unwrapScalarRow(Object[] row) {
+        if (row == null) {
+            return null;
+        }
+        if (row.length == 1 && row[0] instanceof Object[] nested) {
+            return nested;
+        }
+        return row;
+    }
+
+    private static long scalarLong(Object[] row, int index) {
+        if (row == null || row.length <= index || row[index] == null) {
+            return 0L;
+        }
+        return ((Number) row[index]).longValue();
+    }
+
+    private static int scalarInt(Object[] row, int index) {
+        if (row == null || row.length <= index || row[index] == null) {
+            return 0;
+        }
+        return ((Number) row[index]).intValue();
+    }
+
+    private static BigDecimal scalarBigDecimal(Object[] row, int index) {
+        if (row == null || row.length <= index || row[index] == null) {
+            return BigDecimal.ZERO;
+        }
+        return new BigDecimal(row[index].toString());
     }
 }
