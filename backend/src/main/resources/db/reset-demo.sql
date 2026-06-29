@@ -28,6 +28,9 @@ DELETE FROM stock_transfers;
 DELETE FROM stock_items;
 DELETE FROM lots;
 
+DELETE FROM stock_valuation_movements;
+DELETE FROM stock_valuation;
+
 DELETE FROM alert_settings;
 
 DELETE FROM product_custom_attribute_values;
@@ -37,8 +40,9 @@ DELETE FROM product_packagings;
 DELETE FROM product_suppliers;
 DELETE FROM price_history;
 DELETE FROM product_variant_attribute_values;
-DELETE FROM product_variants;
+DELETE FROM supplier_purchase_order_lines;
 DELETE FROM supplier_purchase_orders;
+DELETE FROM product_variants;
 DELETE FROM products;
 
 -- categories hierarchiques : enfants d'abord
