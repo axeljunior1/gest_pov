@@ -2,11 +2,11 @@
   "name": "erp-product-management",
   "private": true,
   "scripts": {
-    "dev": "powershell -ExecutionPolicy Bypass -File ./dev.ps1",
-    "stop": "powershell -ExecutionPolicy Bypass -File ./dev.ps1 -StopOnly",
-    "db": "powershell -ExecutionPolicy Bypass -File ./db.ps1",
-    "db:stop": "powershell -ExecutionPolicy Bypass -File ./db.ps1 -Stop",
-    "backend": "cd backend && mvn -q -DskipTests spring-boot:run",
-    "frontend": "cd frontend && npm run dev"
+    "dev:backend": "cd backend && mvn -q -DskipTests spring-boot:run -Dspring-boot.run.profiles=dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "docker:up": "docker compose up --build -d",
+    "docker:down": "docker compose down",
+    "docker:logs": "docker compose logs -f",
+    "test:e2e": "cd play && npm test"
   }
 }

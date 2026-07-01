@@ -53,19 +53,22 @@ public class LicenseEnforcementFilter extends OncePerRequestFilter {
         ));
     }
 
-    private boolean isExempt(String path) {
-        if (path == null) {
-            return false;
-        }
-        return path.startsWith("/api/license");
-    }
-
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        String path = request.getRequestURI();
+        return isPublicBootstrapPath(request.getRequestURI());
+    }
+
+    private boolean isPublicBootstrapPath(String path) {
         if (path == null) {
             return false;
         }
-        return path.startsWith("/actuator/health");
+        return path.startsWith("/actuator/health")
+                || path.startsWith("/api/license")
+                || path.equals("/api/auth/login")
+                || path.equals("/api/settings/public");
+    }
+
+    private boolean isExempt(String path) {
+        return isPublicBootstrapPath(path);
     }
 }

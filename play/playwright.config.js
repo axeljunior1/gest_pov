@@ -3,7 +3,7 @@ import { defineConfig, devices } from '@playwright/test'
 
 /**
  * Tests E2E Gest_POV — backend http://localhost:8080 · frontend http://localhost:5173
- * Lancez l'app avant les tests : run.bat ou npm run dev (racine du projet)
+ * Lancez l'app avant les tests : npm run dev:backend + npm run dev:frontend (racine du projet)
  */
 export default defineConfig({
   testDir: './tests',

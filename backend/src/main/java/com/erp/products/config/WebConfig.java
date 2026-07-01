@@ -26,7 +26,8 @@ public class WebConfig implements WebMvcConfigurer {
                 "http://localhost:*",
                 "http://127.0.0.1:*",
                 "http://192.168.*:*",
-                "http://10.*:*"));
+                "http://10.*:*",
+                "https://*.trycloudflare.com"));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);

@@ -8,9 +8,16 @@ const api = axios.create({
 })
 
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('erp_auth_token')
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`
+  const url = config.url ?? ''
+  const isPublicAuth = url.includes('/auth/login') || url.startsWith('/license/')
+  if (!isPublicAuth) {
+    const token = localStorage.getItem('erp_auth_token')
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`
+    }
+  }
+  if (config.data instanceof FormData) {
+    delete config.headers['Content-Type']
   }
   return config
 })

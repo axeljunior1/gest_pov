@@ -1,5 +1,9 @@
 import api from './client'
 
+function postMultipart(url, form, config) {
+  return api.post(url, form, config).then((r) => r.data)
+}
+
 export const authApi = {
   login: (email, password) => api.post('/auth/login', { email, password }).then(r => r.data),
   me: () => api.get('/auth/me').then(r => r.data),
@@ -11,9 +15,7 @@ export const licenseApi = {
   importFile: (file) => {
     const form = new FormData()
     form.append('file', file)
-    return api.post('/license/import', form, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    }).then(r => r.data)
+    return postMultipart('/license/import', form)
   },
 }
 
@@ -42,17 +44,13 @@ export const productsApi = {
     const form = new FormData()
     form.append('file', file)
     form.append('principale', principale)
-    return api.post(`/products/${id}/images`, form, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    }).then(r => r.data)
+    return postMultipart(`/products/${id}/images`, form)
   },
   uploadDocument: (id, file, type) => {
     const form = new FormData()
     form.append('file', file)
     form.append('type', type)
-    return api.post(`/products/${id}/documents`, form, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    }).then(r => r.data)
+    return postMultipart(`/products/${id}/documents`, form)
   },
   deleteImage: (id, imageId) => api.delete(`/products/${id}/images/${imageId}`),
   deleteDocument: (id, documentId) => api.delete(`/products/${id}/documents/${documentId}`),
@@ -322,44 +320,32 @@ export const importApi = {
   previewProducts: (file, duplicateMode = 'REJECT') => {
     const form = new FormData()
     form.append('file', file)
-    return api.post(`/import/products/preview?duplicateMode=${duplicateMode}`, form, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    }).then(r => r.data)
+    return postMultipart(`/import/products/preview?duplicateMode=${duplicateMode}`, form)
   },
   validateProducts: (file, duplicateMode = 'REJECT') => {
     const form = new FormData()
     form.append('file', file)
-    return api.post(`/import/products/validate?duplicateMode=${duplicateMode}`, form, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    }).then(r => r.data)
+    return postMultipart(`/import/products/validate?duplicateMode=${duplicateMode}`, form)
   },
   previewInitialStock: (file) => {
     const form = new FormData()
     form.append('file', file)
-    return api.post('/import/initial-stock/preview', form, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    }).then(r => r.data)
+    return postMultipart('/import/initial-stock/preview', form)
   },
   validateInitialStock: (file) => {
     const form = new FormData()
     form.append('file', file)
-    return api.post('/import/initial-stock/validate', form, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    }).then(r => r.data)
+    return postMultipart('/import/initial-stock/validate', form)
   },
   previewPackagings: (file) => {
     const form = new FormData()
     form.append('file', file)
-    return api.post('/import/packagings/preview', form, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    }).then(r => r.data)
+    return postMultipart('/import/packagings/preview', form)
   },
   validatePackagings: (file) => {
     const form = new FormData()
     form.append('file', file)
-    return api.post('/import/packagings/validate', form, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    }).then(r => r.data)
+    return postMultipart('/import/packagings/validate', form)
   },
   history: () => api.get('/import/history').then(r => r.data),
 }
@@ -379,9 +365,7 @@ export const settingsApi = {
   uploadCompanyLogo: (file) => {
     const form = new FormData()
     form.append('file', file)
-    return api.post('/settings/company/logo', form, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    }).then(r => r.data)
+    return postMultipart('/settings/company/logo', form)
   },
   update: (key, value) =>
     api.put(`/settings/${encodeURIComponent(key)}`, { value }).then(r => r.data),

@@ -1,0 +1,1 @@
+node bin/licgen.mjs generate   --installation-id "eb3c5be2-9bc4-4151-a279-8d67e98a816d"   --client "Ma société"   --expires 2027-12-31   --max-users 10   --out gest_pov.lic

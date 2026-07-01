@@ -1,153 +1,64 @@
-# ERP - Module 1 : Gestion des produits
+# ERP Gest_POV — Gestion produits & POS
 
-Application full-stack pour la gestion du catalogue produits (Feature 1).
+## Structure du dépôt
 
-## Stack
-
-| Couche | Technologie |
-|--------|-------------|
-| Backend | Spring Boot 3.2, JPA, PostgreSQL, Flyway |
-| Frontend | React 19, Vite, Tailwind CSS 4 |
-| Tests | JUnit 5, MockMvc (17 tests) |
-
-## Démarrage rapide
-
-```powershell
-.\run.bat       # PostgreSQL + backend + frontend (recommandé Windows)
-# ou :
-.\db.ps1        # PostgreSQL seul (Docker)
-.\dev.ps1       # Backend (profil dev) + frontend
-npm run dev     # équivalent dev.ps1
+```
+.
+├── backend/              # API Spring Boot
+├── frontend/             # Interface React (Vite)
+├── docker-compose.yml    # Stack Docker (build local + proxy + tunnel)
+├── Caddyfile             # Reverse proxy /api → backend
+├── .env.example          # Variables Docker
+├── play/                 # Tests E2E Playwright
+├── docs/                 # Documentation utilisateur
+├── deploy/               # Compose images pré-buildées, notes déploiement
+├── scripts/              # Utilitaires (reset SQL, génération PDF)
+└── images/               # Archives Docker pour livraison client (.tar)
 ```
 
-### JAR exécutable (production / livraison client)
+## Démarrage rapide (développement)
 
-`run.bat`, `dev.ps1` et `mvn spring-boot:run` lancent l'app depuis les sources — ils ne produisent pas de JAR.
+**Prérequis :** Java 17, Node 20, PostgreSQL (ou Docker).
 
-```powershell
-cd backend
-mvn clean package -DskipTests
-# JAR -> target\gest-pov-backend.jar (~80 Mo)
+```bash
+# Terminal 1 — backend (profil dev)
+npm run dev:backend
+
+# Terminal 2 — frontend
+npm run dev:frontend
 ```
 
-> **Note :** `mvn install` sans `-DskipTests` exécute tous les tests ; si un test échoue, Maven s'arrête **avant** de créer le JAR.
+Frontend : http://localhost:5173 · API : http://localhost:8080
 
-Comptes par défaut : `admin@erp.local` / `ErpAdmin2026!` · caissier : `caissier@erp.local` / `Caissier2026!`
+Comptes seed : `admin@erp.local` / `ErpAdmin2026!` · caissier : `caissier@erp.local` / `Caissier2026!`
 
-## Base de données et migrations (Flyway)
+## Docker (production / démo)
 
-Le schéma PostgreSQL est géré par **Flyway** (`backend/src/main/resources/db/migration/`).
-
-| Fichier | Rôle |
-|---------|------|
-| `V1__baseline_schema.sql` | Schéma complet (nouvelle base) |
-| `V2__ensure_pos_and_packaging_columns.sql` | Colonnes POS / conditionnements (idempotent) |
-
-Configuration :
-
-- `spring.jpa.hibernate.ddl-auto: validate` — Hibernate ne modifie plus le schéma
-- `spring.flyway.baseline-on-migrate: true` — bases existantes marquées sans rejouer V1
-
-Migration manuelle :
-
-```powershell
-cd backend
-mvn flyway:migrate
+```bash
+cp .env.example .env
+docker compose up --build -d
 ```
 
-## Reset développement
+→ http://localhost
 
-### Script PowerShell `reset-db.ps1`
+Voir [deploy/README.md](deploy/README.md) pour les images pré-buildées et le tunnel Cloudflare.
 
-```powershell
-# Purge métier uniquement (garde users, rôles, paramètres, WH-MAIN)
-.\reset-db.ps1 -Mode demo
+## Tests E2E
 
-# Purge + jeu de démo (backend doit tourner sur :8080)
-.\reset-db.ps1 -Mode demo -SeedDemo
-
-# Reset PostgreSQL complet (volume Docker effacé + Flyway + seed référentiel)
-.\reset-db.ps1 -Mode full
+```bash
+cd play && npm install
+npm run test:e2e
 ```
 
-**Conservé en mode demo :** utilisateurs, rôles, permissions, `app_settings`, unités, entrepôt WH-MAIN.
+(App backend + frontend doivent tourner.)
 
-**Jeu de démo (`-SeedDemo`) :** produit `DEMO-EAU-1L` — unité 500, carton 5 500, palette 250 000, stock 500 L.
+## Documentation
 
-### API admin (profil `dev` uniquement)
+- [Guide utilisateur](docs/GUIDE_UTILISATEUR.md) (PDF : `docs/GUIDE_UTILISATEUR.pdf`)
+- Migrations Flyway : `backend/src/main/resources/db/migration/`
 
-Backend lancé avec `SPRING_PROFILES_ACTIVE=dev` (fait par `dev.ps1`).
+## Reset données (profil dev)
 
-**Interface :** menu Administration → **Outils dev** (build Vite dev + compte SUPER_ADMIN).
+Outils admin : http://localhost:5173/dev-tools (backend en profil `dev`).
 
-```http
-GET  /api/admin/dev-tools/status
-POST /api/admin/reset-demo
-POST /api/admin/seed-demo
-Authorization: Bearer <token admin>
-X-Reset-Token: dev-reset-token-change-me
-```
-
-Jeton configurable : `app.admin.reset-token` ou variable `APP_RESET_TOKEN`.
-
-## Démarrage manuel
-
-## Fonctionnalités couvertes
-
-- Fiches produits (nom, SKU, description, marque, statut, cycle de vie)
-- **Unités de mesure globales** avec conversions universelles (kg↔g, L↔mL…)
-- **Conditionnements produit** (carton, palette…) avec quantité en unité de base
-- **Stock toujours en unité de base** du produit (ex: bouteilles, pas cartons)
-- Catégories hiérarchiques illimitées
-- Variantes (couleur, taille, SKU, stock, prix, code-barres)
-- Codes-barres EAN13, UPC, Code128, QR Code (ZXing)
-- Prix achat / vente / promotionnel + historique
-- Unités de mesure et conversions
-- Multi-fournisseurs avec fournisseur principal
-- Images et documents (upload)
-- Attributs personnalisés dynamiques
-- Recherche avancée avec filtres
-- Audit complet des modifications
-
-## Démarrage
-
-### Backend (port 8080)
-
-```powershell
-$env:JAVA_HOME = "C:\Program Files\Java\jdk-17.0.12"
-cd backend
-mvn spring-boot:run
-```
-
-### Frontend (port 5173)
-
-```powershell
-cd frontend
-npm install
-npm run dev
-```
-
-Ouvrir http://localhost:5173
-
-### Tests backend
-
-```powershell
-$env:JAVA_HOME = "C:\Program Files\Java\jdk-17.0.12"
-cd backend
-mvn test
-```
-
-## API principale
-
-| Endpoint | Description |
-|----------|-------------|
-| `GET/POST /api/products` | Liste / création |
-| `GET /api/products/{id}` | Détail complet |
-| `GET /api/products?query=&categorieId=&stockFaible=` | Recherche avancée |
-| `PATCH /api/products/{id}/price` | Mise à jour prix + historique |
-| `PATCH /api/products/{id}/lifecycle` | Cycle de vie |
-| `GET/POST /api/categories` | Arborescence catégories |
-| `GET/POST /api/suppliers` | Fournisseurs |
-| `GET/POST /api/units/conversions` | Conversions globales (kg→g) |
-| `GET/POST /api/products/{id}/packagings` | Conditionnements produit |
-| `POST /api/products/{id}/packagings/convert-to-base` | Réception → stock unité de base |
+API : `POST /api/admin/reset-demo` et `seed-demo` avec en-tête `X-Reset-Token` (voir `application-dev.yml`).
