@@ -11,9 +11,10 @@ except ImportError:
     sys.exit(1)
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-MD_PATH = os.path.join(ROOT, "GUIDE_UTILISATEUR.md")
-HTML_PATH = os.path.join(ROOT, "GUIDE_UTILISATEUR.html")
-PDF_PATH = os.path.join(ROOT, "GUIDE_UTILISATEUR.pdf")
+DOCS = os.path.join(ROOT, "docs")
+MD_PATH = os.path.join(DOCS, "GUIDE_UTILISATEUR.md")
+HTML_PATH = os.path.join(DOCS, "GUIDE_UTILISATEUR.html")
+PDF_PATH = os.path.join(DOCS, "GUIDE_UTILISATEUR.pdf")
 
 CSS = """
 @page { margin: 2cm; }
