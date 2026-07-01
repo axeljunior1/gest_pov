@@ -24,7 +24,7 @@ const EMPTY_CONFIG = {
     allowPartialPayment: false, allowSplitPayment: true,
   },
   stock: {
-    allowNegativeStock: false, lowStockThresholdDefault: 10, valuationMethod: 'PURCHASE_COST',
+    allowNegativeStock: false, lowStockThresholdDefault: 10, valuationMethod: 'WEIGHTED_AVERAGE',
     lowStockAlertsEnabled: true, multiWarehouseEnabled: true,
   },
   tax: {
@@ -32,7 +32,13 @@ const EMPTY_CONFIG = {
   },
 }
 
-function mergeConfig(data) {
+function mergeConfig(data, referenceValues = {}) {
+  const stock = { ...EMPTY_CONFIG.stock, ...data?.stock }
+  const methods = referenceValues.STOCK_VALUATION_METHOD || []
+  if (methods.length > 0 && !methods.some((m) => m.code === stock.valuationMethod)) {
+    const preferred = methods.find((m) => m.code === 'WEIGHTED_AVERAGE') || methods[0]
+    stock.valuationMethod = preferred.code
+  }
   return {
     company: { ...EMPTY_CONFIG.company, ...data?.company },
     pos: {
@@ -42,7 +48,7 @@ function mergeConfig(data) {
         ? data.pos.paymentMethods
         : EMPTY_CONFIG.pos.paymentMethods,
     },
-    stock: { ...EMPTY_CONFIG.stock, ...data?.stock },
+    stock,
     tax: { ...EMPTY_CONFIG.tax, ...data?.tax },
   }
 }
@@ -112,7 +118,7 @@ export default function ClientConfigurationPage() {
         settingsApi.getClientConfig(),
         settingsApi.getReferenceValues(),
       ])
-      setConfig(mergeConfig(data))
+      setConfig(mergeConfig(data, referenceValues))
       setRefs(referenceValues)
     } catch (e) {
       notify.error(getErrorMessage(e, { module: 'config' }))

@@ -151,12 +151,12 @@ public class SettingsService {
 
     private StockValuationMethod parseStockValuationMethod(String raw) {
         if (raw == null || raw.isBlank()) {
-            return StockValuationMethod.PURCHASE_COST;
+            return StockValuationMethod.WEIGHTED_AVERAGE;
         }
         try {
             return StockValuationMethod.valueOf(raw.trim().toUpperCase());
         } catch (IllegalArgumentException ex) {
-            return StockValuationMethod.PURCHASE_COST;
+            return StockValuationMethod.WEIGHTED_AVERAGE;
         }
     }
 
@@ -375,8 +375,8 @@ public class SettingsService {
         map.put(SettingKeys.APP_DATE_FORMAT, def("dd/MM/yyyy", AppSettingType.STRING, "Format de date", true));
         map.put(SettingKeys.STOCK_ALLOW_NEGATIVE, def("false", AppSettingType.BOOLEAN, "Autoriser le stock negatif", false));
         map.put(SettingKeys.STOCK_LOW_THRESHOLD, def("10", AppSettingType.NUMBER, "Seuil stock faible par defaut", false));
-        map.put(SettingKeys.STOCK_VALUATION_METHOD, def("PURCHASE_COST", AppSettingType.STRING,
-                "Methode de valorisation du stock (PURCHASE_COST ou SALE_PRICE)", false));
+        map.put(SettingKeys.STOCK_VALUATION_METHOD, def("WEIGHTED_AVERAGE", AppSettingType.STRING,
+                "Methode de valorisation du stock (PURCHASE_COST, WEIGHTED_AVERAGE ou SALE_PRICE)", false));
         map.put(SettingKeys.STOCK_LOW_ALERTS_ENABLED, def("true", AppSettingType.BOOLEAN, "Activer alertes stock faible", false));
         map.put(SettingKeys.STOCK_MULTI_WAREHOUSE_ENABLED, def("true", AppSettingType.BOOLEAN, "Gestion multi-entrepot", false));
         map.put(SettingKeys.ALERT_EXPIRY_DAYS, def("30", AppSettingType.NUMBER, "Delai alerte peremption (jours)", false));
