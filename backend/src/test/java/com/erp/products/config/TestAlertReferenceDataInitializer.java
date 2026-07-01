@@ -27,6 +27,11 @@ public class TestAlertReferenceDataInitializer implements ApplicationRunner {
     @Override
     @Transactional
     public void run(ApplicationArguments args) {
+        seedAll();
+    }
+
+    @Transactional
+    public void seedAll() {
         if (ruleRepository.count() == 0) {
             seedRules();
         }

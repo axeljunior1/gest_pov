@@ -40,6 +40,11 @@ public class TestAuthReferenceDataInitializer implements ApplicationRunner {
     @Override
     @Transactional
     public void run(ApplicationArguments args) {
+        seedAll();
+    }
+
+    @Transactional
+    public void seedAll() {
         if (permissionRepository.count() == 0) {
             seedPermissions();
         }

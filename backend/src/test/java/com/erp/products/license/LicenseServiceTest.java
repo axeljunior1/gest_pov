@@ -34,7 +34,7 @@ class LicenseServiceTest {
         LicenseProperties properties = new LicenseProperties();
         properties.setDataDir(tempDir.toString());
         properties.setEnforcementEnabled(true);
-        properties.setPublicKeyResource("classpath:keys/public_key.pem");
+        properties.setPublicKeyResource("classpath:keys/test_public_key.pem");
 
         LicenseSignatureVerifier verifier = new LicenseSignatureVerifier(
                 properties, new DefaultResourceLoader());
@@ -125,6 +125,8 @@ class LicenseServiceTest {
 
         LicenseProperties properties = new LicenseProperties();
         properties.setDataDir(tempDir.toString());
+        properties.setPublicKeyResource("classpath:keys/test_public_key.pem");
+        properties.setEnforcementEnabled(true);
         LicenseSignatureVerifier verifier = new LicenseSignatureVerifier(
                 properties, new DefaultResourceLoader());
         LicenseService service = new LicenseService(
