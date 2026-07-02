@@ -86,7 +86,7 @@ Gest_POV est un **ERP produits + POS structuré et fonctionnellement riche** (ca
 | P0-8 | **Port 80 exposé (compose racine)** | `"${FRONTEND_PORT:-80}:80"` vs `127.0.0.1` dans `deploy/` | Surface réseau élargie |
 | P0-9 | **CORS large** | `WebConfig.java` : LAN `192.168.*`, `10.*`, `*.trycloudflare.com` | Acceptable en POC, à restreindre en prod |
 | P0-10 | **Licence obligatoire (profil docker)** | `app.license.enforcement-enabled: true` | Blocage API sans `.lic` importé |
-| P0-11 | **Clé privée de test dans le repo** | `backend/src/test/resources/keys/test_private_key.pem` | OK en test ; ne jamais confondre avec prod |
+| P0-11 | **Clé privée de test dans le repo** | `backend/src/test/resources/keys/test_private_key.pem` | **Atténué** — absente du JAR prod ; documenté dans `license-production.md` ; `.gitignore` renforcé |
 | P0-12 | **Mot de passe Flyway Maven** | `backend/pom.xml` plugin flyway | Fuite si POM partagé (outil dev) |
 | P0-13 | **Actuator proxifié** | `frontend/nginx.conf` → `/actuator/` | Health exposé via frontend (limité côté Spring : health/info) |
 | P0-14 | **`/uploads/**` public sans auth** | `SecurityConfig` | Images produits accessibles si URL devinée |
@@ -318,19 +318,34 @@ docker compose -f docker-compose.client.yml --env-file .env.example config
 
 **Limite documentée :** pas de « changement de mot de passe forcé » au premier login (hors scope).
 
-### Validation Docker bootstrap (2026-07-02)
+### Sprint licence production (2026-07-02)
 
 | Critère | Statut |
 |---------|--------|
-| DB vierge + variables `.env` | OK |
-| Aucun `admin@erp.local` / `caissier@erp.local` | OK (absents de la table `users`) |
-| Admin bootstrap créé une fois | OK (log unique, 1 user SUPER_ADMIN) |
-| Login bootstrap | OK (HTTP 200 + JWT) |
-| API métier sans licence | HTTP 403 (attendu) |
-| Restart sans doublon | OK |
-| Backup | OK |
+| Clé privée hors JAR client | OK |
+| Vérification RSA clé publique | OK (tests + import invalide Docker) |
+| Persistance `installation.id` | OK (volume + restart) |
+| Gate API sans licence | OK (403) |
+| Déblocage API avec licence valide | OK (test intégration `LicenseImportIntegrationTest`) |
+| Activation Docker licence prod | **Non testée** — procédure documentée |
+| Doc | `docs/license-production.md` + `docs/license-activation-checklist.md` |
 
-Détail : `docs/client-docker-deployment.md` §15.
+---
+
+### Validation activation sans `.lic` (2026-07-02)
+
+| Critère | Statut |
+|---------|--------|
+| Stack client démarrée (`up -d`) | OK |
+| Installation ID récupéré | `c4e0d425-0d7e-41b6-85fe-963ffb1d0010` |
+| `/api/license/status` | `LICENSE_MISSING` |
+| Endpoints publics licence/login | OK |
+| API métier sans licence | HTTP 403 `LICENSE_REQUIRED` |
+| `installation.id` persistant au restart | OK |
+| Backup volume licence | OK |
+| Licence réelle disponible localement | Non |
+
+Détail : `docs/client-docker-deployment.md` §16 et `docs/license-activation-checklist.md`.
 
 ---
 

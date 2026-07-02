@@ -107,6 +107,33 @@ class LicenseServiceTest {
     }
 
     @Test
+    void shouldRejectInvalidFormat() throws Exception {
+        Files.writeString(tempDir.resolve("gest_pov.lic"), "{not-valid-json");
+        licenseService.refreshStatus();
+
+        assertThat(licenseService.getStatus().getReason()).isEqualTo(LicenseInvalidReason.INVALID_FORMAT.name());
+    }
+
+    @Test
+    void shouldRejectInvalidApp() throws Exception {
+        var payload = LicenseTestSupport.validPayload(installationId);
+        payload.setApp("other_app");
+        String content = LicenseTestSupport.buildSignedLicenseFile(payload, privateKeyPath);
+        Files.writeString(tempDir.resolve("gest_pov.lic"), content);
+        licenseService.refreshStatus();
+
+        assertThat(licenseService.getStatus().getReason()).isEqualTo(LicenseInvalidReason.INVALID_APP.name());
+    }
+
+    @Test
+    void shouldPersistInstallationIdAcrossRefresh() throws Exception {
+        String idBefore = licenseService.getInstallationId();
+        licenseService.refreshStatus();
+        assertThat(licenseService.getInstallationId()).isEqualTo(idBefore);
+        assertThat(Files.exists(tempDir.resolve("installation.id"))).isTrue();
+    }
+
+    @Test
     void shouldImportValidLicenseFile() throws Exception {
         String content = LicenseTestSupport.buildSignedLicenseFile(
                 LicenseTestSupport.validPayload(installationId), privateKeyPath);

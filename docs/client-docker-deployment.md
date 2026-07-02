@@ -69,6 +69,8 @@ openssl rand -base64 24
 
 **Après première connexion :** conserver le mot de passe dans un gestionnaire de secrets ou le modifier via l'écran Utilisateurs (pas de « changement forcé » automatique pour l'instant).
 
+**Licence :** voir [license-production.md](license-production.md) — installation ID, import `.lic`, gate API.
+
 **Migration depuis une install existante** avec `admin@erp.local` : l'ancien compte reste en base tant que le volume PostgreSQL n'est pas réinitialisé — créer un nouvel admin via l'UI puis désactiver l'ancien.
 
 ---
@@ -283,6 +285,33 @@ docker compose -f docker-compose.client.yml --env-file .env down
 - Volume PG du smoke bootstrap contient encore l'admin de test — réinitialiser le volume PG avant livraison client réelle.
 - `/api/auth/me` bloqué par licence (403) même avec token valide — login suffit pour valider l'auth.
 - Pas de changement de mot de passe forcé au 1er login.
+
+---
+
+## 16. Validation licence production (2026-07-02)
+
+Voir détail : [license-production.md](license-production.md).
+
+| Vérification | Résultat |
+|--------------|----------|
+| JAR client : clé publique seule | OK (`public_key.pem`, pas de clé privée) |
+| Volume `gest_pov_license` → `/app/gest-pov-data` | OK |
+| `installation.id` persistant au restart | OK |
+| Sans `.lic` : API métier | HTTP 403 |
+| Import format invalide | HTTP 400 |
+| Activation licence prod réelle | **Non testée** (clé privée éditeur hors environnement) |
+| Tests `mvn -Dtest=*License* test` | **14 tests OK** |
+
+### Parcours sans licence validé (activation en attente éditeur)
+
+- `GET /api/license/installation-id` : `c4e0d425-0d7e-41b6-85fe-963ffb1d0010`
+- `GET /api/license/status` : `valid=false`, `reason=LICENSE_MISSING`
+- Login admin bootstrap : **HTTP 200**
+- `GET /api/products` avec token admin : **HTTP 403** `LICENSE_REQUIRED`
+- `installation.id` stable après `docker compose restart backend`
+- Backup licence OK : `backups/20260702-075647/gest-pov-license.tar.gz`
+
+Checklist éditeur prête : `docs/license-activation-checklist.md`
 
 ---
 
