@@ -327,7 +327,7 @@ docker compose -f docker-compose.client.yml --env-file .env.example config
 | Persistance `installation.id` | OK (volume + restart) |
 | Gate API sans licence | OK (403) |
 | Déblocage API avec licence valide | OK (test intégration `LicenseImportIntegrationTest`) |
-| Activation Docker licence prod | **Non testée** — procédure documentée |
+| Activation Docker licence prod | **OK** (exemple local non client, 2026-07-02) |
 | Doc | `docs/license-production.md` + `docs/license-activation-checklist.md` |
 
 ---
@@ -382,6 +382,31 @@ Validation sur poste dev. **Ne pas committer** `.lic`, `.env` ni backups.
 | `installationId` après restart | Inchangé (cohérent avec volume licence) |
 | Logs backend post-restart | Démarrage OK, licence active, pas d'erreur fatale |
 | Backup post-restart | `backups/<BACKUP_DIR>/` — `postgres.dump`, `installation.id`, `gest_pov.lic` |
+
+---
+
+## 16. Parcours métier POS client (exemple local non client — 2026-07-02)
+
+Validation fonctionnelle sur stack Docker activée, sans modification de code.
+
+| Étape | Résultat |
+|------|----------|
+| Données test | Créées (`TEST-CLIENT-POS-*`) : catégorie, entrepôt, emplacement, produit, stock |
+| Création produit | OK (`/api/products`) |
+| Entrée stock | OK (`/api/stock/receipt`) |
+| Vente POS + paiement | OK (`/api/pos/sales`, `/validate`) |
+| Ticket / facture | OK (`/api/pos/sales/{id}/ticket`, `/invoice`) |
+| Retour / remboursement | OK (`/api/pos/sales/{id}/refund`, reçu retour) |
+| Stock après vente | 30 → 28 |
+| Stock après retour | 28 → 30 (réintégration conforme) |
+| Clôture caisse | OK (`/api/pos/sessions/close`, écart 0) |
+| Dashboard / analytics | OK (`/api/dashboard/summary`, `/api/analytics/overview`) |
+| Backup post-POS | OK (`backups/<BACKUP_DIR>/`) |
+
+### Point d'attention observé (non bloquant)
+
+- En profil client `prod`, création d'unités via `/api/units` bloquée (catalogue de référence verrouillé).  
+  Impact : utiliser une unité existante pour créer les produits de test.
 
 ---
 

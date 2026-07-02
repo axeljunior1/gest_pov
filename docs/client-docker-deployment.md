@@ -299,7 +299,7 @@ Voir détail : [license-production.md](license-production.md).
 | `installation.id` persistant au restart | OK |
 | Sans `.lic` : API métier | HTTP 403 |
 | Import format invalide | HTTP 400 |
-| Activation licence prod réelle | **Non testée** (clé privée éditeur hors environnement) |
+| Activation licence prod réelle | **OK** (exemple local non client, 2026-07-02) |
 | Tests `mvn -Dtest=*License* test` | **14 tests OK** |
 
 ### Parcours sans licence validé (activation en attente éditeur)
@@ -320,6 +320,26 @@ Checklist éditeur prête : `docs/license-activation-checklist.md`
 ```bash
 docker compose -f docker-compose.client.yml --env-file .env.example config
 ```
+
+---
+
+## 17. Parcours métier POS validé (exemple local non client — 2026-07-02)
+
+Parcours exécuté sur stack Docker activée (licence valide), avec données `TEST-CLIENT-POS-*`.
+
+| Vérification | Résultat |
+|--------------|----------|
+| Création catégorie / produit | OK (`/api/categories`, `/api/products`) |
+| Entrée stock initiale | OK (`/api/stock/receipt`) |
+| Vente POS + paiement cash | OK (`/api/pos/sales`, `/validate`) |
+| Ticket / facture | OK (`/api/pos/sales/{id}/ticket`, `/invoice`) |
+| Retour / remboursement | OK (`/api/pos/sales/{id}/refund`, `/returns/{id}/receipt`) |
+| Stock décrémenté puis réintégré | OK (30 → 28 → 30) |
+| Clôture session caisse | OK (`cashDifference = 0`) |
+| Dashboard / analytics | OK (`/api/dashboard/summary`, `/api/analytics/overview`) |
+| Backup post-POS | OK (`backups/<BACKUP_DIR>/`) |
+
+Point d'attention : en profil client prod, le catalogue d'unités est verrouillé (création `/api/units` refusée). Utiliser une unité de référence existante.
 
 ---
 

@@ -19,11 +19,13 @@ Références : `docs/release-readiness-v1.md`, `docs/license-activation-checklis
 | API métier débloquée | **OK** — `/api/products` et `/api/auth/me` → HTTP 200 |
 | Restart validation | **OK** — licence persistante, `<INSTALLATION_ID_CLIENT>` inchangé |
 | Backup post-activation + post-restart | **Fait** — `backups/<BACKUP_DIR>/` (postgres + `installation.id` + `gest_pov.lic`) |
-| Export images `.tar` | **À faire** |
+| Parcours métier POS (catalogue → stock → vente → retour → clôture) | **Validé** (exemple local non client) |
+| Backup post-parcours POS | **Fait** — `backups/<BACKUP_DIR>/` |
+| Export images `.tar` | **GO** (après commit docs) |
 
 > **Rappel :** ne jamais committer `.env`, `gest_pov.lic`, `backups/` ni `images/*.tar`.
 
-**Prochaine action :** export images `.tar` et préparation du package livraison client (étape 9 ci-dessous).
+**Prochaine action :** commit des docs de validation puis export images `.tar` et préparation du package livraison client (étape 9 ci-dessous).
 
 ---
 
