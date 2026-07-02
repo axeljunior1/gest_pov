@@ -144,8 +144,66 @@ export default function PosWorkspaceNav() {
 
   if (!canPrepare && !canCollect) return null
 
-  /** Poste choisi : masquer les cartes de sélection jusqu'à fermeture de session. */
-  if (session) return null
+  /** Session ouverte : bandeau compact (session + bascule poste en mode central). */
+  if (session) {
+    const status = sessionStatus(session, session.sessionType === 'SALES' ? 'SALES' : 'CASHIER')
+    return (
+      <div className="px-4 py-2 bg-slate-900/80 border-b border-slate-800 flex flex-wrap items-center gap-3 text-sm">
+        <PosSessionChip session={session} centralMode={centralMode} />
+        <span className={`inline-flex items-center gap-1.5 text-xs ${status.open ? 'text-emerald-300' : 'text-slate-500'}`}>
+          <span className={`w-2 h-2 rounded-full ${status.open ? 'bg-emerald-400' : 'bg-slate-600'}`} aria-hidden />
+          {status.open ? 'Session ouverte' : status.text}
+        </span>
+        {centralMode && dualRole && (
+          <div className="flex flex-wrap gap-2 ml-auto">
+            {canPrepare && (
+              <Link
+                to="/pos"
+                className={`px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors ${
+                  onSales
+                    ? 'bg-indigo-950/70 border-indigo-500/50 text-indigo-100'
+                    : 'border-slate-600 text-slate-300 hover:bg-slate-800'
+                }`}
+              >
+                Préparation ventes
+              </Link>
+            )}
+            {canCollect && (
+              <Link
+                to="/pos/pending"
+                className={`px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors ${
+                  onCashier
+                    ? 'bg-emerald-950/70 border-emerald-500/50 text-emerald-100'
+                    : 'border-slate-600 text-slate-300 hover:bg-slate-800'
+                }`}
+              >
+                Encaissement
+              </Link>
+            )}
+          </div>
+        )}
+        {(canReprint || canReturn || canReport) && (
+          <div className={`flex flex-wrap gap-2 ${!centralMode || !dualRole ? 'ml-auto' : ''}`}>
+            {canReprint && (
+              <Link to="/pos/history" className="px-3 py-1 rounded-lg border border-slate-600 text-xs text-slate-300 hover:bg-slate-800">
+                Ventes passées
+              </Link>
+            )}
+            {canReturn && (
+              <Link to="/pos/returns" className="px-3 py-1 rounded-lg border border-slate-600 text-xs text-slate-300 hover:bg-slate-800">
+                Retours
+              </Link>
+            )}
+            {canReport && (
+              <Link to="/pos/reports" className="px-3 py-1 rounded-lg border border-slate-600 text-xs text-slate-300 hover:bg-slate-800">
+                Rapports
+              </Link>
+            )}
+          </div>
+        )}
+      </div>
+    )
+  }
 
   if (!centralMode) {
     const status = sessionStatus(session, 'CASHIER')

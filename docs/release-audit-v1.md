@@ -443,4 +443,20 @@ Notes sécurité :
 
 ---
 
+## 18. Sprint 6 — Finition POS (2026-07-02)
+
+Améliorations **frontend uniquement** : lisibilité caisse, guidage flux `CENTRAL_CASHIER`, panier détaillé, alertes attente paiement, ticket/facture après vente, messages caissier.
+
+Documentation détaillée : **`docs/pos-finition-v1.md`**.
+
+| Validation | Statut |
+|------------|--------|
+| `mvn test` complet | Non lancé (contrainte sprint) |
+| `npm run build` | Voir commit sprint 6 |
+| Parcours API POS | Inchangé — validé en sprints précédents |
+
+Report Sprint 7 : export PDF ticket/facture, UI remise ligne, refactor `PaymentModal` partagé.
+
+---
+
 *Audit statique v1 — activation licence validée (exemple local) — 2026-07-02*

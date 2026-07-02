@@ -14,9 +14,10 @@ import CashSessionOpenModal from '../components/pos/CashSessionOpenModal'
 import CancelSaleModal from '../components/pos/CancelSaleModal'
 import ModalOverlay from '../components/ui/ModalOverlay'
 import { PosSessionChip, PosSessionTypeBadge, PosWrongSessionPanel } from '../components/pos/PosWorkspaceNav'
-import { PosTicketModal } from '../components/pos/PosPrintModals'
+import { PosTicketModal, PosInvoiceModal } from '../components/pos/PosPrintModals'
 import PosSaleLinesSummary from '../components/pos/PosSaleLinesSummary'
 import PosSaleLineLabel from '../components/pos/PosSaleLineLabel'
+import { pendingAgeClass, pendingAgeMinutes } from '../utils/posPendingAge'
 
 function PaymentModal({ sale, currency, paymentMethods, changeGivingEnabled, onClose, onPaid, onRecallToDraft }) {
   const enabledMethods = useMemo(
@@ -33,7 +34,12 @@ function PaymentModal({ sale, currency, paymentMethods, changeGivingEnabled, onC
 
   useEffect(() => {
     setPayments([{ method: defaultMethod, amount: sale?.total || 0 }])
-  }, [sale?.id, sale?.total, defaultMethod])
+    if (changeGivingEnabled && defaultMethod === 'CASH' && sale?.total) {
+      setCashReceived(String(Number(sale.total)))
+    } else {
+      setCashReceived('')
+    }
+  }, [sale?.id, sale?.total, defaultMethod, changeGivingEnabled])
 
   const total = Number(sale?.total || 0)
   const paid = payments.reduce((s, p) => s + Number(p.amount || 0), 0)
@@ -79,7 +85,10 @@ function PaymentModal({ sale, currency, paymentMethods, changeGivingEnabled, onC
       <div className="bg-slate-900 border border-slate-700 rounded-xl w-full max-w-lg p-6">
         <h3 className="text-lg font-semibold mb-1">Encaisser — {sale?.saleNumber}</h3>
         <p className="text-sm text-slate-400 mb-4">Vendeur : {sale?.sellerName || sale?.cashierName} · Total {formatPosMoney(total, currency)}</p>
-        <PosSaleLinesSummary lines={sale?.lignes} currency={currency} />
+        <PosSaleLinesSummary lines={sale?.lignes} currency={currency} detailed />
+        <p className="text-xs text-slate-500 mb-3">
+          Étape 3/3 — Vérifiez le montant, choisissez le moyen de paiement, puis validez.
+        </p>
         {paymentError && (
           <div className="mb-4 rounded-lg border border-red-500/50 bg-red-950/40 px-3 py-2 text-sm text-red-200" role="alert">
             {paymentError}
@@ -160,6 +169,8 @@ export default function PosPendingPaymentsPage() {
   const [selected, setSelected] = useState(null)
   const [detail, setDetail] = useState(null)
   const [ticket, setTicket] = useState(null)
+  const [invoice, setInvoice] = useState(null)
+  const [lastValidatedSale, setLastValidatedSale] = useState(null)
   const [autoPrintTicket, setAutoPrintTicket] = useState(false)
   const [cancelTarget, setCancelTarget] = useState(null)
   const [cancelling, setCancelling] = useState(false)
@@ -169,6 +180,7 @@ export default function PosPendingPaymentsPage() {
   const paymentMethods = clientConfig?.pos?.paymentMethods
   const changeGivingEnabled = clientConfig?.pos?.changeGivingEnabled !== false
   const autoPrintAfterSale = !!clientConfig?.pos?.autoPrintAfterSale
+  const alertPendingMinutes = context?.posConfig?.alertPendingPaymentMinutes
   const isCentralCashier = context?.posConfig?.salesFlowMode === 'CENTRAL_CASHIER'
     || context?.posConfig?.cashHandlingMode === 'CENTRAL_CASHIER'
   const cashierOnly = isCashierOnlyUser(user)
@@ -272,6 +284,8 @@ export default function PosPendingPaymentsPage() {
 
   const onPaid = async (validatedSale) => {
     setSelected(null)
+    setLastValidatedSale(validatedSale)
+    setInvoice(null)
     try {
       const t = await posApi.ticket(validatedSale.id)
       setAutoPrintTicket(autoPrintAfterSale)
@@ -285,6 +299,18 @@ export default function PosPendingPaymentsPage() {
     notify.success(`Vente ${validatedSale.saleNumber} encaissée`)
     await refresh()
     notifyPosSaleStateChanged()
+  }
+
+  const handleViewInvoice = async () => {
+    if (!lastValidatedSale?.id) return
+    try {
+      setInvoice(await posApi.invoice(lastValidatedSale.id))
+    } catch (e) {
+      notify.error(getErrorMessage(e, {
+        module: 'pos',
+        fallback: 'La facture n\'est pas disponible pour cette vente.',
+      }))
+    }
   }
 
   const closeSalesSession = async () => {
@@ -408,8 +434,11 @@ export default function PosPendingPaymentsPage() {
                 </tr>
               </thead>
               <tbody>
-                {pending.map((s) => (
-                  <tr key={s.id} className="border-b border-slate-800 hover:bg-slate-900/50">
+                {pending.map((s) => {
+                  const ageMin = pendingAgeMinutes(s)
+                  const rowClass = pendingAgeClass(ageMin, alertPendingMinutes)
+                  return (
+                  <tr key={s.id} className={`border-b border-slate-800 hover:bg-slate-900/50 ${rowClass}`}>
                     <td className="py-3 pr-4 font-medium">{s.saleNumber}</td>
                     <td className="py-3 pr-4">{s.sellerName || s.cashierName}</td>
                     <td className="py-3 pr-4">{s.customerName || '—'}</td>
@@ -417,6 +446,11 @@ export default function PosPendingPaymentsPage() {
                       <span className="inline-block px-2 py-0.5 rounded bg-amber-900/40 text-amber-300 text-xs">
                         {saleStatusLabel(s.status)}
                       </span>
+                      {ageMin != null && alertPendingMinutes > 0 && ageMin >= alertPendingMinutes && (
+                        <span className="block text-[10px] text-red-400 mt-1" role="alert">
+                          En attente depuis {ageMin} min
+                        </span>
+                      )}
                     </td>
                     <td className="py-3 pr-4 text-slate-400">
                       {s.sentToPaymentAt || s.submittedAt
@@ -453,7 +487,8 @@ export default function PosPendingPaymentsPage() {
                       </div>
                     </td>
                   </tr>
-                ))}
+                  )
+                })}
               </tbody>
             </table>
           </div>
@@ -497,8 +532,17 @@ export default function PosPendingPaymentsPage() {
         <PosTicketModal
           ticket={ticket}
           autoPrint={autoPrintTicket}
-          onClose={() => { setTicket(null); setAutoPrintTicket(false) }}
+          saleNumber={lastValidatedSale?.saleNumber}
+          onViewInvoice={lastValidatedSale?.id ? handleViewInvoice : undefined}
+          onClose={() => {
+            setTicket(null)
+            setAutoPrintTicket(false)
+            setLastValidatedSale(null)
+          }}
         />
+      )}
+      {invoice && (
+        <PosInvoiceModal invoice={invoice} onClose={() => setInvoice(null)} />
       )}
       {showOpenModal && (
         <CashSessionOpenModal

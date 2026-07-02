@@ -2,18 +2,44 @@ import { useEffect } from 'react'
 import { formatPosMoney } from '../../utils/posMoney'
 import PosSaleLineLabel from './PosSaleLineLabel'
 
-export function PosTicketModal({ ticket, onClose, autoPrint = false }) {
+export function PosTicketModal({
+  ticket,
+  onClose,
+  autoPrint = false,
+  saleNumber,
+  onNewSale,
+  onViewInvoice,
+}) {
   useEffect(() => {
     if (!autoPrint || !ticket) return undefined
     const timer = setTimeout(() => window.print(), 250)
     return () => clearTimeout(timer)
   }, [autoPrint, ticket])
 
+  useEffect(() => {
+    if (!onNewSale) return undefined
+    const onKey = (e) => {
+      if (e.key === 'F5' || (e.key === 'n' && e.ctrlKey)) {
+        e.preventDefault()
+        onNewSale()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onNewSale])
+
   if (!ticket) return null
   const totalLabel = ticket.pricesIncludeTax ? 'TOTAL TTC' : 'TOTAL HT'
+  const displayNumber = saleNumber || ticket.ticketNumber
   return (
     <div className="pos-print-overlay fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
       <div className="pos-print-root pos-print-ticket pos-light-panel rounded-xl w-full max-w-sm p-6 font-mono text-sm">
+        {(saleNumber || ticket.ticketNumber) && (
+          <div className="mb-3 -mt-1 rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2 text-center text-emerald-900 text-xs font-sans">
+            <p className="font-semibold text-sm">Vente validée</p>
+            <p className="mt-0.5">Ticket {displayNumber}</p>
+          </div>
+        )}
         {ticket.companyLogoUrl && (
           <img src={ticket.companyLogoUrl} alt="Logo" className="h-10 mx-auto mb-2 object-contain" />
         )}
@@ -57,13 +83,27 @@ export function PosTicketModal({ ticket, onClose, autoPrint = false }) {
         {ticket.ticketFooter && (
           <p className="text-center text-xs text-gray-500 mt-3 whitespace-pre-wrap">{ticket.ticketFooter}</p>
         )}
-        <div className="pos-print-actions flex gap-2 mt-4">
-          <button type="button" onClick={() => window.print()} className="flex-1 py-2 bg-gray-900 text-white rounded-lg text-xs">
-            Imprimer
-          </button>
-          <button type="button" onClick={onClose} className="flex-1 py-2 bg-gray-200 rounded-lg text-xs">
-            Fermer
-          </button>
+        <div className="pos-print-actions flex flex-col gap-2 mt-4 font-sans">
+          <div className="flex gap-2">
+            <button type="button" onClick={() => window.print()} className="flex-1 py-2 bg-gray-900 text-white rounded-lg text-xs">
+              Imprimer ticket
+            </button>
+            {onViewInvoice && (
+              <button type="button" onClick={onViewInvoice} className="flex-1 py-2 bg-indigo-700 text-white rounded-lg text-xs">
+                Voir facture
+              </button>
+            )}
+          </div>
+          <div className="flex gap-2">
+            {onNewSale && (
+              <button type="button" onClick={onNewSale} className="flex-1 py-2 bg-emerald-600 text-white rounded-lg text-xs font-medium">
+                Nouvelle vente (F5)
+              </button>
+            )}
+            <button type="button" onClick={onClose} className="flex-1 py-2 bg-gray-200 rounded-lg text-xs">
+              Fermer
+            </button>
+          </div>
         </div>
       </div>
     </div>

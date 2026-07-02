@@ -18,10 +18,11 @@ import { formatStockIssueLine, getSaleStockIssueLines, saleHasStockIssues } from
 import { PosSessionChip, PosSessionTypeBadge, PosWrongSessionPanel } from '../components/pos/PosWorkspaceNav'
 import ResumeSalesModal from '../components/pos/ResumeSalesModal'
 import ModalOverlay from '../components/ui/ModalOverlay'
-import { PosTicketModal } from '../components/pos/PosPrintModals'
+import { PosTicketModal, PosInvoiceModal } from '../components/pos/PosPrintModals'
 import PosSearchResults, { expandPosSearchResults, resolvePosVariantId } from '../components/pos/PosSearchResults'
 import PosSaleLinesSummary from '../components/pos/PosSaleLinesSummary'
-import PosSaleLineLabel from '../components/pos/PosSaleLineLabel'
+import PosCartLineRow from '../components/pos/PosCartLineRow'
+import PosFlowBanner from '../components/pos/PosFlowBanner'
 import SearchCriteriaHelp from '../components/search/SearchCriteriaHelp'
 import { formatPosMoney } from '../utils/posMoney'
 
@@ -47,7 +48,12 @@ function PaymentModal({ sale, currency, paymentMethods, changeGivingEnabled, onC
 
   useEffect(() => {
     setPayments([{ method: defaultMethod, amount: sale?.total || 0 }])
-  }, [sale?.id, sale?.total, defaultMethod])
+    if (changeGivingEnabled && defaultMethod === 'CASH' && sale?.total) {
+      setCashReceived(String(Number(sale.total)))
+    } else {
+      setCashReceived('')
+    }
+  }, [sale?.id, sale?.total, defaultMethod, changeGivingEnabled])
 
   const total = Number(sale?.total || 0)
   const paid = payments.reduce((s, p) => s + Number(p.amount || 0), 0)
@@ -80,7 +86,8 @@ function PaymentModal({ sale, currency, paymentMethods, changeGivingEnabled, onC
     <ModalOverlay open onClose={onClose}>
       <div className="bg-slate-900 border border-slate-700 rounded-xl w-full max-w-lg p-6">
         <h3 className="text-lg font-semibold mb-4">Paiement — {formatPosMoney(total, currency)}</h3>
-        <PosSaleLinesSummary lines={sale?.lignes} currency={currency} />
+        <p className="text-xs text-slate-500 mb-3">Étape 2/2 — Vérifiez le montant et encaissez.</p>
+        <PosSaleLinesSummary lines={sale?.lignes} currency={currency} detailed />
         {paymentError && (
           <div className="mb-4 rounded-lg border border-red-500/50 bg-red-950/40 px-3 py-2 text-sm text-red-200" role="alert">
             {paymentError}
@@ -267,9 +274,11 @@ export default function POSPage() {
   const [showResumeModal, setShowResumeModal] = useState(false)
   const [showPayment, setShowPayment] = useState(false)
   const [ticket, setTicket] = useState(null)
+  const [invoice, setInvoice] = useState(null)
+  const [lastValidatedSale, setLastValidatedSale] = useState(null)
   const [autoPrintTicket, setAutoPrintTicket] = useState(false)
   const [clock, setClock] = useState(new Date())
-  const [online] = useState(true)
+  const [online, setOnline] = useState(() => typeof navigator !== 'undefined' && navigator.onLine)
   const [openingSession, setOpeningSession] = useState(false)
   const [showOpenModal, setShowOpenModal] = useState(false)
   const [showCloseModal, setShowCloseModal] = useState(false)
@@ -445,7 +454,11 @@ export default function POSPage() {
       return
     }
     if (!product.sellable && !effectiveVariantId) {
-      notify.error('Ce produit n\'est pas vendable directement.')
+      notify.error('Ce produit n\'est pas disponible à la vente.')
+      return
+    }
+    if (product.outOfStock && !product.hasVariants) {
+      notify.error('Produit en rupture de stock — quantité indisponible.')
       return
     }
 
@@ -680,7 +693,14 @@ export default function POSPage() {
   useEffect(() => {
     refreshContext().catch((e) => notify.error(getErrorMessage(e, { module: 'pos' })))
     const t = setInterval(() => setClock(new Date()), 1000)
-    return () => clearInterval(t)
+    const syncOnline = () => setOnline(navigator.onLine)
+    window.addEventListener('online', syncOnline)
+    window.addEventListener('offline', syncOnline)
+    return () => {
+      clearInterval(t)
+      window.removeEventListener('online', syncOnline)
+      window.removeEventListener('offline', syncOnline)
+    }
   }, [refreshContext, notify])
 
   useEffect(() => {
@@ -688,6 +708,12 @@ export default function POSPage() {
       loadCatalog(session.warehouseId, categoryId).catch(() => {})
     }
   }, [session, categoryId, loadCatalog])
+
+  useEffect(() => {
+    if (session && isCentralCashier && canPrepareSales) {
+      loadResumeSales().catch(() => {})
+    }
+  }, [session, isCentralCashier, canPrepareSales, loadResumeSales])
 
   useEffect(() => {
     searchRef.current?.focus()
@@ -864,6 +890,8 @@ export default function POSPage() {
   const onPaid = async (validatedSale) => {
     setShowPayment(false)
     setSale(null)
+    setLastValidatedSale(validatedSale)
+    setInvoice(null)
     try {
       const t = await posApi.ticket(validatedSale.id)
       setAutoPrintTicket(autoPrintAfterSale)
@@ -875,7 +903,29 @@ export default function POSPage() {
       }))
     }
     notify.success(`Vente ${validatedSale.saleNumber} validée`)
+    searchRef.current?.focus()
   }
+
+  const handleNewSaleAfterPayment = useCallback(() => {
+    setTicket(null)
+    setInvoice(null)
+    setLastValidatedSale(null)
+    setAutoPrintTicket(false)
+    searchRef.current?.focus()
+  }, [])
+
+  const handleViewInvoice = useCallback(async () => {
+    if (!lastValidatedSale?.id) return
+    try {
+      const inv = await posApi.invoice(lastValidatedSale.id)
+      setInvoice(inv)
+    } catch (e) {
+      notify.error(getErrorMessage(e, {
+        module: 'pos',
+        fallback: 'La facture n\'est pas disponible pour cette vente.',
+      }))
+    }
+  }, [lastValidatedSale, notify])
 
   if (!hasPermission('pos.sale.read')) {
     return (
@@ -952,6 +1002,7 @@ export default function POSPage() {
   const stockIssues = saleHasStockIssues(sale)
   const canSendToCashier = showSendToCash && lines.length > 0 && !stockIssues
   const pendingQty = parseQty(nextQty, 1)
+  const resumePendingCount = holdSales.length + draftSales.length
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
@@ -963,19 +1014,24 @@ export default function POSPage() {
             type="button"
             onClick={openResumeModal}
             className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors ${
-              holdCount > 0
+              resumePendingCount > 0
                 ? 'bg-amber-500/20 border-amber-400 text-amber-100 animate-pulse'
                 : 'bg-slate-800 border-slate-600 text-slate-400'
             }`}
-            title="Ventes en attente (retour caisse ou pause client) — F9 pour reprendre"
+            title="Ventes en attente (pause client ou retour caisse) — F9 pour reprendre"
           >
             <span className={`inline-flex items-center justify-center min-w-[1.5rem] h-6 px-1.5 rounded-full text-xs font-bold ${
-              holdCount > 0 ? 'bg-amber-500 text-slate-900' : 'bg-slate-700 text-slate-300'
+              resumePendingCount > 0 ? 'bg-amber-500 text-slate-900' : 'bg-slate-700 text-slate-300'
             }`}>
-              {holdCount}
+              {resumePendingCount}
             </span>
             en attente
           </button>
+        )}
+        {session?.warehouseCode && (
+          <span className="text-xs text-slate-400 px-2 py-1 rounded-md bg-slate-800 border border-slate-700">
+            Entrepôt {session.warehouseCode}
+          </span>
         )}
         <div className="text-slate-300">
           <p>{user?.firstName} {user?.lastName}</p>
@@ -1011,20 +1067,12 @@ export default function POSPage() {
         </div>
       )}
 
-      {isCentralCashier && showSendToCash && stockIssues && (
-        <div className="px-4 py-2 bg-red-950/70 border-b border-red-800 text-red-200 text-xs text-center">
-          <strong>Stock insuffisant</strong> — corrigez les quantités du panier avant l’envoi à la caisse.
-          {getSaleStockIssueLines(sale).slice(0, 3).map((l) => (
-            <span key={l.id} className="block mt-1 text-red-300/90">{formatStockIssueLine(l)}</span>
-          ))}
-        </div>
-      )}
-
-      {isCentralCashier && showSendToCash && !stockIssues && (
-        <div className="px-4 py-2 bg-amber-950/40 border-b border-amber-900/50 text-amber-100 text-xs text-center">
-          Panier prêt ? Utilisez <strong>Envoyer à la caisse</strong> (F4) — la « Pause client » (F8) ne part pas en caisse.
-        </div>
-      )}
+      <PosFlowBanner
+        mode={salesFlowMode}
+        saleStatus={sale?.status}
+        hasLines={lines.length > 0}
+        stockIssues={stockIssues}
+      />
 
       <div className="flex-1 flex min-h-0">
         {/* Colonne gauche — catégories */}
@@ -1116,6 +1164,16 @@ export default function POSPage() {
             )}
           </div>
           <div className="flex-1 overflow-y-auto grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 content-start">
+            {products.length === 0 && (
+              <div className="col-span-full flex flex-col items-center justify-center py-16 text-center text-slate-500 text-sm px-4">
+                <p className="font-medium text-slate-400">Aucun produit à afficher</p>
+                <p className="text-xs mt-2 max-w-sm">
+                  {categoryId
+                    ? 'Cette catégorie est vide — choisissez « Tous » ou une autre catégorie, ou recherchez par nom, SKU ou code-barres (F2).'
+                    : 'Utilisez la recherche (F2) ou sélectionnez une catégorie pour ajouter des articles.'}
+                </p>
+              </div>
+            )}
             {products.map((p) => (
               <button
                 key={p.id}
@@ -1156,69 +1214,34 @@ export default function POSPage() {
           </div>
           <ul className="flex-1 overflow-y-auto divide-y divide-slate-800">
             {lines.length === 0 && (
-              <li className="p-4 text-slate-500 text-sm text-center">Panier vide</li>
+              <li className="p-6 text-slate-500 text-sm text-center space-y-2">
+                <p className="font-medium text-slate-400">Panier vide</p>
+                <p className="text-xs">Recherchez un produit (F2) ou cliquez sur le catalogue pour commencer.</p>
+              </li>
             )}
             {lines.map((l) => (
-              <li key={l.id} className={`p-3 text-sm ${l.stockInsufficient ? 'bg-red-950/30' : ''}`}>
-                <div className="flex justify-between gap-2">
-                  <PosSaleLineLabel line={l} variant="cart" className="flex-1 min-w-0" />
-                  <span className="shrink-0">{formatPosMoney(l.lineTotal, currency)}</span>
-                </div>
-                {l.stockInsufficient && (
-                  <p className="text-xs text-red-400 mt-1">
-                    Stock insuffisant — {Number(l.quantityInput)} en panier, {Number(l.stockAvailable ?? 0)} disponible(s)
-                  </p>
-                )}
-                <div className="flex items-center gap-2 mt-2 text-slate-400">
-                  <button
-                    type="button"
-                    className="w-7 h-7 bg-slate-800 rounded hover:bg-slate-700"
-                    onClick={() => updateLineQty(l.id, Number(l.quantityInput) - 1)}
-                  >
-                    −
-                  </button>
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    aria-label={`Quantité ${l.productNom}`}
-                    key={`${l.id}-${l.quantityInput}`}
-                    defaultValue={l.quantityInput}
-                    className="w-14 h-7 text-center bg-slate-800 border border-slate-600 rounded text-sm text-white tabular-nums focus:border-emerald-500 focus:outline-none"
-                    onBlur={(e) => updateLineQty(l.id, e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault()
-                        e.currentTarget.blur()
-                      }
-                    }}
-                  />
-                  <button
-                    type="button"
-                    className="w-7 h-7 bg-slate-800 rounded hover:bg-slate-700"
-                    onClick={() => updateLineQty(l.id, Number(l.quantityInput) + 1)}
-                  >
-                    +
-                  </button>
-                  <span className="text-xs ml-auto">{formatPosMoney(l.unitPrice, currency)}/cond.</span>
-                  <button
-                    type="button"
-                    className="text-red-400 text-xs hover:text-red-300 px-1"
-                    onClick={() => updateLineQty(l.id, 0)}
-                  >
-                    ✕
-                  </button>
-                </div>
-              </li>
+              <PosCartLineRow
+                key={l.id}
+                line={l}
+                currency={currency}
+                onDecrement={() => updateLineQty(l.id, Number(l.quantityInput) - 1)}
+                onIncrement={() => updateLineQty(l.id, Number(l.quantityInput) + 1)}
+                onQtyBlur={(e) => updateLineQty(l.id, e.target.value)}
+                onRemove={() => updateLineQty(l.id, 0)}
+              />
             ))}
           </ul>
-          <div className="p-4 border-t border-slate-800 space-y-1 text-sm">
+          <div className="p-4 border-t border-slate-800 space-y-1 text-sm bg-slate-950/50">
             <div className="flex justify-between text-slate-400"><span>Sous-total</span><span>{formatPosMoney(sale?.subtotal, currency)}</span></div>
             <div className="flex justify-between text-slate-400"><span>Remise</span><span>{formatPosMoney(sale?.discountTotal, currency)}</span></div>
             {(sale?.loyaltyDiscountAmount > 0) && (
               <div className="flex justify-between text-amber-400"><span>Fidélité</span><span>-{formatPosMoney(sale.loyaltyDiscountAmount, currency)}</span></div>
             )}
             <div className="flex justify-between text-slate-400"><span>Taxes</span><span>{formatPosMoney(sale?.taxTotal, currency)}</span></div>
-            <div className="flex justify-between text-lg font-bold pt-2"><span>Total</span><span className="text-emerald-400">{formatPosMoney(sale?.total, currency)}</span></div>
+            <div className="flex justify-between text-2xl font-bold pt-3 border-t border-slate-700 mt-2">
+              <span>Total</span>
+              <span className="text-emerald-400 tabular-nums">{formatPosMoney(sale?.total, currency)}</span>
+            </div>
             {canSendToCashier && (
               <button
                 type="button"
@@ -1316,7 +1339,20 @@ export default function POSPage() {
         <PosTicketModal
           ticket={ticket}
           autoPrint={autoPrintTicket}
-          onClose={() => { setTicket(null); setAutoPrintTicket(false) }}
+          saleNumber={lastValidatedSale?.saleNumber}
+          onNewSale={handleNewSaleAfterPayment}
+          onViewInvoice={lastValidatedSale?.id ? handleViewInvoice : undefined}
+          onClose={() => {
+            setTicket(null)
+            setAutoPrintTicket(false)
+            searchRef.current?.focus()
+          }}
+        />
+      )}
+      {invoice && (
+        <PosInvoiceModal
+          invoice={invoice}
+          onClose={() => setInvoice(null)}
         />
       )}
       {showOpenModal && (

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { posApi } from '../api'
 import { useAuth } from '../context/AuthContext'
+import { canPrepareSales } from '../utils/auth'
 import { useNotification } from '../context/NotificationContext'
 import { getErrorMessage } from '../utils/errors'
 import { formatPosMoney } from '../utils/posMoney'
@@ -9,12 +10,14 @@ import { PosSessionChip } from '../components/pos/PosWorkspaceNav'
 import { ReturnReceiptModal } from '../components/pos/PosPrintModals'
 
 export default function PosReturnsPage() {
-  const { hasPermission } = useAuth()
+  const { hasPermission, user } = useAuth()
   const notify = useNotification()
   const [session, setSession] = useState(null)
   const [currency, setCurrency] = useState('EUR')
+  const [clientConfig, setClientConfig] = useState(null)
   const [search, setSearch] = useState('')
   const [results, setResults] = useState([])
+  const [searched, setSearched] = useState(false)
   const [selected, setSelected] = useState(null)
   const [lines, setLines] = useState([])
   const [reason, setReason] = useState('')
@@ -28,16 +31,32 @@ export default function PosReturnsPage() {
     posApi.context().then((ctx) => {
       setSession(ctx.session ?? null)
       setCurrency(ctx.publicSettings?.currency || 'EUR')
+      setClientConfig(ctx.clientConfig ?? null)
     }).catch(() => {})
   }, [])
+
+  const paymentMethods = useMemo(
+    () => (clientConfig?.pos?.paymentMethods || []).filter((m) => m.enabled),
+    [clientConfig],
+  )
+
+  useEffect(() => {
+    const defaultMethod = paymentMethods[0]?.code || 'CASH'
+    setPaymentMethod(defaultMethod)
+  }, [paymentMethods])
+
+  const backPath = canPrepareSales(user) ? '/pos' : '/pos/pending'
+  const backLabel = canPrepareSales(user) ? '← Retour ventes' : '← Retour caisse'
 
   const searchSales = async () => {
     if (!search.trim()) return
     setLoading(true)
+    setSearched(true)
     try {
       setResults(await posApi.searchRefundableSales(search.trim()))
     } catch (e) {
-      notify.error(getErrorMessage(e))
+      notify.error(getErrorMessage(e, { module: 'pos' }))
+      setResults([])
     } finally {
       setLoading(false)
     }
@@ -118,8 +137,8 @@ export default function PosReturnsPage() {
           <p className="text-sm text-slate-400">Rechercher une vente payée et enregistrer un retour</p>
         </div>
         {session && <PosSessionChip session={session} centralMode />}
-        <Link to="/pos/pending" className="ml-auto px-3 py-2 rounded-lg border border-slate-600 text-sm text-slate-300 hover:bg-slate-800">
-          ← Retour caisse
+        <Link to={backPath} className="ml-auto px-3 py-2 rounded-lg border border-slate-600 text-sm text-slate-300 hover:bg-slate-800">
+          {backLabel}
         </Link>
       </header>
 
@@ -140,6 +159,12 @@ export default function PosReturnsPage() {
                 Rechercher
               </button>
             </div>
+            {searched && !loading && results.length === 0 && (
+              <div className="text-center py-10 text-slate-500 text-sm border border-dashed border-slate-700 rounded-xl">
+                <p className="font-medium text-slate-400">Aucune vente trouvée</p>
+                <p className="text-xs mt-2">Vérifiez le numéro de vente ou le nom du client — seules les ventes payées sont remboursables.</p>
+              </div>
+            )}
             {results.length > 0 && (
               <ul className="divide-y divide-slate-800 border border-slate-700 rounded-xl overflow-hidden">
                 {results.map((s) => (
@@ -210,10 +235,9 @@ export default function PosReturnsPage() {
               <span className="text-slate-400">Méthode remboursement</span>
               <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}
                 className="mt-1 rounded-lg px-3 py-2 bg-slate-800 border border-slate-600">
-                <option value="CASH">Espèces</option>
-                <option value="CARD">Carte</option>
-                <option value="MOBILE_MONEY">Mobile money</option>
-                <option value="BANK_TRANSFER">Virement</option>
+                {(paymentMethods.length ? paymentMethods : [{ code: 'CASH', label: 'Espèces' }]).map((m) => (
+                  <option key={m.code} value={m.code}>{m.label}</option>
+                ))}
               </select>
             </label>
 
