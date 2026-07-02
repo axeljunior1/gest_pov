@@ -185,7 +185,7 @@ Validation effectuée **sans générateur local** et sans fichier `.lic` réel :
 | Stack Docker client (`up -d`) | OK |
 | Login admin bootstrap | HTTP 200 |
 | `GET /api/license/status` | `valid=false`, `reason=LICENSE_MISSING` |
-| `GET /api/license/installation-id` | `c4e0d425-0d7e-41b6-85fe-963ffb1d0010` |
+| `GET /api/license/installation-id` | OK (UUID unique par volume — récupérer sur install vierge) |
 | `GET /api/products` avec token admin | HTTP 403 `LICENSE_REQUIRED` |
 | `installation.id` après restart backend | inchangé |
 | Backup volume licence | OK (`gest-pov-license.tar.gz`) |

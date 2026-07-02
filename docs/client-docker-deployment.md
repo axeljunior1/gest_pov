@@ -304,12 +304,12 @@ Voir détail : [license-production.md](license-production.md).
 
 ### Parcours sans licence validé (activation en attente éditeur)
 
-- `GET /api/license/installation-id` : `c4e0d425-0d7e-41b6-85fe-963ffb1d0010`
+- `GET /api/license/installation-id` : UUID unique (récupérer sur install vierge, ne pas réutiliser un ID smoke dev)
 - `GET /api/license/status` : `valid=false`, `reason=LICENSE_MISSING`
 - Login admin bootstrap : **HTTP 200**
 - `GET /api/products` avec token admin : **HTTP 403** `LICENSE_REQUIRED`
 - `installation.id` stable après `docker compose restart backend`
-- Backup licence OK : `backups/20260702-075647/gest-pov-license.tar.gz`
+- Backup licence OK : `backups/<timestamp>/gest-pov-license.tar.gz`
 
 Checklist éditeur prête : `docs/license-activation-checklist.md`
 

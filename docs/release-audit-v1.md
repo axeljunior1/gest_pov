@@ -337,7 +337,7 @@ docker compose -f docker-compose.client.yml --env-file .env.example config
 | Critère | Statut |
 |---------|--------|
 | Stack client démarrée (`up -d`) | OK |
-| Installation ID récupéré | `c4e0d425-0d7e-41b6-85fe-963ffb1d0010` |
+| Installation ID récupéré | OK (UUID unique par volume — à obtenir sur install vierge) |
 | `/api/license/status` | `LICENSE_MISSING` |
 | Endpoints publics licence/login | OK |
 | API métier sans licence | HTTP 403 `LICENSE_REQUIRED` |
