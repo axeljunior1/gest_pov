@@ -20,4 +20,11 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     @Query("SELECT DISTINCT u FROM User u LEFT JOIN FETCH u.roles r LEFT JOIN FETCH r.permissions WHERE u.id = :id")
     Optional<User> findByIdWithRolesAndPermissions(@Param("id") Long id);
+
+    @Query("""
+            SELECT CASE WHEN COUNT(u) > 0 THEN true ELSE false END
+            FROM User u JOIN u.roles r
+            WHERE u.isActive = true AND r.code IN ('SUPER_ADMIN', 'ADMIN')
+            """)
+    boolean existsPrivilegedAdmin();
 }

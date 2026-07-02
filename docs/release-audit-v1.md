@@ -78,7 +78,7 @@ Gest_POV est un **ERP produits + POS structuré et fonctionnellement riche** (ca
 |----|--------|--------|--------|
 | P0-1 | **Secrets en dur dans `docker-compose.yml`** | `POSTGRES_PASSWORD`, `APP_JWT_SECRET` | Compromission DB / forge JWT |
 | P0-2 | **README vs compose racine** | README : `cp .env.example .env` — compose ignore `.env` | Faux sentiment de sécurité |
-| P0-3 | **Comptes seed connus** | `AuthReferenceDataInitializer` : `admin@erp.local` / `ErpAdmin2026!`, `caissier@erp.local` / `Caissier2026!` | Accès admin au 1er démarrage |
+| P0-3 | **Comptes seed connus** | `AuthReferenceDataInitializer` (profil dev/docker local uniquement) | **Corrigé client** — `app.seed.default-users-enabled=false` en prod + bootstrap `.env` |
 | P0-4 | **Fallbacks JWT/DB faibles** | `application.yml`, `application-docker.yml`, `application-prod.yml` | Démarrage avec secrets prévisibles |
 | P0-5 | **Token reset demo connu** | `app.admin.reset-token: dev-reset-token-change-me` | Limité au profil `dev` (`AdminDevController`) |
 | P0-6 | **Absence backup PostgreSQL** | Aucun script/doc `pg_dump` / restore | Perte de données irréversible |
@@ -302,19 +302,46 @@ docker compose -f docker-compose.client.yml --env-file .env.example config
 
 **Correction smoke :** `scripts/client-backup.sh` — `docker exec` + `docker cp` pour volumes (compat Git Bash Windows).
 
+> **Note post-sprint bootstrap (2026-07-02) :** les comptes seed connus ne sont plus créés en profil `prod`. Le smoke test précédent utilisait encore `admin@erp.local` — les nouvelles installs client exigent `APP_BOOTSTRAP_ADMIN_*` dans `.env`.
+
+---
+
+## 13. Sprint bootstrap admin sécurisé (2026-07-02)
+
+| Changement | Détail |
+|------------|--------|
+| `app.seed.default-users-enabled` | `false` en profil `prod` — pas de `admin@erp.local` / `caissier@erp.local` |
+| Bootstrap `.env` | `APP_BOOTSTRAP_ADMIN_EMAIL`, `APP_BOOTSTRAP_ADMIN_PASSWORD`, `APP_BOOTSTRAP_ADMIN_NAME` |
+| Dev/test | Comptes seed conservés (`default-users-enabled=true`, `TestAuthReferenceDataInitializer`) |
+| Logs | Plus de mot de passe en clair dans les logs seed |
+| Tests | `AdminBootstrapServiceTest`, `AuthReferenceDataInitializer*BehaviorTest` — **214 tests OK** (`mvn test` ~6 min) |
+
+**Limite documentée :** pas de « changement de mot de passe forcé » au premier login (hors scope).
+
+### Validation Docker bootstrap (2026-07-02)
+
+| Critère | Statut |
+|---------|--------|
+| DB vierge + variables `.env` | OK |
+| Aucun `admin@erp.local` / `caissier@erp.local` | OK (absents de la table `users`) |
+| Admin bootstrap créé une fois | OK (log unique, 1 user SUPER_ADMIN) |
+| Login bootstrap | OK (HTTP 200 + JWT) |
+| API métier sans licence | HTTP 403 (attendu) |
+| Restart sans doublon | OK |
+| Backup | OK |
+
+Détail : `docs/client-docker-deployment.md` §15.
+
 ---
 
 ## 11. Prochaine étape recommandée
 
-**Priorité 1 — Livraison client :**
-1. Import licence `.lic` + parcours POS complet sur stack client.
-2. Rebuild images `.tar` (`gest-pov-backend:1.0.0`, `gest-pov-frontend:1.0.0`).
-3. E2E Playwright contre `docker-compose.client.yml`.
+**Priorité 1 — Licence + parcours métier :**
+1. Import licence `.lic` sur stack client avec admin bootstrap.
+2. Valider POS complet + `/api/auth/me` après licence active.
+3. Rebuild images `.tar` client.
 
-**Priorité 2 — Durcissement (sans refonte métier) :**
-1. Forcer changement MDP admin au 1er login.
-2. Restreindre CORS en profil `prod`.
-3. HTTPS (Caddy TLS ou reverse proxy client).
+**Priorité 2 — Livraison :**
 
 **Priorité 3 — CI / release :**
 1. `mvn test` (211 OK ~4 min) + `npm run build` + pipeline smoke Docker client.

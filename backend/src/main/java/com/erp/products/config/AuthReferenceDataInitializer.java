@@ -6,6 +6,7 @@ import com.erp.products.domain.entity.User;
 import com.erp.products.repository.PermissionRepository;
 import com.erp.products.repository.RoleRepository;
 import com.erp.products.repository.UserRepository;
+import com.erp.products.service.AdminBootstrapService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationArguments;
@@ -32,6 +33,8 @@ public class AuthReferenceDataInitializer implements ApplicationRunner {
     private final RoleRepository roleRepository;
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final SeedProperties seedProperties;
+    private final AdminBootstrapService adminBootstrapService;
 
     @Override
     @Transactional
@@ -52,12 +55,16 @@ public class AuthReferenceDataInitializer implements ApplicationRunner {
 
         ensureCashierRole();
 
-        if (userRepository.count() == 0) {
-            log.info("Creation compte administrateur {}...", ADMIN_EMAIL);
-            seedAdminUser();
-            seedCashierUser();
+        if (seedProperties.isDefaultUsersEnabled()) {
+            if (userRepository.count() == 0) {
+                log.info("Creation comptes seed dev/demo (admin + caissier)...");
+                seedAdminUser();
+                seedCashierUser();
+            } else {
+                ensureCashierUser();
+            }
         } else {
-            ensureCashierUser();
+            adminBootstrapService.bootstrapIfNeeded();
         }
     }
 
@@ -237,7 +244,7 @@ public class AuthReferenceDataInitializer implements ApplicationRunner {
                 .isActive(true)
                 .roles(new HashSet<>(Set.of(superAdmin)))
                 .build());
-        log.info("Compte admin cree — email: {} mot de passe: {}", ADMIN_EMAIL, ADMIN_PASSWORD);
+        log.info("Compte admin seed cree — email: {}", ADMIN_EMAIL);
     }
 
     private void ensureCashierRole() {
@@ -294,7 +301,7 @@ public class AuthReferenceDataInitializer implements ApplicationRunner {
                 .isActive(true)
                 .roles(new HashSet<>(Set.of(cashier)))
                 .build());
-        log.info("Compte caissier cree — email: {} mot de passe: {}", CASHIER_EMAIL, CASHIER_PASSWORD);
+        log.info("Compte caissier seed cree — email: {}", CASHIER_EMAIL);
     }
 
     private void ensureCashierUser() {

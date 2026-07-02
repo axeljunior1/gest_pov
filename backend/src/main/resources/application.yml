@@ -47,6 +47,7 @@ app:
     system-enabled: true
     demo-enabled: true
     demo-auto: false
+    default-users-enabled: true
   jwt:
     secret: erp-dev-secret-change-in-production-min-256-bits-long-key!!
     expiration-ms: 86400000

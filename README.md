@@ -30,7 +30,9 @@ npm run dev:frontend
 
 Frontend : http://localhost:5173 · API : http://localhost:8080
 
-Comptes seed : `admin@erp.local` / `ErpAdmin2026!` · caissier : `caissier@erp.local` / `Caissier2026!`
+Comptes seed (**dev / docker local uniquement**) : `admin@erp.local` / `ErpAdmin2026!` · caissier : `caissier@erp.local` / `Caissier2026!`
+
+**Client/prod :** premier admin via `APP_BOOTSTRAP_ADMIN_*` dans `.env` — voir [docs/client-docker-deployment.md](docs/client-docker-deployment.md).
 
 ## Docker
 

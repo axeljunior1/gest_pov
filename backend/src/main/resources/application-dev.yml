@@ -13,6 +13,7 @@ app:
     reset-enabled: true
   seed:
     demo-auto: false
+    default-users-enabled: true
   license:
     enforcement-enabled: false
 

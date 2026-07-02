@@ -11,6 +11,7 @@ import org.springframework.stereotype.Component;
  *   <li>{@code system-enabled} — rôles, permissions, unités, entrepôt, paramètres techniques</li>
  *   <li>{@code demo-enabled} — autorise la génération manuelle de données de démonstration</li>
  *   <li>{@code demo-auto} — génère automatiquement le jeu démo au démarrage (désactivé en prod)</li>
+ *   <li>{@code default-users-enabled} — comptes seed connus (admin@erp.local) — désactivé en prod</li>
  * </ul>
  */
 @Getter
@@ -27,4 +28,9 @@ public class SeedProperties {
 
     /** Jeu démo automatique au démarrage — false en production */
     private boolean demoAuto = false;
+
+    /**
+     * Comptes admin/caissier connus (dev/docker local). Désactivé en profil {@code prod}.
+     */
+    private boolean defaultUsersEnabled = true;
 }

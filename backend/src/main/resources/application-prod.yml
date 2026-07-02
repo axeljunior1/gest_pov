@@ -7,8 +7,15 @@ spring:
 app:
   seed:
     system-enabled: true
-    demo-enabled: true
+    demo-enabled: false
     demo-auto: false
+    default-users-enabled: false
+  bootstrap:
+    admin:
+      email: ${APP_BOOTSTRAP_ADMIN_EMAIL:}
+      password: ${APP_BOOTSTRAP_ADMIN_PASSWORD:}
+      first-name: ${APP_BOOTSTRAP_ADMIN_NAME:Admin}
+      last-name: ${APP_BOOTSTRAP_ADMIN_LAST_NAME:ERP}
   admin:
     reset-enabled: false
   jwt:
