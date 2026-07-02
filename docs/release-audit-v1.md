@@ -349,18 +349,53 @@ Détail : `docs/client-docker-deployment.md` §16 et `docs/license-activation-ch
 
 ---
 
-## 11. Prochaine étape recommandée
+## 14. Installation client vierge (2026-07-02)
 
-**Priorité 1 — Licence + parcours métier :**
-1. Import licence `.lic` sur stack client avec admin bootstrap.
-2. Valider POS complet + `/api/auth/me` après licence active.
-3. Rebuild images `.tar` client.
+Préparation licence — volumes smoke réinitialisés, stack redémarrée sans données antérieures.
 
-**Priorité 2 — Livraison :**
-
-**Priorité 3 — CI / release :**
-1. `mvn test` (211 OK ~4 min) + `npm run build` + pipeline smoke Docker client.
+| Critère | Résultat |
+|---------|----------|
+| Volumes supprimés | `gest_pov_postgres_data`, `gest_pov_license`, `gest_pov_uploads`, `gest_pov_caddy_*` (projet `gest-pov-client`) |
+| Containers | postgres / backend / frontend **healthy** ; proxy `127.0.0.1:80` |
+| Backend port hôte 8080 | **Non exposé** |
+| Users en base | 1 — admin bootstrap uniquement |
+| Comptes seed (`admin@erp.local`, etc.) | **Absents** (login HTTP 400) |
+| Login bootstrap | **HTTP 200** |
+| `/api/license/status` | `LICENSE_MISSING` |
+| `/api/products` (authentifié) | **HTTP 403** `LICENSE_REQUIRED` |
+| Installation ID | `<INSTALLATION_ID_CLIENT>` (généré par volume licence) |
+| Backup pré-licence | `backups/<BACKUP_DIR>/` — `postgres.dump` + `gest-pov-license.tar.gz` (`installation.id`) |
+| Demande éditeur | Prête — `docs/license-activation-checklist.md` |
 
 ---
 
-*Audit statique v1 — smoke test Docker client validé — 2026-07-02*
+## 15. Activation licence réelle + restart (exemple local non client — 2026-07-02)
+
+Validation sur poste dev. **Ne pas committer** `.lic`, `.env` ni backups.
+
+| Critère | Résultat |
+|---------|----------|
+| Import `gest_pov.lic` | OK — `valid=true`, `activated=true` |
+| `/api/products` (authentifié) | HTTP 200 |
+| `/api/auth/me` (authentifié) | HTTP 200 |
+| Restart stack | OK — licence toujours valide |
+| `installationId` après restart | Inchangé (cohérent avec volume licence) |
+| Logs backend post-restart | Démarrage OK, licence active, pas d'erreur fatale |
+| Backup post-restart | `backups/<BACKUP_DIR>/` — `postgres.dump`, `installation.id`, `gest_pov.lic` |
+
+---
+
+## 11. Prochaine étape recommandée
+
+**Priorité 1 — Livraison :**
+1. Export images `.tar` (`images/*.tar` — gitignored).
+2. Préparer package client : compose, scripts, `.env.example`, docs (sans secrets ni licence).
+
+**Priorité 2 — CI / release :**
+1. `mvn test` + `npm run build` + pipeline smoke Docker client.
+
+**Rappel sécurité :** `.env`, `gest_pov.lic`, `backups/` et clés privées ne doivent **jamais** être versionnés.
+
+---
+
+*Audit statique v1 — activation licence validée (exemple local) — 2026-07-02*

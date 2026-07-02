@@ -5,6 +5,10 @@
 - Environnement : Docker client (`docker-compose.client.yml`, profil `prod,docker`)
 - Fichier retour attendu : `gest_pov.lic`
 
+> **Ne jamais committer :** `.env`, `gest_pov.lic`, `backups/`, clés privées, archives `images/*.tar`.
+
+---
+
 ## Récupérer l'installation ID (côté client)
 
 ```bash
@@ -17,7 +21,7 @@ Conserver cet UUID pour la demande éditeur — **ne pas réutiliser un ID issu d'un
 
 ## Informations à envoyer à l'éditeur
 
-- Installation ID : `<UUID depuis API ou volume>`
+- Installation ID : `<INSTALLATION_ID_CLIENT>`
 - Produit attendu (`app`) : `gest_pov`
 - Nom client : `<A_COMPLETER_PAR_LE_CLIENT>`
 - Site client : `<A_COMPLETER>`
@@ -46,11 +50,13 @@ Résultat attendu : `valid=true`, `activated=true`.
 
 ## Validation fonctionnelle après activation
 
-1. Login admin bootstrap (`/api/auth/login`) OK.
-2. `GET /api/products` avec token admin retourne `200` (au lieu de `403`).
-3. `docker compose -f docker-compose.client.yml --env-file .env restart`.
-4. `GET /api/license/status` reste `valid=true`.
-5. `./scripts/client-backup.sh` inclut volume licence.
+- [ ] Login admin bootstrap (`/api/auth/login`) ? HTTP 200
+- [ ] `GET /api/products` avec token admin ? HTTP 200 (plus de `403 LICENSE_REQUIRED`)
+- [ ] `docker compose -f docker-compose.client.yml --env-file .env restart`
+- [ ] `GET /api/license/status` reste `valid=true` après restart
+- [ ] `GET /api/auth/me` avec token admin ? HTTP 200
+- [ ] `installationId` inchangé après restart
+- [ ] `./scripts/client-backup.sh` ? `<BACKUP_DIR>/` contient `postgres.dump`, `installation.id`, `gest_pov.lic`
 
 ## Si la licence n'est pas encore disponible
 
@@ -58,4 +64,22 @@ Résultat attendu : `valid=true`, `activated=true`.
 - API métier reste bloquée : `403 LICENSE_REQUIRED`.
 - Aucune action de contournement n'est autorisée.
 
-Voir aussi : `docs/license-production.md`, `docs/release-readiness-v1.md`.
+---
+
+## Exemple local non client (poste dev — 2026-07-02)
+
+Validation effectuée sur une installation Docker vierge locale. **Ne pas traiter comme documentation client livrable.**
+
+| Étape | Résultat |
+|-------|----------|
+| Install vierge + bootstrap | OK |
+| Import `gest_pov.lic` éditeur | OK — `valid=true`, `activated=true` |
+| `/api/products`, `/api/auth/me` | HTTP 200 |
+| Restart stack (`docker compose … restart`) | OK — licence toujours `valid=true`, ID inchangé |
+| Backup post-restart | OK — `backups/<timestamp>/` avec `gest_pov.lic` + `installation.id` |
+
+L'`installationId` réel est stocké uniquement dans le volume licence local et les backups gitignored — **ne pas le copier dans le dépôt Git**.
+
+---
+
+Voir aussi : `docs/license-production.md`, `docs/release-readiness-v1.md`, `docs/next-release-steps.md`.

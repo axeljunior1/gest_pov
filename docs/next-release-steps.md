@@ -6,6 +6,27 @@ Références : `docs/release-readiness-v1.md`, `docs/license-activation-checklis
 
 ---
 
+## État actuel (2026-07-02)
+
+| Étape | Statut |
+|-------|--------|
+| Reset volumes smoke | **Fait** |
+| `.env` client réel | **Fait** — secrets locaux (non commités) |
+| Stack client | **Up** — postgres/backend/frontend healthy, proxy `127.0.0.1:80` |
+| Bootstrap admin | **OK** |
+| Comptes seed | **Absents** |
+| Import licence (`gest_pov.lic`) | **Fait** — `valid=true`, `activated=true` |
+| API métier débloquée | **OK** — `/api/products` et `/api/auth/me` → HTTP 200 |
+| Restart validation | **OK** — licence persistante, `<INSTALLATION_ID_CLIENT>` inchangé |
+| Backup post-activation + post-restart | **Fait** — `backups/<BACKUP_DIR>/` (postgres + `installation.id` + `gest_pov.lic`) |
+| Export images `.tar` | **À faire** |
+
+> **Rappel :** ne jamais committer `.env`, `gest_pov.lic`, `backups/` ni `images/*.tar`.
+
+**Prochaine action :** export images `.tar` et préparation du package livraison client (étape 9 ci-dessous).
+
+---
+
 ## Prérequis
 
 - Dépôt Git propre (commits Docker, bootstrap, licence et docs intégrés).
