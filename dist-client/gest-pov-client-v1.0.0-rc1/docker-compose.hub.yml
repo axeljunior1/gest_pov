@@ -1,0 +1,90 @@
+name: gest-pov-client
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: gest-pov-postgres
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?Définir POSTGRES_DB dans .env}
+      POSTGRES_USER: ${POSTGRES_USER:?Définir POSTGRES_USER dans .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Définir POSTGRES_PASSWORD dans .env}
+    volumes:
+      - gest_pov_postgres_data:/var/lib/postgresql/data
+    networks:
+      - gest-pov-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  backend:
+    image: axelmengue1/gest-pov-backend:1.0.0-rc1
+    container_name: gest-pov-backend
+    restart: unless-stopped
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod,docker}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      APP_JWT_SECRET: ${APP_JWT_SECRET:?Définir APP_JWT_SECRET dans .env (min. 32 caractères)}
+      APP_BOOTSTRAP_ADMIN_EMAIL: ${APP_BOOTSTRAP_ADMIN_EMAIL:?Définir APP_BOOTSTRAP_ADMIN_EMAIL dans .env}
+      APP_BOOTSTRAP_ADMIN_PASSWORD: ${APP_BOOTSTRAP_ADMIN_PASSWORD:?Définir APP_BOOTSTRAP_ADMIN_PASSWORD dans .env (min. 12 caractères)}
+      APP_BOOTSTRAP_ADMIN_NAME: ${APP_BOOTSTRAP_ADMIN_NAME:-Admin}
+    volumes:
+      - gest_pov_uploads:/app/uploads
+      - gest_pov_license:/app/gest-pov-data
+    networks:
+      - gest-pov-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/actuator/health/liveness || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 90s
+
+  frontend:
+    image: axelmengue1/gest-pov-frontend:1.0.0-rc1
+    container_name: gest-pov-frontend
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - gest-pov-network
+
+  proxy:
+    image: caddy:2-alpine
+    container_name: gest-pov-proxy
+    restart: unless-stopped
+    depends_on:
+      - frontend
+      - backend
+    ports:
+      - "${APP_BIND:-127.0.0.1}:${APP_PORT:-80}:80"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - gest_pov_caddy_data:/data
+      - gest_pov_caddy_config:/config
+    networks:
+      - gest-pov-network
+
+volumes:
+  gest_pov_postgres_data:
+  gest_pov_uploads:
+  gest_pov_license:
+  gest_pov_caddy_data:
+  gest_pov_caddy_config:
+
+networks:
+  gest-pov-network:
+    driver: bridge

@@ -419,8 +419,6 @@ Objectif : livraison client sans images `.tar`, via pull d'images publiques.
 | Namespace Docker Hub | `axelmengue1` |
 | Backend tag | `axelmengue1/gest-pov-backend:1.0.0-rc1` |
 | Frontend tag | `axelmengue1/gest-pov-frontend:1.0.0-rc1` |
-| Backend digest | `sha256:eeb5cc8422c9c00728e27e24cd14704c3e8b31d920c34518fd2d73cc91ea885b` |
-| Frontend digest | `sha256:dcdbcbcdc8b45289c8e3bd91c991803a744eff6f7ddb1533fcbec8a5761ed78c` |
 | Compose dédié | `docker-compose.hub.yml` |
 | Validation config | `docker compose -f docker-compose.hub.yml --env-file .env.example config` |
 

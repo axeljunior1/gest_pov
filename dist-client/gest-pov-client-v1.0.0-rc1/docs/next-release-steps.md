@@ -21,19 +21,14 @@ Références : `docs/release-readiness-v1.md`, `docs/license-activation-checklis
 | Backup post-activation + post-restart | **Fait** — `backups/<BACKUP_DIR>/` (postgres + `installation.id` + `gest_pov.lic`) |
 | Parcours métier POS (catalogue → stock → vente → retour → clôture) | **Validé** (exemple local non client) |
 | Backup post-parcours POS | **Fait** — `backups/<BACKUP_DIR>/` |
-| Publication Docker Hub (`1.0.0-rc1`) | **Fait** — backend + frontend poussés |
+| Publication Docker Hub (`1.0.0-rc1`) | **En cours** — tag effectué, push à finaliser |
 | Export images `.tar` | Optionnel (non requis si livraison Docker Hub) |
 
 > **Rappel :** ne jamais committer `.env`, `gest_pov.lic`, `backups/` ni `images/*.tar`.
 
-**Prochaine action :** commit des fichiers release (compose hub + docs + package léger), puis livraison client.
+**Prochaine action :** finaliser push Docker Hub puis livrer le package client léger (`docker-compose.hub.yml` + docs + scripts).
 
 > Rappel sécurité : ne jamais committer `.env`, `gest_pov.lic`, `backups/`, token Docker Hub, ni archives `.tar`.
-
-Digests Docker Hub publiés :
-
-- Backend `1.0.0-rc1` : `sha256:eeb5cc8422c9c00728e27e24cd14704c3e8b31d920c34518fd2d73cc91ea885b`
-- Frontend `1.0.0-rc1` : `sha256:dcdbcbcdc8b45289c8e3bd91c991803a744eff6f7ddb1533fcbec8a5761ed78c`
 
 ---
 
