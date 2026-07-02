@@ -1,48 +1,42 @@
 # Déploiement Docker
 
-## Compose principal (racine du dépôt)
+## Production client (recommandé)
 
-Build depuis les sources `backend/` et `frontend/` :
+Voir **[docs/client-docker-deployment.md](../docs/client-docker-deployment.md)**.
 
 ```bash
-cp .env.example .env   # adapter les mots de passe
+cp .env.example .env   # secrets obligatoires
+./scripts/client-start.sh
+```
+
+Compose : **`docker-compose.client.yml`** · Profil Spring : `prod,docker` · Tunnel : **off** par défaut.
+
+## Compose dev / démo (racine)
+
+Build rapide **sans `.env` obligatoire** (defaults dev — ne pas utiliser en prod client) :
+
+```bash
 docker compose up --build -d
 ```
 
-Accès : http://localhost (proxy Caddy → frontend + `/api` → backend).
-
-Tunnel Cloudflare quick (optionnel) : le service `cloudflared` du compose racine affiche l’URL dans ses logs :
+Tunnel optionnel :
 
 ```bash
+docker compose -f docker-compose.yml -f docker-compose.tunnel.yml up -d
 docker compose logs cloudflared
 ```
 
-## Images pré-buildées (livraison client)
-
-Fichiers `.tar` dans `images/`, puis :
+## Images pré-buildées
 
 ```bash
-docker load -i images/postgres.tar
 docker load -i images/monapp-backend-1.0.0.tar
 docker load -i images/monapp-frontend-1.0.0.tar
-```
 
-Variables dans `.env` :
-
-```env
-POSTGRES_DB=erp_products
-POSTGRES_USER=erp_user
-POSTGRES_PASSWORD=...
-APP_JWT_SECRET=...
-BACKEND_IMAGE=monapp-backend:1.0.0
-FRONTEND_IMAGE=monapp-frontend:1.0.0
-POSTGRES_PORT=5432
-APP_PORT=80
-```
-
-Lancement :
-
-```bash
+cp .env.example .env
 cd deploy
-docker compose -f compose.images.yml --env-file ../.env up -d
+docker compose -f compose.client.images.yml --env-file ../.env up -d
 ```
+
+`compose.images.yml` reste disponible (legacy) ; préférer **`compose.client.images.yml`**.
+
+Variables `.env` : `POSTGRES_*`, `APP_JWT_SECRET`, `BACKEND_IMAGE`, `FRONTEND_IMAGE`, `APP_PORT`, `APP_BIND`.

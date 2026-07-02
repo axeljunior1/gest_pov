@@ -1,18 +1,25 @@
+# Gest_POV — stack dev / démo locale (build rapide)
+#
+# Usage : docker compose up --build -d
+# Tunnel optionnel : docker compose -f docker-compose.yml -f docker-compose.tunnel.yml up -d
+#
+# Production client : voir docker-compose.client.yml et docs/client-docker-deployment.md
+
 services:
   postgres:
     image: postgres:16-alpine
     container_name: monapp-postgres1
     restart: unless-stopped
     environment:
-      POSTGRES_DB: erp_products
-      POSTGRES_USER: erp_user
-      POSTGRES_PASSWORD: ErpProd2026!
+      POSTGRES_DB: ${POSTGRES_DB:-erp_products}
+      POSTGRES_USER: ${POSTGRES_USER:-erp_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ErpProd2026!}
     volumes:
       - postgres_data1:/var/lib/postgresql/data
     networks:
       - apteco-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U erp_user -d erp_products"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-erp_user} -d ${POSTGRES_DB:-erp_products}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -27,11 +34,11 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      SPRING_PROFILES_ACTIVE: docker
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/erp_products
-      SPRING_DATASOURCE_USERNAME: erp_user
-      SPRING_DATASOURCE_PASSWORD: ErpProd2026!
-      APP_JWT_SECRET: erp-docker-change-me-min-256-bits-long-key!!
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-docker}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-erp_products}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-erp_user}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-ErpProd2026!}
+      APP_JWT_SECRET: ${APP_JWT_SECRET:-erp-docker-change-me-min-256-bits-long-key!!}
     volumes:
       - backend_uploads1:/app/uploads
       - backend_license1:/app/gest-pov-data
@@ -62,16 +69,6 @@ services:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data1:/data
       - caddy_config1:/config
-    networks:
-      - apteco-network
-
-  cloudflared:
-    image: cloudflare/cloudflared:latest
-    container_name: monapp-quick-tunnel1
-    restart: no
-    command: tunnel --no-autoupdate --url http://proxy:80
-    depends_on:
-      - proxy
     networks:
       - apteco-network
 

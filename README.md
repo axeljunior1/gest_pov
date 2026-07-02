@@ -32,16 +32,18 @@ Frontend : http://localhost:5173 · API : http://localhost:8080
 
 Comptes seed : `admin@erp.local` / `ErpAdmin2026!` · caissier : `caissier@erp.local` / `Caissier2026!`
 
-## Docker (production / démo)
+## Docker
+
+**Client / production :** [docs/client-docker-deployment.md](docs/client-docker-deployment.md)
 
 ```bash
 cp .env.example .env
-docker compose up --build -d
+./scripts/client-start.sh
 ```
 
-→ http://localhost
+**Dev / démo rapide :** `docker compose up --build -d` → http://localhost
 
-Voir [deploy/README.md](deploy/README.md) pour les images pré-buildées et le tunnel Cloudflare.
+Voir [deploy/README.md](deploy/README.md) pour les images pré-buildées.
 
 ## Tests E2E
 

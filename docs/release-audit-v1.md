@@ -15,7 +15,7 @@
 | Base | PostgreSQL 16 + Flyway | 20 migrations (V1–V20) |
 | Auth | JWT + BCrypt + `@EnableMethodSecurity` | Profils `dev` / `docker` / `prod` / `demo` / `test` |
 | Licence | Fichier signé RSA, volume `gest-pov-data` | Clé publique embarquée ; enforcement ON par défaut |
-| Docker | Compose racine (build) + `deploy/compose.images.yml` | Caddy proxy, volumes PG / uploads / licence |
+| Docker | Compose racine (dev) + **`docker-compose.client.yml`** (prod) + `deploy/compose.client.images.yml` | Caddy proxy, volumes PG / uploads / licence ; tunnel opt-in |
 | E2E | Playwright (`play/`) | Scénarios POS documentés |
 | Docs | `docs/GUIDE_UTILISATEUR.*`, README, `deploy/README.md` | Pas de procédure backup formalisée |
 
@@ -24,10 +24,10 @@
 ```
 backend/     API, migrations, Dockerfile
 frontend/    React, nginx.conf, Dockerfile
-docker-compose.yml, Caddyfile, .env.example
-deploy/      compose images + README
-docs/        guide utilisateur
-scripts/     reset-demo.sql, generate_guide_pdf.py
+docker-compose.yml, docker-compose.client.yml, Caddyfile, .env.example
+deploy/      compose client images + README
+docs/        guide utilisateur + client-docker-deployment.md
+scripts/     client-start/stop/logs/backup, reset-demo.sql
 play/        E2E Playwright
 images/      archives .tar client (si livrées)
 ```
@@ -43,7 +43,7 @@ images/      archives .tar client (si livrées)
 | `demo` | Jeu démo auto |
 | `test` | H2 mémoire, Flyway OFF, initializers test dédiés |
 
-**Docker Compose** active `SPRING_PROFILES_ACTIVE=docker` (pas `prod`).
+**Docker Compose client** active `SPRING_PROFILES_ACTIVE=prod,docker`. Compose racine dev : `docker` seul.
 
 ### Migrations Flyway (V1 → V20)
 
@@ -64,12 +64,11 @@ Gest_POV est un **ERP produits + POS structuré et fonctionnellement riche** (ca
 - Couverture test backend **large** (~30 classes d’intégration MockMvc + quelques tests unitaires).
 
 **Points de vigilance avant client :**
-- Secrets et mots de passe par défaut **encore présents dans le dépôt**.
-- `docker-compose.yml` racine **n’utilise pas `.env`** contrairement au README.
-- Pas de backup/restore documenté.
-- Suite tests backend **potentiellement très lente** (voir §5).
+- Secrets par défaut **encore présents dans compose dev racine** (fallbacks — ne pas utiliser en prod).
+- Comptes seed admin connus → **changer les mots de passe** après install.
+- Suite tests backend : **211 OK ~4 min** (optimisation `@DirtiesContext` appliquée).
 
-**Verdict :** base **POC / démo interne** OK ; **production client** nécessite durcissement secrets, alignement compose, backup et validation build/tests (non exécutés ici).
+**Verdict :** stack **client Docker documentée** (`docker-compose.client.yml`) ; validation runtime (`up --build`) reste à faire avant livraison.
 
 ---
 
@@ -231,32 +230,95 @@ cd backend && mvn -q test && cd ../frontend && npm run test && npm run build
 
 ## 9. Incohérences README vs Docker réel
 
-| Élément | README | Réalité |
-|---------|--------|---------|
-| Variables secrets | `cp .env.example .env` | Compose **racine** : secrets **en dur**, `.env` non injecté |
-| Port proxy | http://localhost | Racine : port 80 **toutes interfaces** ; deploy : `127.0.0.1` |
-| Cloudflare | « optionnel » via logs | Service **déclaré** dans les deux compose |
+| Élément | README (avant) | Réalité (post-sprint) |
+|---------|----------------|------------------------|
+| Variables secrets | `cp .env.example .env` sur compose racine | **Client :** `docker-compose.client.yml` + `.env` obligatoire ; **dev :** racine avec fallbacks |
+| Port proxy | http://localhost | Client : `127.0.0.1:APP_PORT` ; dev racine : port 80 toutes interfaces |
+| Cloudflare | « optionnel » | **Overlay** `docker-compose.tunnel.yml` — off par défaut |
 | Compte caissier | `caissier@erp.local` | Code seed prod : `caissier@erp.local` ; tests : `cashier@erp.local` |
 | Scripts dev | — | UI mentionne `dev.ps1` / `reset-db.ps1` **absents** (remplacés par `npm run dev:*`) |
 
 ---
 
-## 10. Prochaine étape recommandée
+## 10. Sprint déploiement Docker client (2026-06-17)
 
-**Priorité 1 — Sprint sécurisation déploiement (sans refonte) :**
-1. Aligner `docker-compose.yml` racine sur `.env` (comme `deploy/compose.images.yml`).
-2. Désactiver `cloudflared` par défaut (profil opt-in).
-3. Documenter backup (`pg_dump` + volumes licence/uploads) — ex. `docs/client-deployment-notes.md`.
-4. Rebuild images client après correctifs.
+**Objectif :** stack client reproductible via `.env`, sans casser le compose dev racine.
 
-**Priorité 2 — Sprint tests (gain de temps CI) :**
-1. Mesurer `mvn test` (baseline).
-2. Appliquer stratégie `TestDatabaseCleaner` + retrait `@DirtiesContext` global.
-3. Relancer et comparer temps avant/après.
+### Livrables
 
-**Priorité 3 — Validation release :**
-1. `mvn -DskipTests package` + `npm run build` + smoke Docker + E2E POS sur image rebuildée.
+| Élément | Fichier / action |
+|---------|------------------|
+| Compose client | `docker-compose.client.yml` — `.env` obligatoire (`:?`), profil `prod,docker`, healthchecks, volumes nommés |
+| Images client | `deploy/compose.client.images.yml` — variante sans build |
+| Tunnel opt-in | `docker-compose.tunnel.yml` — **retiré** des compose par défaut |
+| Secrets | `.env.example` — placeholders `change-me-*`, pas de secret réel |
+| Scripts | `scripts/client-{start,stop,logs,status,backup}.sh` |
+| Doc | `docs/client-docker-deployment.md` |
+| `.gitignore` | `.env`, `backups/`, `gest-pov-data/` |
+
+### Statut risques P0 (post-sprint)
+
+| ID | Avant | Après (compose **client**) |
+|----|-------|----------------------------|
+| P0-1 | Secrets en dur compose racine | **Atténué client** — `docker-compose.client.yml` exige `.env` ; racine dev garde fallbacks |
+| P0-2 | README vs compose | **Corrigé** — README pointe vers compose client + doc dédiée |
+| P0-6 | Pas de backup | **Atténué** — `scripts/client-backup.sh` + procédure restore manuelle doc |
+| P0-7 | Cloudflared par défaut | **Corrigé** — overlay `docker-compose.tunnel.yml` uniquement |
+| P0-8 | Port 80 toutes interfaces | **Atténué client** — `APP_BIND=127.0.0.1` par défaut ; racine dev inchangée |
+
+### Validation (sans build)
+
+```powershell
+docker compose -f docker-compose.client.yml --env-file .env.example config
+# Exit 0 — config résolue (volumes gest_pov_*, proxy 127.0.0.1:80, backend non exposé)
+```
+
+### Limites restantes (post-smoke)
+
+- Compose **racine dev** : fallbacks secrets faibles si pas de `.env` (volontaire).
+- Pas de HTTPS automatique (Caddy `:80` HTTP).
+- Restore automatisé non livré (risque perte de données).
+- ~~Smoke `docker compose up --build` non exécuté~~ → **validé 2026-07-02** (voir §12 ci-dessous et `client-docker-deployment.md` §13).
 
 ---
 
-*Audit statique v1 — aucune modification du code applicatif — 2026-06-17*
+## 12. Smoke test runtime client (2026-07-02)
+
+**Résultat global : OK** — stack client démarre, persiste, backup et s'arrête proprement.
+
+| Critère | Statut |
+|---------|--------|
+| Démarrage avec `.env` | OK (~2 min 20 build+up) |
+| PostgreSQL healthy | OK |
+| Backend sans erreur fatale | OK (Flyway V20, seed admin) |
+| Proxy `127.0.0.1:80` | OK |
+| Backend non exposé hôte | OK |
+| Persistance volumes/DB | OK après `restart` |
+| Backup `client-backup.sh` | OK (correction script Windows) |
+| `down` sans suppression volumes | OK |
+| Secret commité | Non (`.env` ignoré) |
+
+**Comportement licence (sans `.lic`) :** `LICENSE_MISSING` au démarrage ; UI/API bootstrap accessibles (`/api/license/status`, login admin) ; endpoints métier protégés (`/api/health` → 403).
+
+**Correction smoke :** `scripts/client-backup.sh` — `docker exec` + `docker cp` pour volumes (compat Git Bash Windows).
+
+---
+
+## 11. Prochaine étape recommandée
+
+**Priorité 1 — Livraison client :**
+1. Import licence `.lic` + parcours POS complet sur stack client.
+2. Rebuild images `.tar` (`gest-pov-backend:1.0.0`, `gest-pov-frontend:1.0.0`).
+3. E2E Playwright contre `docker-compose.client.yml`.
+
+**Priorité 2 — Durcissement (sans refonte métier) :**
+1. Forcer changement MDP admin au 1er login.
+2. Restreindre CORS en profil `prod`.
+3. HTTPS (Caddy TLS ou reverse proxy client).
+
+**Priorité 3 — CI / release :**
+1. `mvn test` (211 OK ~4 min) + `npm run build` + pipeline smoke Docker client.
+
+---
+
+*Audit statique v1 — smoke test Docker client validé — 2026-07-02*

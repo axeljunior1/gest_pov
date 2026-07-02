@@ -1,0 +1,19 @@
+# Overlay optionnel — tunnel Cloudflare quick (POC / démo distante uniquement)
+#
+# Client :
+#   docker compose -f docker-compose.client.yml -f docker-compose.tunnel.yml --env-file .env up -d
+#
+# Dev (compose racine) :
+#   docker compose -f docker-compose.yml -f docker-compose.tunnel.yml up -d
+#
+# URL : docker compose ... logs cloudflared
+
+services:
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: gest-pov-cloudflared
+    restart: "no"
+    command: tunnel --no-autoupdate --url http://proxy:80
+    depends_on:
+      proxy:
+        condition: service_started
