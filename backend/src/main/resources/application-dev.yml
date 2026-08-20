@@ -16,6 +16,9 @@ app:
     default-users-enabled: true
   license:
     enforcement-enabled: false
+  desktop:
+    discovery:
+      enabled: true
 
 springdoc:
   api-docs:

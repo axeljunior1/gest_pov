@@ -20,6 +20,8 @@
 
 **Prérequis :** Java 17, Node 20, PostgreSQL (ou Docker).
 
+Documentation détaillée : **[docs/lancement-dev.md](docs/lancement-dev.md)** (variables d'environnement, dépannage).
+
 ```bash
 # Terminal 1 — backend (profil dev)
 npm run dev:backend
@@ -33,6 +35,15 @@ Frontend : http://localhost:5173 · API : http://localhost:8080
 Comptes seed (**dev / docker local uniquement**) : `admin@erp.local` / `ErpAdmin2026!` · caissier : `caissier@erp.local` / `Caissier2026!`
 
 **Client/prod :** premier admin via `APP_BOOTSTRAP_ADMIN_*` dans `.env` — voir [docs/client-docker-deployment.md](docs/client-docker-deployment.md).
+
+## Édition Desktop (Windows / LAN / offline)
+
+Développement **isolé** dans [`desktop/`](desktop/) — n'impacte pas Web/Docker.
+
+- [Architecture Desktop](desktop/docs/architecture.md)
+- [Installer le serveur](desktop/docs/installation-server.md)
+- [Installer le client](desktop/docs/installation-client.md)
+- [Variables d'environnement Desktop vs Web](desktop/docs/environment-variables.md)
 
 ## Docker
 

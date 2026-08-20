@@ -1,0 +1,12 @@
+# Profil Desktop Windows (PC serveur LAN) — n'est PAS activé par Docker
+spring:
+  config:
+    activate:
+      on-profile: desktop
+
+app:
+  desktop:
+    server-id-file: ${GEST_POV_SERVER_ID_FILE:}
+    discovery:
+      enabled: true
+      udp-port: 38471

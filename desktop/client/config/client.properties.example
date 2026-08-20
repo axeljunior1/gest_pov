@@ -1,0 +1,18 @@
+# Configuration client Desktop — EXEMPLE
+# Copier vers :
+#   - Dev : desktop/client/config/client.properties
+#   - Prod : %APPDATA%\GestPOV\client.properties
+#
+# IMPORTANT : ce fichier ne contient JAMAIS db.username / db.password / JWT
+
+# --- Serveur Gest POV (API REST) ---
+server.id=
+server.host=127.0.0.1
+server.port=8080
+server.name=
+# Hostname de secours si l'IP mémorisée ne répond plus
+server.hostname=
+
+client.version=1.0.0
+discovery.udp.port=38471
+http.timeout.ms=5000

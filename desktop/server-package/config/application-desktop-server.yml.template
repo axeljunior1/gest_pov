@@ -1,0 +1,35 @@
+# Template configuration serveur Desktop Windows
+# Généré par l'installateur — ne pas éditer manuellement sauf maintenance
+#
+# Profil Spring : prod,desktop
+# Copier vers : C:\ProgramData\GestPOV\config\application.yml
+
+spring:
+  profiles:
+    active: prod,desktop
+  datasource:
+    # URL locale uniquement — PostgreSQL n'écoute pas le LAN
+    url: jdbc:postgresql://127.0.0.1:5432/gest_pov
+    username: ${GEST_POV_DB_USER:gest_pov_app}
+    # Mot de passe injecté par le service Windows / secret DPAPI — pas en clair ici
+    password: ${GEST_POV_DB_PASSWORD}
+
+server:
+  port: 8080
+  # Écoute toutes interfaces pour les clients LAN (API uniquement)
+  address: 0.0.0.0
+
+app:
+  upload:
+    dir: C:/ProgramData/GestPOV/data/uploads
+  license:
+    data-dir: C:/ProgramData/GestPOV/data/license
+    enforcement-enabled: true
+  desktop:
+    server-id-file: C:/ProgramData/GestPOV/config/server.id
+    discovery:
+      enabled: true
+      udp-port: 38471
+
+# JWT — généré à l'installation, persistant entre redémarrages
+# APP_JWT_SECRET= (variable d'environnement service Windows)

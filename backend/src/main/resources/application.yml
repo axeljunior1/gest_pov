@@ -56,6 +56,16 @@ app:
   license:
     data-dir: ./gest-pov-data
     enforcement-enabled: true
+  desktop:
+    # Identifiant serveur UUID (fichier persistant). Vide = {license.data-dir}/server.id
+    server-id-file: ${GEST_POV_SERVER_ID_FILE:}
+    server-name: ${GEST_POV_SERVER_NAME:}
+    version: ${GEST_POV_SERVER_VERSION:1.0.0}
+    discovery:
+      # UDP LAN : désactivé hors profils dev/desktop — ne change pas Docker/prod
+      enabled: false
+      udp-port: 38471
+      probe: GEST_POV_DISCOVERY
 
 management:
   endpoints:

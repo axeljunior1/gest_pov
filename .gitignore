@@ -60,3 +60,12 @@ licen/*.lic
 # Tests / couverture
 coverage/
 .nyc_output/
+
+# Desktop (Maven / config locale)
+desktop/client/target/
+desktop/client/config/client.properties
+desktop/server-package/build/
+desktop/server-package/vendor/*.zip
+desktop/server-package/vendor/*.exe
+desktop/server-package/vendor/pgsql-extract/
+desktop/client-package/build/

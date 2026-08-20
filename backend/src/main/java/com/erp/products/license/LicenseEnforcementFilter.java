@@ -36,7 +36,7 @@ public class LicenseEnforcementFilter extends OncePerRequestFilter {
             return;
         }
 
-        String path = request.getRequestURI();
+        String path = normalizePath(request);
         if (isExempt(path)) {
             filterChain.doFilter(request, response);
             return;
@@ -55,15 +55,32 @@ public class LicenseEnforcementFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        return isPublicBootstrapPath(request.getRequestURI());
+        return isPublicBootstrapPath(normalizePath(request));
+    }
+
+    static String normalizePath(HttpServletRequest request) {
+        String uri = request.getRequestURI();
+        if (uri == null) {
+            return "";
+        }
+        String context = request.getContextPath();
+        if (context != null && !context.isEmpty() && uri.startsWith(context)) {
+            uri = uri.substring(context.length());
+        }
+        if (uri.length() > 1 && uri.endsWith("/")) {
+            uri = uri.substring(0, uri.length() - 1);
+        }
+        return uri;
     }
 
     private boolean isPublicBootstrapPath(String path) {
-        if (path == null) {
+        if (path == null || path.isEmpty()) {
             return false;
         }
         return path.startsWith("/actuator/health")
                 || path.startsWith("/api/license")
+                || path.equals("/api/discovery")
+                || path.startsWith("/api/discovery/")
                 || path.equals("/api/auth/login")
                 || path.equals("/api/settings/public");
     }

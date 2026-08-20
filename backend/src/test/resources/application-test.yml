@@ -22,3 +22,7 @@ app:
   license:
     data-dir: target/test-gest-pov-data
     enforcement-enabled: false
+  desktop:
+    server-id-file: target/test-gest-pov-data/server.id
+    discovery:
+      enabled: false
