@@ -56,7 +56,7 @@ class DiscoveryServiceTest {
              DatagramSocket udp = new DatagramSocket(0)) {
             startUdpEcho(udp, http.port());
             ClientConfig config = new ClientConfig(
-                    "", "", 8080, "", "", "1.0.0", udp.getLocalPort(), 2000);
+                    "", "", 8080, "", "", "1.0.0", udp.getLocalPort(), 2000, "");
             DiscoveryService discovery = new DiscoveryService(
                     new UdpDiscoveryClient(Duration.ofMillis(800)),
                     Duration.ofSeconds(2),
@@ -74,7 +74,7 @@ class DiscoveryServiceTest {
              DatagramSocket udp = new DatagramSocket(0)) {
             startUdpEcho(udp, http.port());
             ClientConfig oldIp = new ClientConfig(
-                    http.serverId, "10.255.255.1", 1, "OLD-IP", "", "1.0.0", udp.getLocalPort(), 500);
+                    http.serverId, "10.255.255.1", 1, "OLD-IP", "", "1.0.0", udp.getLocalPort(), 500, "");
             DiscoveryService discovery = new DiscoveryService(
                     new UdpDiscoveryClient(Duration.ofMillis(800)),
                     Duration.ofSeconds(2),
@@ -95,7 +95,7 @@ class DiscoveryServiceTest {
 
     /** Port UDP libre : les tests HTTP-only ne doivent pas sonder le backend réel (38471). */
     private static ClientConfig httpOnlyConfig(String serverId, String host, int port, String name) {
-        return new ClientConfig(serverId, host, port, name, "", "1.0.0", unusedUdpPort(), 500);
+        return new ClientConfig(serverId, host, port, name, "", "1.0.0", unusedUdpPort(), 500, "");
     }
 
     private static int unusedUdpPort() {

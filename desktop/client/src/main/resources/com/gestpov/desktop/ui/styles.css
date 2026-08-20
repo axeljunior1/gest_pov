@@ -1,4 +1,4 @@
-﻿.root {
+.root {
     -fx-font-family: "Segoe UI", "Segoe UI Variable", system-ui, sans-serif;
     -fx-font-size: 14px;
     -fx-background-color: #eef3ff;
@@ -12,6 +12,27 @@
     -fx-padding: 12 18 12 18;
 }
 
+.health-label {
+    -fx-font-size: 12px;
+    -fx-text-fill: #334155;
+}
+
+.health-dot {
+    -fx-font-size: 14px;
+}
+
+.health-ok {
+    -fx-text-fill: #16a34a;
+}
+
+.health-down {
+    -fx-text-fill: #dc2626;
+}
+
+.health-unknown {
+    -fx-text-fill: #ca8a04;
+}
+
 .sidebar {
     -fx-background-color: #0f172a;
     -fx-border-color: #1e293b;
@@ -20,10 +41,26 @@
     -fx-pref-width: 252;
 }
 
+/* ScrollPane JavaFX peint souvent en blanc : force le fond sombre. */
+.sidebar-scroll,
+.sidebar .scroll-pane,
+.sidebar .scroll-pane > .viewport,
+.sidebar .scroll-pane .viewport,
+.sidebar .scroll-pane > .clipped-container,
+.sidebar .scroll-pane .corner {
+    -fx-background-color: transparent;
+    -fx-background: transparent;
+    -fx-border-color: transparent;
+}
+
+.sidebar .scroll-pane > .viewport > * {
+    -fx-background-color: transparent;
+}
+
 .brand-title {
     -fx-font-size: 18px;
     -fx-font-weight: 800;
-    -fx-text-fill: #f8fafc;
+    -fx-text-fill: #ffffff;
 }
 
 .brand-sub {
@@ -39,28 +76,44 @@
 }
 
 .nav-button {
-    -fx-background-color: transparent;
-    -fx-text-fill: #e2e8f0;
+    -fx-background-color: #1e293b;
+    -fx-text-fill: #ffffff;
     -fx-alignment: CENTER_LEFT;
     -fx-padding: 10 12 10 12;
     -fx-background-radius: 10;
     -fx-font-size: 14px;
-    -fx-font-weight: 600;
+    -fx-font-weight: 700;
     -fx-cursor: hand;
+    -fx-opacity: 1;
+    -fx-effect: null;
+}
+
+.nav-button .text,
+.nav-button:hover .text,
+.nav-button:focused .text,
+.nav-button-active .text {
+    -fx-fill: #ffffff;
 }
 
 .nav-button:hover {
-    -fx-background-color: #1e293b;
+    -fx-background-color: #334155;
     -fx-text-fill: #ffffff;
 }
 
-.nav-button-active {
+.nav-button:focused {
+    -fx-background-color: #334155;
+    -fx-text-fill: #ffffff;
+}
+
+.nav-button-active,
+.nav-button-active:hover,
+.nav-button-active:focused {
     -fx-background-color: #2563eb;
     -fx-text-fill: #ffffff;
 }
 
 .nav-coming {
-    -fx-text-fill: #94a3b8;
+    -fx-text-fill: #cbd5e1;
     -fx-font-size: 12px;
     -fx-padding: 6 12 6 12;
 }
@@ -157,12 +210,24 @@
     -fx-border-radius: 10;
     -fx-background-radius: 10;
     -fx-padding: 11 13 11 13;
+    -fx-max-height: 180;
+}
+
+.error-banner-scroll {
+    -fx-background-color: transparent;
+    -fx-background: transparent;
+    -fx-padding: 0;
+}
+
+.error-banner-scroll > .viewport {
+    -fx-background-color: transparent;
 }
 
 .error-banner-text {
     -fx-text-fill: #9f1239;
     -fx-font-size: 13px;
     -fx-font-weight: 600;
+    -fx-padding: 2 4 2 0;
 }
 
 .empty-state {
@@ -221,6 +286,57 @@
     -fx-font-size: 12px;
     -fx-font-weight: 700;
     -fx-text-fill: #334155;
+}
+
+.check-box {
+    -fx-text-fill: #0f172a;
+    -fx-font-size: 14px;
+}
+
+.check-box .text,
+.check-box .label {
+    -fx-fill: #0f172a;
+    -fx-text-fill: #0f172a;
+}
+
+.check-row-label {
+    -fx-font-size: 14px;
+    -fx-text-fill: #0f172a;
+}
+
+.check-row {
+    -fx-padding: 2 0 2 0;
+}
+
+.config-check-list {
+    -fx-padding: 4 0 8 0;
+}
+
+.settings-group-title {
+    -fx-font-size: 15px;
+    -fx-font-weight: 800;
+    -fx-text-fill: #0f172a;
+}
+
+.settings-install-id {
+    -fx-font-family: "Consolas", "Courier New", monospace;
+    -fx-font-size: 13px;
+    -fx-font-weight: 700;
+    -fx-text-fill: #1e3a8a;
+}
+
+.settings-json {
+    -fx-font-family: "Consolas", "Courier New", monospace;
+    -fx-font-size: 12px;
+}
+
+.settings-scroll {
+    -fx-background-color: transparent;
+    -fx-background: transparent;
+}
+
+.settings-scroll > .viewport {
+    -fx-background-color: transparent;
 }
 
 .badge {
@@ -360,6 +476,12 @@
     -fx-font-size: 32px;
     -fx-font-weight: 900;
     -fx-text-fill: #ffffff;
+}
+
+.pos-change {
+    -fx-font-size: 15px;
+    -fx-font-weight: 800;
+    -fx-text-fill: #166534;
 }
 
 .pos-session-card {

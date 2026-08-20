@@ -1,7 +1,19 @@
 package com.gestpov.desktop.net;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.gestpov.desktop.model.InventoryCount;
+import com.gestpov.desktop.model.PurchaseOrder;
+import com.gestpov.desktop.model.StockEntryDoc;
+import com.gestpov.desktop.model.StockExitDoc;
 import com.gestpov.desktop.model.StockItem;
+import com.gestpov.desktop.model.StockLocation;
+import com.gestpov.desktop.model.StockMovement;
+import com.gestpov.desktop.model.StockTransfer;
+import com.gestpov.desktop.model.StockValuationOverview;
+import com.gestpov.desktop.model.Warehouse;
 
+import java.math.BigDecimal;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -23,5 +35,133 @@ public class StockClient {
         }
         return JsonLists.mapArray(api.get("/api/stock/items", Map.of("warehouseId", String.valueOf(warehouseId))),
                 StockItem::fromJson);
+    }
+
+    public List<Warehouse> listWarehouses() throws ApiException {
+        return JsonLists.mapArray(api.get("/api/warehouses"), Warehouse::fromJson);
+    }
+
+    public Warehouse createWarehouse(String code, String nom, String adresse) throws ApiException {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("code", code == null ? "" : code.trim());
+        body.put("nom", nom == null ? "" : nom.trim());
+        if (adresse != null && !adresse.isBlank()) {
+            body.put("adresse", adresse.trim());
+        }
+        body.put("actif", true);
+        return Warehouse.fromJson(api.post("/api/warehouses", body));
+    }
+
+    public List<StockLocation> listLocations(long warehouseId) throws ApiException {
+        return JsonLists.mapArray(api.get("/api/warehouses/" + warehouseId + "/locations"), StockLocation::fromJson);
+    }
+
+    public StockLocation createLocation(long warehouseId, String code, String nom) throws ApiException {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("code", code == null ? "" : code.trim());
+        body.put("nom", nom == null ? "" : nom.trim());
+        body.put("actif", true);
+        return StockLocation.fromJson(api.post("/api/warehouses/" + warehouseId + "/locations", body));
+    }
+
+    public List<StockMovement> listMovements() throws ApiException {
+        return JsonLists.mapArray(api.get("/api/stock/movements", Map.of("limit", "100")), StockMovement::fromJson);
+    }
+
+    public List<StockTransfer> listTransfers() throws ApiException {
+        return JsonLists.mapArray(api.get("/api/stock/transfers"), StockTransfer::fromJson);
+    }
+
+    public StockTransfer createTransfer(String reference,
+                                        long sourceWarehouseId,
+                                        long destWarehouseId,
+                                        long productId,
+                                        BigDecimal quantity,
+                                        long sourceLocationId,
+                                        long destLocationId,
+                                        String notes) throws ApiException {
+        Map<String, Object> line = new LinkedHashMap<>();
+        line.put("productId", productId);
+        line.put("quantity", quantity);
+        line.put("sourceLocationId", sourceLocationId);
+        line.put("destLocationId", destLocationId);
+
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("reference", reference == null ? "" : reference.trim());
+        body.put("sourceWarehouseId", sourceWarehouseId);
+        body.put("destWarehouseId", destWarehouseId);
+        if (notes != null && !notes.isBlank()) {
+            body.put("notes", notes.trim());
+        }
+        body.put("lignes", List.of(line));
+        return StockTransfer.fromJson(api.post("/api/stock/transfers", body));
+    }
+
+    public StockTransfer shipTransfer(long id) throws ApiException {
+        return StockTransfer.fromJson(api.post("/api/stock/transfers/" + id + "/ship", Map.of()));
+    }
+
+    public StockTransfer receiveTransfer(long id) throws ApiException {
+        return StockTransfer.fromJson(api.post("/api/stock/transfers/" + id + "/receive", Map.of()));
+    }
+
+    public List<StockEntryDoc> listEntries() throws ApiException {
+        return JsonLists.mapArray(api.get("/api/stock/entries"), StockEntryDoc::fromJson);
+    }
+
+    public List<StockExitDoc> listExits() throws ApiException {
+        return JsonLists.mapArray(api.get("/api/stock/exits"), StockExitDoc::fromJson);
+    }
+
+    public List<InventoryCount> listInventories() throws ApiException {
+        return JsonLists.mapArray(api.get("/api/stock/inventories"), InventoryCount::fromJson);
+    }
+
+    public StockValuationOverview getValuationOverview() throws ApiException {
+        return StockValuationOverview.fromJson(api.get("/api/stock/valuation/overview"));
+    }
+
+    public BigDecimal getCurrentValuation() throws ApiException {
+        JsonNode node = api.get("/api/stock/valuation/current");
+        if (node == null || node.isNull()) {
+            return BigDecimal.ZERO;
+        }
+        try {
+            return new BigDecimal(node.asText());
+        } catch (NumberFormatException e) {
+            return BigDecimal.ZERO;
+        }
+    }
+
+    public List<PurchaseOrder> listPurchaseOrders() throws ApiException {
+        return JsonLists.mapArray(api.get("/api/purchase-orders"), PurchaseOrder::fromJson);
+    }
+
+    public void receipt(long productId, long warehouseId, long locationId, BigDecimal quantityBase, String reference)
+            throws ApiException {
+        api.post("/api/stock/receipt", operation(productId, warehouseId, locationId, quantityBase, reference));
+    }
+
+    public void issue(long productId, long warehouseId, long locationId, BigDecimal quantityBase, String reference)
+            throws ApiException {
+        api.post("/api/stock/issue", operation(productId, warehouseId, locationId, quantityBase, reference));
+    }
+
+    public void adjust(long productId, long warehouseId, long locationId, BigDecimal quantityBase, String reference)
+            throws ApiException {
+        api.post("/api/stock/adjust", operation(productId, warehouseId, locationId, quantityBase, reference));
+    }
+
+    private static Map<String, Object> operation(long productId, long warehouseId, long locationId,
+                                                 BigDecimal quantityBase, String reference) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("productId", productId);
+        body.put("warehouseId", warehouseId);
+        body.put("locationId", locationId);
+        body.put("quantityBase", quantityBase);
+        if (reference != null && !reference.isBlank()) {
+            body.put("reference", reference.trim());
+        }
+        return body;
     }
 }

@@ -89,10 +89,11 @@ public class PosController {
     @GetMapping("/catalog/search")
     @PreAuthorize("@permissionChecker.has(authentication, 'pos.sale.read')")
     public PosSearchResultResponse search(
-            @RequestParam String q,
+            @RequestParam(required = false, defaultValue = "") String q,
             @RequestParam(required = false) Long warehouseId,
-            @RequestParam(required = false) Long categoryId) {
-        return catalogService.search(q, warehouseId, categoryId);
+            @RequestParam(required = false) Long categoryId,
+            @RequestParam(required = false) Integer limit) {
+        return catalogService.search(q, warehouseId, categoryId, limit);
     }
 
     @GetMapping("/catalog/products/{productId}")
@@ -288,8 +289,10 @@ public class PosController {
 
     @GetMapping("/customers/search")
     @PreAuthorize("@permissionChecker.has(authentication, 'customer.read')")
-    public List<CustomerResponse> searchCustomers(@RequestParam String q) {
-        return customerService.search(q);
+    public List<CustomerResponse> searchCustomers(
+            @RequestParam(required = false, defaultValue = "") String q,
+            @RequestParam(required = false) Integer limit) {
+        return customerService.search(q, limit);
     }
 
     @PostMapping("/customers/quick")

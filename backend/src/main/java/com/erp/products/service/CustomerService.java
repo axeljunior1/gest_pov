@@ -32,11 +32,20 @@ public class CustomerService {
 
     @Transactional(readOnly = true)
     public List<CustomerResponse> search(String query) {
+        return search(query, 20);
+    }
+
+    @Transactional(readOnly = true)
+    public List<CustomerResponse> search(String query, Integer limit) {
+        int max = limit == null || limit <= 0 ? 20 : Math.min(limit, 50);
         if (query == null || query.isBlank()) {
-            return List.of();
+            return customerRepository.findByIsActiveTrueOrderByLastNameAscFirstNameAsc(PageRequest.of(0, max))
+                    .stream()
+                    .map(this::toResponse)
+                    .toList();
         }
         return customerRepository.searchActive(query.trim()).stream()
-                .limit(20)
+                .limit(max)
                 .map(this::toResponse)
                 .toList();
     }

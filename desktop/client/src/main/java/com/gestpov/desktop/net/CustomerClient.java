@@ -1,6 +1,7 @@
 package com.gestpov.desktop.net;
 
 import com.gestpov.desktop.model.Customer;
+import com.gestpov.desktop.model.CustomerHistory;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -21,6 +22,21 @@ public class CustomerClient {
     public List<Customer> search(String q) throws ApiException {
         return JsonLists.mapArray(api.get("/api/customers/search", Map.of("q", q == null ? "" : q)),
                 Customer::fromJson);
+    }
+
+    public Customer getById(long id) throws ApiException {
+        return Customer.fromJson(api.get("/api/customers/" + id));
+    }
+
+    public CustomerHistory history(long id) throws ApiException {
+        return CustomerHistory.fromJson(api.get("/api/customers/" + id + "/history"));
+    }
+
+    public Customer adjustPoints(long id, int points, String reason) throws ApiException {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("points", points);
+        body.put("reason", reason == null ? "" : reason);
+        return Customer.fromJson(api.post("/api/customers/" + id + "/loyalty/adjust", body));
     }
 
     public Customer create(Customer customer) throws ApiException {

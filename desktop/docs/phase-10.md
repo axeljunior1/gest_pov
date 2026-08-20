@@ -2,6 +2,8 @@
 
 **Statut :** navigation complète, raccourcis, package dossier client (pas d’installateur `.exe`). Phase 4.5 VM/LAN **NOT_EXECUTED** tant qu’une VM n’a pas été testée.
 
+**Phase H (ops) :** roadmap `.exe` / checklist VM / backlog MFA·reset·ESC-POS — **documentés**, items **TODO** → [`phase-h.md`](phase-h.md).
+
 ---
 
 ## Livré
@@ -16,9 +18,10 @@
 
 | Élément | État |
 |---------|------|
-| `GestPOV-Server-Setup.exe` / `GestPOV-Client-Setup.exe` | TODO (WiX / jpackage) |
-| Upgrade offline versionné `.exe` | TODO |
-| Test VM Windows vierge + 2e PC LAN | NOT_EXECUTED — [offline-vm-test.md](offline-vm-test.md) |
+| `GestPOV-Server-Setup.exe` / `GestPOV-Client-Setup.exe` | TODO (WiX / jpackage) — [phase-h.md](phase-h.md), stub [`build-exe-stub.ps1`](../scripts/build/build-exe-stub.ps1) |
+| Upgrade offline versionné `.exe` | TODO — [phase-h.md](phase-h.md) |
+| Test VM Windows vierge + 2e PC LAN | NOT_EXECUTED — [phase-4-validation.md](phase-4-validation.md), [offline-vm-test.md](offline-vm-test.md) |
+| MFA / reset password e-mail / ESC-POS native | TODO backlog — [phase-h.md](phase-h.md) |
 | UI licence côté Desktop | TODO (import `.lic` **sur le serveur**) |
 | POS complet (retours, hold, reports) | PARTIAL — Phase 9 cœur |
 

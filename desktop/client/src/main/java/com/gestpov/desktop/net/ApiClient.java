@@ -89,6 +89,45 @@ public class ApiClient {
         return send(HttpRequest.newBuilder().uri(uri(path)).DELETE(), path);
     }
 
+    /** GET binaire (exports CSV/XLSX, templates). */
+    public byte[] getBytes(String path) throws ApiException {
+        return getBytes(path, null);
+    }
+
+    public byte[] getBytes(String path, Map<String, String> query) throws ApiException {
+        HttpRequest.Builder builder = HttpRequest.newBuilder()
+                .uri(query == null || query.isEmpty() ? uri(path) : uri(path, query))
+                .GET()
+                .timeout(timeout)
+                .header("Accept", "*/*");
+        if (bearerToken != null && !bearerToken.isBlank()) {
+            builder.header("Authorization", "Bearer " + bearerToken);
+        }
+        try {
+            HttpResponse<byte[]> response = http.send(builder.build(), HttpResponse.BodyHandlers.ofByteArray());
+            int status = response.statusCode();
+            byte[] body = response.body() == null ? new byte[0] : response.body();
+            if (status >= 200 && status < 300) {
+                return body;
+            }
+            String text = new String(body, StandardCharsets.UTF_8);
+            ApiException error = new ApiException(extractMessage(text, status), status, text);
+            if (status == 401 && !isLoginPath(path) && unauthorizedHandler != null) {
+                unauthorizedHandler.accept(error);
+            }
+            throw error;
+        } catch (ApiException e) {
+            throw e;
+        } catch (HttpTimeoutException e) {
+            throw new ApiException("Délai dépassé", 0, null, e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new ApiException("Requête interrompue", e);
+        } catch (Exception e) {
+            throw new ApiException("Serveur indisponible", e);
+        }
+    }
+
     public JsonNode postMultipart(String path, String fieldName, String fileName, byte[] fileBytes,
                                   Map<String, String> fields) throws ApiException {
         String boundary = "GestPovBoundary" + System.nanoTime();

@@ -11,6 +11,7 @@ import java.time.Duration;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -110,6 +111,33 @@ class ProductClientTest {
                     new ApiClient("127.0.0.1", server.port(), Duration.ofSeconds(2)));
             ApiException ex = assertThrows(ApiException.class, () -> client.search(new ProductQuery()));
             assertEquals(401, ex.statusCode());
+        }
+    }
+
+    @Test
+    void variantsPackagingsLifecycleAudit() throws Exception {
+        try (FakeHttpServer server = new FakeHttpServer()) {
+            ProductClient client = client(server);
+            Product seed = client.search(new ProductQuery()).get(0);
+
+            var variant = client.addVariant(seed.id(), "Rouge", "M", "SKU-R-M", new BigDecimal("4.50"), true);
+            assertNotNull(variant.id());
+            assertEquals(1, client.listVariants(seed.id()).size());
+
+            var pkg = client.addPackaging(seed.id(), "Carton", "ctn", new BigDecimal("12"), new BigDecimal("40"));
+            assertNotNull(pkg.id());
+            assertEquals(1, client.listPackagings(seed.id()).size());
+
+            Product submitted = client.submitLifecycle(seed.id());
+            assertEquals("EN_VALIDATION", submitted.cycleVie());
+            Product approved = client.approveLifecycle(seed.id());
+            assertEquals("VALIDE", approved.cycleVie());
+            assertFalse(client.auditHistory(seed.id()).isEmpty());
+
+            client.deleteVariant(seed.id(), variant.id());
+            client.deletePackaging(seed.id(), pkg.id());
+            assertTrue(client.listVariants(seed.id()).isEmpty());
+            assertTrue(client.listPackagings(seed.id()).isEmpty());
         }
     }
 

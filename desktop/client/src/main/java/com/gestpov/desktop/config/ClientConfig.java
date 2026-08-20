@@ -11,12 +11,13 @@ public record ClientConfig(
         String hostnameFallback,
         String clientVersion,
         int discoveryUdpPort,
-        int timeoutMs
+        int timeoutMs,
+        String lastLoginEmail
 ) {
     public static final String CURRENT_VERSION = "1.0.0";
 
     public static ClientConfig empty() {
-        return new ClientConfig("", "", 8080, "", "", CURRENT_VERSION, 38471, 20000);
+        return new ClientConfig("", "", 8080, "", "", CURRENT_VERSION, 38471, 20000, "");
     }
 
     public ClientConfig withServer(String id, String newHost, int newPort, String name) {
@@ -28,7 +29,22 @@ public record ClientConfig(
                 hostnameFallback,
                 clientVersion,
                 discoveryUdpPort,
-                timeoutMs
+                timeoutMs,
+                lastLoginEmail
+        );
+    }
+
+    public ClientConfig withLastLoginEmail(String email) {
+        return new ClientConfig(
+                serverId,
+                host,
+                port,
+                serverName,
+                hostnameFallback,
+                clientVersion,
+                discoveryUdpPort,
+                timeoutMs,
+                email == null ? "" : email
         );
     }
 

@@ -44,6 +44,19 @@ class CustomerClientTest {
         }
     }
 
+    @Test
+    void historyAndAdjustPoints() throws Exception {
+        try (FakeHttpServer server = new FakeHttpServer()) {
+            CustomerClient client = client(server);
+            Customer marie = client.list().get(0);
+            var history = client.history(marie.id());
+            assertEquals(marie.id(), history.customerId());
+            assertEquals(2, history.purchaseCount());
+            Customer adjusted = client.adjustPoints(marie.id(), 15, "Bonus test");
+            assertEquals(15, adjusted.loyaltyPoints());
+        }
+    }
+
     private static CustomerClient client(FakeHttpServer server) throws ApiException {
         ApiClient api = new ApiClient("127.0.0.1", server.port(), Duration.ofSeconds(2));
         new AuthClient(api).login(server.validEmail, server.validPassword);

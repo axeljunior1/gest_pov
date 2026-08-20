@@ -1,5 +1,7 @@
 package com.gestpov.desktop.ui.brands;
 
+import com.gestpov.desktop.ui.Reloadable;
+
 import com.gestpov.desktop.model.Brand;
 import com.gestpov.desktop.net.ApiException;
 import com.gestpov.desktop.net.BrandClient;
@@ -8,6 +10,7 @@ import com.gestpov.desktop.session.SessionContext;
 import com.gestpov.desktop.ui.component.ConfirmationDialog;
 import com.gestpov.desktop.ui.component.EmptyState;
 import com.gestpov.desktop.ui.component.ErrorBanner;
+import com.gestpov.desktop.ui.component.ListPager;
 import com.gestpov.desktop.ui.component.LoadingOverlay;
 import com.gestpov.desktop.util.FxAsync;
 import javafx.collections.FXCollections;
@@ -31,12 +34,13 @@ import java.util.List;
 /**
  * Parité fonctionnelle Web /brands : liste, recherche, CRUD, refresh.
  */
-public final class BrandsView extends StackPane {
+public final class BrandsView extends StackPane implements Reloadable {
 
     private final SessionContext session;
     private final BrandClient brands;
     private final ObservableList<Brand> rows = FXCollections.observableArrayList();
     private final TableView<Brand> table = new TableView<>();
+    private final ListPager<Brand> pager = new ListPager<>(table);
     private final ErrorBanner errorBanner = new ErrorBanner();
     private final LoadingOverlay loading = new LoadingOverlay();
     private final EmptyState emptyState = new EmptyState("Aucune marque — créez-en une ci-dessus.");
@@ -100,7 +104,6 @@ public final class BrandsView extends StackPane {
         VBox card = new VBox(12, createBar, searchBar);
         card.getStyleClass().add("card");
 
-        table.setItems(rows);
         table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         table.setPlaceholder(emptyState);
         TableColumn<Brand, String> nameCol = new TableColumn<>("Nom");
@@ -122,7 +125,7 @@ public final class BrandsView extends StackPane {
             }
         });
 
-        VBox page = new VBox(16, title, sub, errorBanner, card, table);
+        VBox page = new VBox(16, title, sub, errorBanner, card, table, pager.bar());
         VBox.setVgrow(table, Priority.ALWAYS);
         page.getStyleClass().add("content");
         page.setPadding(new Insets(0));
@@ -131,6 +134,7 @@ public final class BrandsView extends StackPane {
         return root;
     }
 
+    @Override
     public void reload() {
         errorBanner.hide();
         setBusy(true);
@@ -207,10 +211,10 @@ public final class BrandsView extends StackPane {
     private void showRows(List<Brand> list) {
         setBusy(false);
         rows.setAll(list);
+        pager.setItems(list);
         if (!searchMode) {
             emptyState.setMessage("Aucune marque — créez-en une ci-dessus.");
         }
-        table.refresh();
     }
 
     private void showError(Throwable error) {

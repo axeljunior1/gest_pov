@@ -230,22 +230,30 @@ function Invoke-PsqlAdmin([string]$Sql) {
     & $psql -h 127.0.0.1 -p 5432 -U $sec.dbAdminUser -d postgres -v ON_ERROR_STOP=1 -c $Sql
     if ($LASTEXITCODE -ne 0) { throw "psql a echoue." }
 }
+# Exact match only (never -match '1': error text like 127.0.0.1 would false-positive).
+$dataDirCheck = & $psql -h 127.0.0.1 -p 5432 -U $sec.dbAdminUser -d postgres -tAc "SHOW data_directory"
+if ($LASTEXITCODE -ne 0) { throw "psql admin login failed before role setup." }
+Write-GestPovLog -LogFile $log -Message "PostgreSQL data_directory=$([string]$dataDirCheck).Trim()"
+
+$appPw = $sec.dbAppPassword.Replace("'", "''")
 $roleExists = & $psql -h 127.0.0.1 -p 5432 -U $sec.dbAdminUser -d postgres -tAc "SELECT 1 FROM pg_roles WHERE rolname='$($sec.dbAppUser)'"
-if ($roleExists -notmatch '1') {
-    $appPw = $sec.dbAppPassword.Replace("'", "''")
+if (([string]$roleExists).Trim() -ne '1') {
     $sqlCreateRole = "CREATE ROLE {0} LOGIN PASSWORD '{1}';" -f $sec.dbAppUser, $appPw
     Invoke-PsqlAdmin $sqlCreateRole
     Write-GestPovLog -LogFile $log -Message "Role applicatif cree."
 } else {
-    Write-GestPovLog -LogFile $log -Message "Role applicatif existant conserve."
+    $sqlAlterRole = "ALTER ROLE {0} WITH LOGIN PASSWORD '{1}';" -f $sec.dbAppUser, $appPw
+    Invoke-PsqlAdmin $sqlAlterRole
+    Write-GestPovLog -LogFile $log -Message "Role applicatif existant: mot de passe resynchronise avec secrets.dpapi."
 }
 $dbExists = & $psql -h 127.0.0.1 -p 5432 -U $sec.dbAdminUser -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='$($sec.dbName)'"
-if ($dbExists -notmatch '1') {
+if (([string]$dbExists).Trim() -ne '1') {
     $sqlCreateDb = "CREATE DATABASE {0} OWNER {1};" -f $sec.dbName, $sec.dbAppUser
     Invoke-PsqlAdmin $sqlCreateDb
     Write-GestPovLog -LogFile $log -Message "Base $($sec.dbName) creee."
 } else {
-    Write-GestPovLog -LogFile $log -Message "Base existante conservee."
+    Invoke-PsqlAdmin ("ALTER DATABASE {0} OWNER TO {1};" -f $sec.dbName, $sec.dbAppUser)
+    Write-GestPovLog -LogFile $log -Message "Base existante conservee (owner aligne)."
 }
 Remove-Item Env:PGPASSWORD -ErrorAction SilentlyContinue
 

@@ -72,9 +72,10 @@
 ## État actuel
 
 - Skeleton Maven client : `desktop/client/pom.xml`
-- Package serveur dossier : `GestPOV-Server-Offline`
-- Package client dossier : `GestPOV-Client-Offline`
-- Installateurs `.exe` : **non produits**
+- Package serveur dossier : `GestPOV-Server-Offline` (`build-offline-package.ps1`)
+- Package client dossier : `GestPOV-Client-Offline` (`build-client-package.ps1`)
+- Installateurs `.exe` : **non produits** — roadmap Phase H [`phase-h.md`](phase-h.md)
+- Stub jpackage (doc / sortie soft si outils absents) : `desktop/scripts/build/build-exe-stub.ps1`
 
 ---
 

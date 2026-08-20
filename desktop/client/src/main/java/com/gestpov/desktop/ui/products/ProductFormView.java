@@ -1,11 +1,14 @@
 package com.gestpov.desktop.ui.products;
 
+import com.gestpov.desktop.model.AuditLogEntry;
 import com.gestpov.desktop.model.Brand;
 import com.gestpov.desktop.model.Category;
 import com.gestpov.desktop.model.PriceHistory;
 import com.gestpov.desktop.model.Product;
 import com.gestpov.desktop.model.ProductDraft;
 import com.gestpov.desktop.model.ProductImage;
+import com.gestpov.desktop.model.ProductPackaging;
+import com.gestpov.desktop.model.ProductVariant;
 import com.gestpov.desktop.model.Supplier;
 import com.gestpov.desktop.model.Unit;
 import com.gestpov.desktop.net.ApiException;
@@ -76,14 +79,31 @@ public final class ProductFormView extends StackPane {
     private final TextArea description = new TextArea();
     private final Label stockBadge = new Label();
     private final Button saveButton = new Button("Enregistrer");
+    private final HBox workflowBar = new HBox(8);
     private final ComboBox<String> priceType = new ComboBox<>();
     private final TextField newPrice = new TextField();
     private final TableView<PriceHistory> historyTable = new TableView<>();
     private final FlowPane imagePane = new FlowPane(8, 8);
+    private final CheckBox uploadAsPrimary = new CheckBox("Définir comme image principale");
+    private final TableView<ProductVariant> variantsTable = new TableView<>();
+    private final TextField variantCouleur = new TextField();
+    private final TextField variantTaille = new TextField();
+    private final TextField variantSku = new TextField();
+    private final TextField variantPrix = new TextField();
+    private final CheckBox variantGenBarcode = new CheckBox("Générer code-barres");
+    private final TableView<ProductPackaging> packagingTable = new TableView<>();
+    private final TextField pkgNom = new TextField();
+    private final TextField pkgSymbole = new TextField();
+    private final TextField pkgQty = new TextField();
+    private final TextField pkgPrix = new TextField();
+    private final TableView<AuditLogEntry> auditTable = new TableView<>();
     private Product current;
     private final TabPane tabs = new TabPane();
     private final Tab pricesTab = new Tab("Prix");
     private final Tab imagesTab = new Tab("Images");
+    private final Tab variantsTab = new Tab("Variantes");
+    private final Tab packagingTab = new Tab("Conditionnements");
+    private final Tab auditTab = new Tab("Audit");
 
     public ProductFormView(SessionContext session, Long productId, Runnable onBack,
                            java.util.function.LongConsumer onCreated) {
@@ -117,19 +137,30 @@ public final class ProductFormView extends StackPane {
         saveButton.setVisible(canWrite);
         saveButton.setManaged(canWrite);
 
+        workflowBar.setAlignment(Pos.CENTER_LEFT);
+        if (!isNew) {
+            buildWorkflowButtons();
+        }
+
         Tab general = new Tab("Général", generalForm());
         general.setClosable(false);
         pricesTab.setClosable(false);
         pricesTab.setContent(pricesPane());
         imagesTab.setClosable(false);
         imagesTab.setContent(imagesPane());
+        variantsTab.setClosable(false);
+        variantsTab.setContent(variantsPane());
+        packagingTab.setClosable(false);
+        packagingTab.setContent(packagingPane());
+        auditTab.setClosable(false);
+        auditTab.setContent(auditPane());
         tabs.getTabs().add(general);
         if (!isNew) {
-            tabs.getTabs().addAll(pricesTab, imagesTab);
+            tabs.getTabs().addAll(pricesTab, imagesTab, variantsTab, packagingTab, auditTab);
         }
         tabs.getStyleClass().add("product-tabs");
 
-        VBox page = new VBox(16, header, errorBanner, tabs, saveButton);
+        VBox page = new VBox(16, header, errorBanner, workflowBar, tabs, saveButton);
         VBox.setVgrow(tabs, Priority.ALWAYS);
         page.getStyleClass().add("content");
         page.setPadding(new Insets(0));
@@ -137,6 +168,33 @@ public final class ProductFormView extends StackPane {
         scroll.setFitToWidth(true);
         scroll.setStyle("-fx-background-color: transparent;");
         return scroll;
+    }
+
+    private void buildWorkflowButtons() {
+        workflowBar.getChildren().clear();
+        if (session.hasPermission("products.update")) {
+            Button submit = new Button("Soumettre validation");
+            submit.getStyleClass().add("button-secondary");
+            submit.setOnAction(e -> workflow(() -> products.submitLifecycle(productId)));
+            workflowBar.getChildren().add(submit);
+        }
+        if (session.hasPermission("products.validate")) {
+            Button approve = new Button("Approuver");
+            approve.getStyleClass().add("button-primary");
+            approve.setOnAction(e -> workflow(() -> products.approveLifecycle(productId)));
+            Button reject = new Button("Rejeter");
+            reject.getStyleClass().add("button-danger");
+            reject.setOnAction(e -> workflow(() -> products.rejectLifecycle(productId, "Rejeté depuis Desktop")));
+            workflowBar.getChildren().addAll(approve, reject);
+        }
+        workflowBar.setVisible(!workflowBar.getChildren().isEmpty());
+        workflowBar.setManaged(!workflowBar.getChildren().isEmpty());
+    }
+
+    private void workflow(java.util.concurrent.Callable<Product> action) {
+        errorBanner.hide();
+        setBusy(true);
+        FxAsync.run(action, updated -> load(), this::showError);
     }
 
     private GridPane generalForm() {
@@ -198,8 +256,7 @@ public final class ProductFormView extends StackPane {
         historyTable.getColumns().addAll(date, type, oldP, newP, user);
         historyTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         historyTable.setPrefHeight(240);
-        VBox box = new VBox(12, form, historyTable);
-        return box;
+        return new VBox(12, form, historyTable);
     }
 
     private VBox imagesPane() {
@@ -208,9 +265,111 @@ public final class ProductFormView extends StackPane {
         upload.setOnAction(e -> uploadImage());
         upload.setVisible(session.hasPermission("products.create"));
         upload.setManaged(session.hasPermission("products.create"));
+        uploadAsPrimary.setSelected(true);
+        uploadAsPrimary.setVisible(session.hasPermission("products.create"));
+        uploadAsPrimary.setManaged(session.hasPermission("products.create"));
         imagePane.getStyleClass().add("card");
-        VBox box = new VBox(12, upload, imagePane);
-        return box;
+        return new VBox(12, new HBox(12, upload, uploadAsPrimary), imagePane);
+    }
+
+    private VBox variantsPane() {
+        variantCouleur.setPromptText("Couleur");
+        variantTaille.setPromptText("Taille");
+        variantSku.setPromptText("SKU variante");
+        variantPrix.setPromptText("Prix");
+        variantGenBarcode.setSelected(true);
+        Button add = new Button("Ajouter variante");
+        add.getStyleClass().add("button-primary");
+        add.setOnAction(e -> addVariant());
+        boolean canCreate = session.hasPermission("product_variant.create")
+                || session.hasPermission("products.create");
+        HBox form = new HBox(8, variantCouleur, variantTaille, variantSku, variantPrix, variantGenBarcode, add);
+        form.setAlignment(Pos.CENTER_LEFT);
+        form.setVisible(canCreate);
+        form.setManaged(canCreate);
+
+        variantsTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
+        variantsTable.setPrefHeight(220);
+        variantsTable.getColumns().add(colV("Libellé", v -> v.label() == null ? "" : v.label()));
+        variantsTable.getColumns().add(colV("SKU", v -> v.sku() == null ? "" : v.sku()));
+        variantsTable.getColumns().add(colV("Prix", v -> ProductLabels.price(v.prix())));
+        variantsTable.getColumns().add(colV("Stock", v -> v.stock() == null ? "—" : String.valueOf(v.stock())));
+        if (session.hasPermission("product_variant.delete") || session.hasPermission("products.delete")) {
+            TableColumn<ProductVariant, Void> actions = new TableColumn<>();
+            actions.setCellFactory(c -> new javafx.scene.control.TableCell<>() {
+                @Override
+                protected void updateItem(Void item, boolean empty) {
+                    super.updateItem(item, empty);
+                    if (empty || getTableRow() == null || getTableRow().getItem() == null) {
+                        setGraphic(null);
+                        return;
+                    }
+                    ProductVariant variant = getTableRow().getItem();
+                    Button del = new Button("Suppr.");
+                    del.getStyleClass().add("button-danger");
+                    del.setOnAction(e -> deleteVariant(variant));
+                    setGraphic(del);
+                }
+            });
+            variantsTable.getColumns().add(actions);
+        }
+        return new VBox(12, form, variantsTable);
+    }
+
+    private VBox packagingPane() {
+        pkgNom.setPromptText("Nom *");
+        pkgSymbole.setPromptText("Symbole");
+        pkgQty.setPromptText("Qté base *");
+        pkgPrix.setPromptText("Prix vente");
+        Button add = new Button("Ajouter");
+        add.getStyleClass().add("button-primary");
+        add.setOnAction(e -> addPackaging());
+        boolean canCreate = session.hasPermission("products.create");
+        HBox form = new HBox(8, pkgNom, pkgSymbole, pkgQty, pkgPrix, add);
+        form.setAlignment(Pos.CENTER_LEFT);
+        form.setVisible(canCreate);
+        form.setManaged(canCreate);
+
+        packagingTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
+        packagingTable.setPrefHeight(220);
+        packagingTable.getColumns().add(colP("Nom", ProductPackaging::nom));
+        packagingTable.getColumns().add(colP("Symbole", p -> p.symbole() == null ? "" : p.symbole()));
+        packagingTable.getColumns().add(colP("Qté base", p ->
+                p.quantiteBase() == null ? "" : p.quantiteBase().toPlainString()));
+        packagingTable.getColumns().add(colP("Prix", p -> ProductLabels.price(p.prixVente())));
+        if (session.hasPermission("products.delete")) {
+            TableColumn<ProductPackaging, Void> actions = new TableColumn<>();
+            actions.setCellFactory(c -> new javafx.scene.control.TableCell<>() {
+                @Override
+                protected void updateItem(Void item, boolean empty) {
+                    super.updateItem(item, empty);
+                    if (empty || getTableRow() == null || getTableRow().getItem() == null) {
+                        setGraphic(null);
+                        return;
+                    }
+                    ProductPackaging pkg = getTableRow().getItem();
+                    Button del = new Button("Suppr.");
+                    del.getStyleClass().add("button-danger");
+                    del.setOnAction(e -> deletePackaging(pkg));
+                    setGraphic(del);
+                }
+            });
+            packagingTable.getColumns().add(actions);
+        }
+        return new VBox(12, form, packagingTable);
+    }
+
+    private VBox auditPane() {
+        auditTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
+        auditTable.setPrefHeight(280);
+        auditTable.getColumns().add(colA("Date", a -> a.dateAction() == null ? "" : a.dateAction()));
+        auditTable.getColumns().add(colA("Action", a -> a.action() == null ? "" : a.action()));
+        auditTable.getColumns().add(colA("Détails", a -> a.details() == null ? "" : a.details()));
+        auditTable.getColumns().add(colA("Utilisateur", a -> a.utilisateur() == null ? "" : a.utilisateur()));
+        Button refresh = new Button("Actualiser audit");
+        refresh.getStyleClass().add("button-ghost");
+        refresh.setOnAction(e -> load());
+        return new VBox(12, refresh, auditTable);
     }
 
     private void load() {
@@ -225,6 +384,8 @@ public final class ProductFormView extends StackPane {
             if (productId != null) {
                 data.product = products.getById(productId);
                 data.history = products.priceHistory(productId);
+                data.packagings = products.listPackagings(productId);
+                data.audit = products.auditHistory(productId);
             }
             return data;
         }, this::bind, this::showError);
@@ -258,13 +419,18 @@ public final class ProductFormView extends StackPane {
         select(unite, current.unitId());
         selectCode(statut, current.statut());
         selectCode(cycleVie, current.cycleVie());
-        stockBadge.setText("Stock: " + current.stockLabel());
+        stockBadge.setText("Stock: " + current.stockLabel()
+                + (current.cycleVie() == null ? "" : " · " + ProductLabels.lifecycle(current.cycleVie())));
         if (current.hasVariants()) {
             codeBarre.setDisable(true);
             generateBarcode.setDisable(true);
         }
         historyTable.getItems().setAll(data.history);
+        variantsTable.getItems().setAll(current.variantes() == null ? List.of() : current.variantes());
+        packagingTable.getItems().setAll(data.packagings);
+        auditTable.getItems().setAll(data.audit);
         renderImages();
+        buildWorkflowButtons();
     }
 
     private void save() {
@@ -344,11 +510,68 @@ public final class ProductFormView extends StackPane {
             return;
         }
         setBusy(true);
-        boolean principale = current == null || current.images() == null || current.images().isEmpty();
+        boolean principale = uploadAsPrimary.isSelected()
+                || current == null || current.images() == null || current.images().isEmpty();
         FxAsync.run(() -> {
             byte[] bytes = Files.readAllBytes(file.toPath());
             return products.uploadImage(productId, file.getName(), bytes, principale);
         }, ignored -> load(), this::showError);
+    }
+
+    private void addVariant() {
+        BigDecimal prix = silentPrice(variantPrix.getText());
+        setBusy(true);
+        FxAsync.run(() -> products.addVariant(productId,
+                variantCouleur.getText(), variantTaille.getText(), variantSku.getText(),
+                prix, variantGenBarcode.isSelected()), created -> {
+            variantCouleur.clear();
+            variantTaille.clear();
+            variantSku.clear();
+            variantPrix.clear();
+            load();
+        }, this::showError);
+    }
+
+    private void deleteVariant(ProductVariant variant) {
+        if (!ConfirmationDialog.confirm(getScene() == null ? null : getScene().getWindow(),
+                "Supprimer", "Supprimer cette variante ?")) {
+            return;
+        }
+        setBusy(true);
+        FxAsync.runVoid(() -> products.deleteVariant(productId, variant.id()), this::load, this::showError);
+    }
+
+    private void addPackaging() {
+        if (pkgNom.getText() == null || pkgNom.getText().isBlank()) {
+            errorBanner.show("Nom du conditionnement obligatoire.");
+            return;
+        }
+        BigDecimal qty;
+        try {
+            qty = new BigDecimal(pkgQty.getText().trim());
+        } catch (Exception e) {
+            errorBanner.show("Quantité de base invalide.");
+            return;
+        }
+        BigDecimal prix = silentPrice(pkgPrix.getText());
+        setBusy(true);
+        FxAsync.run(() -> products.addPackaging(productId, pkgNom.getText().trim(),
+                blankToNull(pkgSymbole.getText()), qty, prix), created -> {
+            pkgNom.clear();
+            pkgSymbole.clear();
+            pkgQty.clear();
+            pkgPrix.clear();
+            load();
+        }, this::showError);
+    }
+
+    private void deletePackaging(ProductPackaging pkg) {
+        if (!ConfirmationDialog.confirm(getScene() == null ? null : getScene().getWindow(),
+                "Supprimer", "Supprimer ce conditionnement ?")) {
+            return;
+        }
+        setBusy(true);
+        FxAsync.runVoid(() -> products.deletePackaging(productId, pkg.id()), this::load, this::showError);
     }
 
     private void renderImages() {
@@ -385,6 +608,11 @@ public final class ProductFormView extends StackPane {
             Label main = new Label("Principale");
             main.getStyleClass().add("badge");
             box.getChildren().add(main);
+        } else if (session.hasPermission("products.create")) {
+            Button setPrimary = new Button("Principale");
+            setPrimary.getStyleClass().add("button-ghost");
+            setPrimary.setOnAction(e -> setPrimaryFromUrl(image));
+            box.getChildren().add(setPrimary);
         }
         if (session.hasPermission("products.delete")) {
             Button del = new Button("Suppr.");
@@ -394,6 +622,31 @@ public final class ProductFormView extends StackPane {
         }
         box.getStyleClass().add("image-card");
         return box;
+    }
+
+    /** Ré-upload avec principale=true (seul mécanisme API pour forcer le primaire). */
+    private void setPrimaryFromUrl(ProductImage image) {
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Recharger l'image comme principale");
+        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter(
+                "Images", "*.png", "*.jpg", "*.jpeg", "*.gif", "*.webp"));
+        java.io.File file = chooser.showOpenDialog(getScene() == null ? null : getScene().getWindow());
+        if (file == null) {
+            return;
+        }
+        setBusy(true);
+        FxAsync.run(() -> {
+            byte[] bytes = Files.readAllBytes(file.toPath());
+            ProductImage uploaded = products.setPrimaryImage(productId, file.getName(), bytes);
+            if (image.id() != null) {
+                try {
+                    products.deleteImage(productId, image.id());
+                } catch (ApiException ignored) {
+                    // ancienne image peut rester si droits insuffisants
+                }
+            }
+            return uploaded;
+        }, ignored -> load(), this::showError);
     }
 
     private void deleteImage(ProductImage image) {
@@ -445,12 +698,35 @@ public final class ProductFormView extends StackPane {
     private static VBox labeled(String label, javafx.scene.Node node) {
         Label l = new Label(label);
         l.getStyleClass().add("form-label");
-        VBox box = new VBox(4, l, node);
-        return box;
+        return new VBox(4, l, node);
     }
 
     private static TableColumn<PriceHistory, String> col(String title, java.util.function.Function<PriceHistory, String> fn) {
         TableColumn<PriceHistory, String> col = new TableColumn<>(title);
+        col.setCellValueFactory(data -> new javafx.beans.property.ReadOnlyStringWrapper(
+                data.getValue() == null ? "" : fn.apply(data.getValue())));
+        return col;
+    }
+
+    private static TableColumn<ProductVariant, String> colV(String title,
+                                                            java.util.function.Function<ProductVariant, String> fn) {
+        TableColumn<ProductVariant, String> col = new TableColumn<>(title);
+        col.setCellValueFactory(data -> new javafx.beans.property.ReadOnlyStringWrapper(
+                data.getValue() == null ? "" : fn.apply(data.getValue())));
+        return col;
+    }
+
+    private static TableColumn<ProductPackaging, String> colP(String title,
+                                                              java.util.function.Function<ProductPackaging, String> fn) {
+        TableColumn<ProductPackaging, String> col = new TableColumn<>(title);
+        col.setCellValueFactory(data -> new javafx.beans.property.ReadOnlyStringWrapper(
+                data.getValue() == null ? "" : fn.apply(data.getValue())));
+        return col;
+    }
+
+    private static TableColumn<AuditLogEntry, String> colA(String title,
+                                                           java.util.function.Function<AuditLogEntry, String> fn) {
+        TableColumn<AuditLogEntry, String> col = new TableColumn<>(title);
         col.setCellValueFactory(data -> new javafx.beans.property.ReadOnlyStringWrapper(
                 data.getValue() == null ? "" : fn.apply(data.getValue())));
         return col;
@@ -515,6 +791,10 @@ public final class ProductFormView extends StackPane {
         return value == null ? "" : value;
     }
 
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
+    }
+
     private static String decimalText(BigDecimal value) {
         return value == null ? "" : value.toPlainString();
     }
@@ -534,6 +814,8 @@ public final class ProductFormView extends StackPane {
         List<Unit> units = List.of();
         Product product;
         List<PriceHistory> history = List.of();
+        List<ProductPackaging> packagings = List.of();
+        List<AuditLogEntry> audit = List.of();
     }
 
     static final class RefOption {

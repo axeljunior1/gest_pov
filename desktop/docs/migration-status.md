@@ -9,7 +9,8 @@ Référence routes : `frontend/src/App.jsx`
 **Phase 7 :** Produits — [`phase-7.md`](phase-7.md).  
 **Phase 8 :** Fournisseurs, clients, stock lecture, unités, paramètres — [`phase-8.md`](phase-8.md).  
 **Phase 9 :** POS cœur — [`phase-9.md`](phase-9.md).  
-**Phase 10 :** Nav, raccourcis, packages USB — [`phase-10.md`](phase-10.md).
+**Phase 10 :** Nav, raccourcis, packages USB — [`phase-10.md`](phase-10.md).  
+**Phase H (ops) :** Installateurs `.exe` / VM LAN / backlog MFA — [`phase-h.md`](phase-h.md) (**documenté**, items TODO).
 
 ---
 
@@ -17,11 +18,11 @@ Référence routes : `frontend/src/App.jsx`
 
 | Écran React | Route | API principale | Écran Desktop | Statut |
 |-------------|-------|----------------|---------------|--------|
-| Préparation ventes | `/pos` | `/api/pos/*` | `PosView` | PARTIAL |
-| Encaissement | `/pos/pending` | `/api/pos/sales`, validate | (même `PosView`) | PARTIAL |
-| Historique ventes | `/pos/history` | `/api/pos/sales` | `PosHistoryView` | TODO |
-| Rapports caisse | `/pos/reports` | `/api/pos/sessions` | `PosReportsView` | TODO |
-| Retours POS | `/pos/returns` | `/api/pos/returns` | `PosReturnsView` | TODO |
+| Préparation ventes | `/pos` | `/api/pos/*` | `PosView` | DONE |
+| Encaissement | `/pos/pending` | `/api/pos/sales`, validate | (même `PosView`) | DONE |
+| Historique ventes | `/pos/history` | `/api/pos/sales/completed` | `PosHistoryView` | DONE |
+| Rapports caisse | `/pos/reports` | `/api/pos/sessions` | `PosReportsView` | DONE |
+| Retours POS | `/pos/returns` | `/api/pos/returns` | `PosReturnsView` | DONE |
 
 ---
 
@@ -30,7 +31,7 @@ Référence routes : `frontend/src/App.jsx`
 | Écran React | Route | API | Desktop | Statut |
 |-------------|-------|-----|---------|--------|
 | Login | `/login` | `POST /api/auth/login` | `LoginView` (via `AppFlow`) | DONE |
-| Activation licence | (gate) | `/api/license/*` | `LicenseView` | TODO |
+| Activation licence | (gate) | `/api/license/*` | `LicenseView` | DONE |
 | Discovery serveur | — | `GET /api/discovery` | `ServerDiscoveryView` (via `AppFlow`) | DONE |
 
 ---
@@ -39,9 +40,9 @@ Référence routes : `frontend/src/App.jsx`
 
 | Écran React | Route | API | Desktop | Statut |
 |-------------|-------|-----|---------|--------|
-| Tableau de bord | `/dashboard` | `/api/dashboard/*` | — | TODO |
-| Analytics | `/analytics` | `/api/analytics/*` | — | TODO |
-| Ventes annulées | `/analytics/cancellations` | `/api/sales/cancellations` | — | TODO |
+| Tableau de bord | `/dashboard` | `/api/dashboard/*` | `DashboardView` | DONE |
+| Analytics | `/analytics` | `/api/analytics/*` | `AnalyticsView` | DONE |
+| Ventes annulées | `/analytics/cancellations` | `/api/sales/cancellations` | (onglet `AnalyticsView`) | DONE |
 
 ---
 
@@ -49,9 +50,9 @@ Référence routes : `frontend/src/App.jsx`
 
 | Écran React | Route | API | Desktop | Statut |
 |-------------|-------|-----|---------|--------|
-| Liste ventes | `/sales` | `/api/sales` | — | TODO |
-| Détail vente | `/sales/:id` | `/api/sales/{id}` | — | TODO |
-| Retours | `/returns` | `/api/...` | — | TODO |
+| Liste ventes | `/sales` | `/api/sales/browse` | `SalesListView` | DONE |
+| Détail vente | `/sales/:id` | `/api/sales/{id}` | `SaleDetailView` | DONE |
+| Retours | `/returns` | `/api/...` | `PosReturnsView` | PARTIAL |
 
 ---
 
@@ -60,18 +61,16 @@ Référence routes : `frontend/src/App.jsx`
 | Écran React | Route | API | Desktop | Statut |
 |-------------|-------|-----|---------|--------|
 | Produits | `/products` | `/api/products` | `ProductsView` | DONE |
-| Détail produit | `/products/:id` | `/api/products/{id}` | `ProductFormView` | PARTIAL |
+| Détail produit | `/products/:id` | `/api/products/{id}` | `ProductFormView` | DONE |
 | Catégories | `/categories` | `/api/categories` | `CategoriesView` | DONE |
 | Marques | `/brands` | `/api/brands` | `BrandsView` | DONE |
 | Fournisseurs | `/suppliers` | `/api/suppliers` | `SuppliersView` | DONE |
-| Unités | `/units` | `/api/units` | `UnitsView` | PARTIAL |
-| Attributs | `/attributes` | `/api/attributes` | — | TODO |
+| Unités | `/units` | `/api/units` | `UnitsView` | DONE |
+| Attributs | `/attributes` | `/api/attributes` | `AttributesView` | DONE |
 
-**Marques DONE :** liste, recherche API, CRUD, validation nom, permissions `products.*`.  
-**Catégories DONE :** arbre, sous-catégorie, rename, rattachement PUT `parentId`, recherche, suppression.  
-**Produits DONE (cœur) :** liste filtrée, CRUD fiche générale (catégorie, marque, fournisseur, unité, prix, statut, cycle), stock lecture, images, PATCH prix + historique, bulk delete, permissions.  
-**Unités PARTIAL :** nom + symbole, pas de conversions.  
-**Stock PARTIAL :** liste `GET /api/stock/items` uniquement.
+**Produits :** liste + fiche (variantes, conditionnements, images, workflow, audit).  
+**Unités :** CRUD symbole + conversions SI.  
+**Stock :** items + mouvements + entrepôts + docs + inventaires + valorisation + PO.
 
 ---
 
@@ -79,13 +78,15 @@ Référence routes : `frontend/src/App.jsx`
 
 | Écran React | Route | API | Desktop | Statut |
 |-------------|-------|-----|---------|--------|
-| Stock | `/stock` | `/api/stock` | `StockView` | PARTIAL |
-| Valorisation | `/stock/valuation` | `/api/stock/valuation` | — | TODO |
-| Entrées | `/stock/entries` | `/api/stock/entries` | — | TODO |
-| Sorties | `/stock/exits` | `/api/stock/exits` | — | TODO |
-| Mouvements | `/stock/movements` | `/api/stock/movements` | — | TODO |
-| Inventaires | `/stock/inventories` | `/api/stock/inventories` | — | TODO |
-| Bons commande | `/purchase-orders` | `/api/purchase-orders` | — | TODO |
+| Stock | `/stock` | `/api/stock` | `StockView` | DONE |
+| Valorisation | `/stock/valuation` | `/api/stock/valuation` | `StockValuationView` | DONE |
+| Entrées | `/stock/entries` | `/api/stock/entries` | `StockEntriesExitsView` | DONE |
+| Sorties | `/stock/exits` | `/api/stock/exits` | `StockEntriesExitsView` | DONE |
+| Mouvements | `/stock/movements` | `/api/stock/movements` | (onglet Stock) | DONE |
+| Inventaires | `/stock/inventories` | `/api/stock/inventories` | `InventoriesView` | DONE |
+| Bons commande | `/purchase-orders` | `/api/purchase-orders` | `PurchaseOrdersView` | DONE |
+| Entrepôts | `/warehouses` | `/api/warehouses` | `WarehousesView` | DONE |
+| Transferts | — | `/api/stock/transfers` | `StockTransfersView` | DONE |
 
 ---
 
@@ -94,12 +95,12 @@ Référence routes : `frontend/src/App.jsx`
 | Écran React | Route | API | Desktop | Statut |
 |-------------|-------|-----|---------|--------|
 | Clients | `/customers` | `/api/customers` | `CustomersView` | DONE |
-| Utilisateurs | `/users` | `/api/users` | — | TODO |
-| Rôles | `/roles` | `/api/roles` | — | TODO |
-| Alertes | `/alerts` | `/api/alerts` | — | TODO |
-| Import/Export | `/import-export` | `/api/import`, export | — | TODO |
+| Utilisateurs | `/users` | `/api/users` | `UsersView` | DONE |
+| Rôles | `/roles` | `/api/roles` | `RolesView` | DONE |
+| Alertes | `/alerts` | `/api/alerts` | `AlertsView` | DONE |
+| Import/Export | `/import-export` | `/api/import`, export | `ImportExportView` | DONE |
 | Paramètres | `/settings` | `/api/settings` | `SettingsView` | PARTIAL |
-| Config client | `/configuration` | settings | — | TODO |
+| Config client | `/configuration` | settings | `ClientConfigurationView` | PARTIAL |
 
 ---
 
@@ -119,10 +120,14 @@ Référence routes : `frontend/src/App.jsx`
 |----------|---------|--------|
 | Config client | `ClientConfigStore` | DONE |
 | Discovery LAN | `DiscoveryService` + UDP | DONE |
-| Connexion REST | `ApiClient` + clients métier (brands, categories, products, suppliers, units, customers, stock, settings, pos) | DONE |
+| Connexion REST | `ApiClient` + clients métier (+ users, roles, alerts, import/export, license, dashboard, analytics, sales) | DONE |
 | Session JWT / permissions | `SessionContext` | DONE |
-| Fenêtre principale | `MainWindow` | DONE |
-| Health local serveur | `ServerHealthPanel` | TODO |
+| Fenêtre principale | `MainWindow` (ADMIN / Dashboard / Analytics / health) | DONE |
+| Health local serveur | Indicateur top-bar (`/api/health` + fallback discovery) | DONE |
+| Package dossier serveur/client USB | `build-offline-package.ps1` / `build-client-package.ps1` | DONE |
+| Installateurs `.exe` (jpackage / WiX) | stub `build-exe-stub.ps1` + [phase-h.md](phase-h.md) | TODO |
+| Validation VM LAN complète | [phase-4-validation.md](phase-4-validation.md) | TODO (NOT_EXECUTED) |
+| MFA / reset password e-mail / ESC-POS native | backlog [phase-h.md](phase-h.md) | TODO |
 
 ---
 
@@ -149,10 +154,13 @@ Référence routes : `frontend/src/App.jsx`
 4. Produits (Phase 7) — **DONE** (cœur liste + fiche ; variantes/conditionnements PARTIAL)
 5. Modules secondaires — **DONE** (Phase 8 : fournisseurs, clients, stock lecture, unités, paramètres)
 6. POS cœur — **PARTIAL** (Phase 9)
-7. Package USB serveur + client — **DONE** dossiers ; `.exe` et VM LAN — Phase 10 restant
+7. Package USB serveur + client — **DONE** dossiers ; `.exe` / VM LAN / backlog ops — **Phase H** ([phase-h.md](phase-h.md)) documenté, TODO
+8. Admin + dashboard + ventes BO — **DONE** (Phases E/F/G MVP)
 
 ---
 
 ## Mise à jour
 
 Mettre à jour ce fichier à chaque écran Desktop livré.
+
+**2026-08-20 — Phases E/F/G MVP :** Users/Roles/Alerts/ImportExport, Licence + health top-bar, Dashboard/Analytics/Sales BO branchés dans `MainWindow`.

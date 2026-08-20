@@ -26,7 +26,9 @@ class ClientConfigStoreTest {
     void save_thenLoad_roundTrip() throws Exception {
         Path file = tempDir.resolve("client.properties");
         ClientConfigStore store = new ClientConfigStore(file);
-        ClientConfig saved = ClientConfig.empty().withServer("abc-id", "192.168.1.10", 8080, "CAISSE");
+        ClientConfig saved = ClientConfig.empty()
+                .withServer("abc-id", "192.168.1.10", 8080, "CAISSE")
+                .withLastLoginEmail("admin@gestpov.local");
         store.save(saved);
 
         ClientConfig loaded = store.load();
@@ -34,6 +36,7 @@ class ClientConfigStoreTest {
         assertEquals("192.168.1.10", loaded.host());
         assertEquals(8080, loaded.port());
         assertEquals("CAISSE", loaded.serverName());
+        assertEquals("admin@gestpov.local", loaded.lastLoginEmail());
         assertTrue(loaded.hasRememberedServer());
     }
 }

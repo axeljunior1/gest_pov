@@ -71,10 +71,27 @@ public class PosCatalogService {
 
     @Transactional(readOnly = true)
     public PosSearchResultResponse search(String query, Long warehouseId, Long categoryId) {
+        return search(query, warehouseId, categoryId, null);
+    }
+
+    @Transactional(readOnly = true)
+    public PosSearchResultResponse search(String query, Long warehouseId, Long categoryId, Integer limit) {
+        int max = resolveLimit(limit);
         if (query == null || query.isBlank()) {
+            ProductSearchCriteria criteria = new ProductSearchCriteria();
+            applySellableProductFilters(criteria);
+            if (categoryId != null) {
+                criteria.setCategorieId(categoryId);
+            }
+            List<PosProductResponse> products = productRepository
+                    .findAll(ProductSpecification.fromCriteria(criteria), PageRequest.of(0, max))
+                    .getContent()
+                    .stream()
+                    .map(p -> toPosProduct(p, warehouseId, null, null))
+                    .toList();
             return PosSearchResultResponse.builder()
-                    .matchType(PosSearchMatchType.NONE)
-                    .products(List.of())
+                    .matchType(products.isEmpty() ? PosSearchMatchType.NONE : PosSearchMatchType.TEXT)
+                    .products(products)
                     .build();
         }
         String trimmed = query.trim();
@@ -183,13 +200,20 @@ public class PosCatalogService {
 
         List<PosProductResponse> products = results.stream()
                 .map(p -> toPosProduct(p, warehouseId, null, null))
-                .limit(50)
+                .limit(max)
                 .toList();
 
         return PosSearchResultResponse.builder()
                 .matchType(products.isEmpty() ? PosSearchMatchType.NONE : PosSearchMatchType.TEXT)
                 .products(products)
                 .build();
+    }
+
+    private static int resolveLimit(Integer limit) {
+        if (limit == null || limit <= 0) {
+            return 20;
+        }
+        return Math.min(limit, 50);
     }
 
     @Transactional(readOnly = true)

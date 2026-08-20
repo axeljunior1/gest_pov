@@ -22,8 +22,10 @@ class PosClientTest {
         try (FakeHttpServer server = new FakeHttpServer()) {
             PosClient client = client(server);
             assertTrue(client.context().get("session").isNull());
-            client.openSession(new BigDecimal("50"));
-            assertFalse(client.context().get("session").isNull());
+            client.openSession(new BigDecimal("50"), "CASHIER");
+            var ctx = client.context();
+            assertFalse(ctx.get("session").isNull());
+            assertEquals("CASHIER", ctx.get("session").get("sessionType").asText());
 
             List<PosProduct> found = client.search("Cahier");
             assertEquals(1, found.size());
@@ -45,6 +47,50 @@ class PosClientTest {
             Sale paid = client.validate(sale.id(), "CASH", sale.total(), new BigDecimal("20"));
             assertEquals("COMPLETED", paid.status());
             assertNotNull(client.ticket(paid.id()).get("saleNumber"));
+
+            var preview = client.closePreview();
+            assertEquals(1, preview.path("saleCount").asInt());
+        }
+    }
+
+    @Test
+    void sendToPaymentAndPending() throws Exception {
+        try (FakeHttpServer server = new FakeHttpServer()) {
+            PosClient client = client(server);
+            client.openSession(BigDecimal.ZERO, "SALES");
+            Sale sale = client.createSale();
+            var found = client.search("Cahier");
+            sale = client.addLine(sale.id(), found.get(0).id(), null, BigDecimal.ONE);
+            sale = client.sendToPayment(sale.id());
+            assertEquals("PENDING_PAYMENT", sale.status());
+            assertEquals(1, client.listPendingPayments().size());
+            client.recallFromPayment(sale.id());
+            assertEquals(0, client.listPendingPayments().size());
+        }
+    }
+
+    @Test
+    void removeLineAssignCustomerAndClose() throws Exception {
+        try (FakeHttpServer server = new FakeHttpServer()) {
+            PosClient client = client(server);
+            client.openSession(BigDecimal.ZERO);
+            Sale sale = client.createSale();
+            var found = client.search("Cahier");
+            sale = client.addLine(sale.id(), found.get(0).id(), null, new BigDecimal("1"));
+            long lineId = sale.lignes().get(0).id();
+            sale = client.removeLine(sale.id(), lineId);
+            assertTrue(sale.lignes().isEmpty());
+
+            sale = client.addLine(sale.id(), found.get(0).id(), null, BigDecimal.ONE);
+            var customers = client.searchCustomers("Marie");
+            assertFalse(customers.isEmpty());
+            sale = client.assignCustomer(sale.id(), customers.get(0).id());
+            assertEquals(customers.get(0).id(), sale.customerId());
+            sale = client.clearCustomer(sale.id());
+            assertTrue(sale.customerId() == null);
+
+            client.closeSession(BigDecimal.ZERO);
+            assertTrue(client.context().get("session").isNull());
         }
     }
 

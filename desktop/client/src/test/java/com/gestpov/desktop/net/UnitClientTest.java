@@ -8,6 +8,7 @@ import java.time.Duration;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class UnitClientTest {
@@ -35,6 +36,21 @@ class UnitClientTest {
             UnitClient client = new UnitClient(new ApiClient("127.0.0.1", server.port(), Duration.ofSeconds(2)));
             ApiException ex = assertThrows(ApiException.class, client::findAll);
             assertEquals(401, ex.statusCode());
+        }
+    }
+
+    @Test
+    void conversions() throws Exception {
+        try (FakeHttpServer server = new FakeHttpServer()) {
+            UnitClient client = client(server);
+            Unit kg = client.create("Kilogramme", "kg");
+            Unit g = client.create("Gramme", "g");
+            var conv = client.createConversion(kg.id(), g.id(), new java.math.BigDecimal("1000"));
+            assertNotNull(conv.id());
+            assertEquals(1, client.listConversions().size());
+            assertEquals(0, new java.math.BigDecimal("2").compareTo(client.convert(kg.id(), g.id(), new java.math.BigDecimal("2"))));
+            client.deleteConversion(conv.id());
+            assertEquals(0, client.listConversions().size());
         }
     }
 

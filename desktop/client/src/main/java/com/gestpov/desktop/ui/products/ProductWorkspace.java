@@ -1,9 +1,10 @@
 package com.gestpov.desktop.ui.products;
 
+import com.gestpov.desktop.ui.Reloadable;
 import com.gestpov.desktop.session.SessionContext;
 import javafx.scene.layout.StackPane;
 
-public final class ProductWorkspace extends StackPane {
+public final class ProductWorkspace extends StackPane implements Reloadable {
 
     private final SessionContext session;
     private final ProductsView listView;
@@ -20,6 +21,12 @@ public final class ProductWorkspace extends StackPane {
 
     private void openEdit(long id) {
         getChildren().setAll(new ProductFormView(session, id, this::backToList, this::openEdit));
+    }
+
+    @Override
+    public void reload() {
+        getChildren().setAll(listView);
+        listView.reload();
     }
 
     private void backToList() {

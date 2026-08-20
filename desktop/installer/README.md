@@ -1,5 +1,8 @@
-# Installateurs Windows (Phase 6 — pas encore)
+# Installateurs Windows (Phase H — pas encore)
 
-Phase 4 livre un **dossier offline** + scripts, pas un Setup.exe.
+Les packages livrés aujourd’hui sont des **dossiers offline** + scripts, pas un Setup.exe.
 
-Voir `desktop/docs/phase-4.md` et `desktop/scripts/build/build-offline-package.ps1`.
+- Serveur : `desktop/scripts/build/build-offline-package.ps1`
+- Client : `desktop/scripts/build/build-client-package.ps1`
+- Roadmap jpackage / WiX + stub : [`desktop/docs/phase-h.md`](../docs/phase-h.md), `desktop/scripts/build/build-exe-stub.ps1`
+- Phase 4 (dossier) : `desktop/docs/phase-4.md`

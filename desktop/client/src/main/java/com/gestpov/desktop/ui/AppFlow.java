@@ -177,28 +177,62 @@ public final class AppFlow {
                         + "\nVersion serveur " + server.version()
                         + " — " + server.compatibility()));
         status.setWrapText(true);
-        TextField email = new TextField("admin@erp.local");
+        status.setMaxWidth(480);
+
+        javafx.scene.control.ScrollPane statusScroll = new javafx.scene.control.ScrollPane(status);
+        statusScroll.setFitToWidth(true);
+        statusScroll.setMaxHeight(120);
+        statusScroll.setHbarPolicy(javafx.scene.control.ScrollPane.ScrollBarPolicy.NEVER);
+        statusScroll.setStyle("-fx-background-color: transparent; -fx-background: transparent;");
+
+        String remembered = config.lastLoginEmail() == null ? "" : config.lastLoginEmail().trim();
+        TextField email = new TextField(remembered);
+        email.setPromptText("email@exemple.local");
         PasswordField password = new PasswordField();
         Button login = new Button("Connexion");
         login.getStyleClass().add("button-primary");
         login.setOnAction(e -> doLogin(server, email.getText().trim(), password.getText(), status, login));
         password.setOnAction(e -> login.fire());
+        Button back = new Button("Changer de serveur");
+        back.getStyleClass().add("button-ghost");
+        back.setOnAction(e -> showDiscovery());
+
         UiTheme.apply(stage, box(
                 title("Connexion Gest POV"),
-                status,
+                statusScroll,
                 labeled("Email", email),
                 labeled("Mot de passe", password),
-                login
-        ), 560, 460);
+                login,
+                back
+        ), 560, 480);
+        Platform.runLater(() -> {
+            if (email.getText() == null || email.getText().isBlank()) {
+                email.requestFocus();
+            } else {
+                password.requestFocus();
+            }
+        });
     }
 
     private void doLogin(DiscoveredServer server, String email, String password, Label status, Button login) {
+        if (email == null || email.isBlank()) {
+            status.setText("Saisissez votre email.");
+            return;
+        }
         login.setDisable(true);
         status.setText("Connexion…");
         FxAsync.run(() -> {
             auth.login(email, password);
             return auth.me();
-        }, me -> showHome(server, me), error -> {
+        }, me -> {
+            try {
+                config = config.withLastLoginEmail(email);
+                store.save(config);
+            } catch (Exception ignored) {
+                // config locale optionnelle
+            }
+            showHome(server, me);
+        }, error -> {
             login.setDisable(false);
             if (error instanceof ApiException api) {
                 status.setText(ApiException.loginMessage(api));

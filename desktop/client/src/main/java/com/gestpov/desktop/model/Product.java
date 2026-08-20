@@ -32,6 +32,7 @@ public record Product(
         boolean hasVariants,
         Integer stockTotal,
         List<ProductImage> images,
+        List<ProductVariant> variantes,
         String createdAt,
         String updatedAt
 ) {
@@ -47,6 +48,16 @@ public record Product(
                 ProductImage image = ProductImage.fromJson(item);
                 if (image != null) {
                     images.add(image);
+                }
+            });
+        }
+        List<ProductVariant> variantes = new ArrayList<>();
+        JsonNode variantesNode = node.get("variantes");
+        if (variantesNode != null && variantesNode.isArray()) {
+            variantesNode.forEach(item -> {
+                ProductVariant variant = ProductVariant.fromJson(item);
+                if (variant != null) {
+                    variantes.add(variant);
                 }
             });
         }
@@ -70,9 +81,10 @@ public record Product(
                 textOrNull(node, "baseUnitSymbole"),
                 textOrNull(node, "statut"),
                 textOrNull(node, "cycleVie"),
-                node.path("hasVariants").asBoolean(false),
+                node.path("hasVariants").asBoolean(false) || !variantes.isEmpty(),
                 node.hasNonNull("stockTotal") ? node.get("stockTotal").asInt() : 0,
                 List.copyOf(images),
+                List.copyOf(variantes),
                 textOrNull(node, "createdAt"),
                 textOrNull(node, "updatedAt")
         );

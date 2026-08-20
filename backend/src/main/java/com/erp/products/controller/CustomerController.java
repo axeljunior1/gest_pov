@@ -27,8 +27,10 @@ public class CustomerController {
 
     @GetMapping("/search")
     @PreAuthorize("@permissionChecker.has(authentication, 'customer.read')")
-    public List<CustomerResponse> search(@RequestParam String q) {
-        return customerService.search(q);
+    public List<CustomerResponse> search(
+            @RequestParam(required = false, defaultValue = "") String q,
+            @RequestParam(required = false) Integer limit) {
+        return customerService.search(q, limit);
     }
 
     @GetMapping("/{id}")

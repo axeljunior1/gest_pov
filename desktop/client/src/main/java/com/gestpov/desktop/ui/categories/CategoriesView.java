@@ -1,5 +1,7 @@
 package com.gestpov.desktop.ui.categories;
 
+import com.gestpov.desktop.ui.Reloadable;
+
 import com.gestpov.desktop.model.Category;
 import com.gestpov.desktop.net.ApiException;
 import com.gestpov.desktop.net.CategoryClient;
@@ -35,7 +37,7 @@ import java.util.List;
  * Parité fonctionnelle Web /categories : arbre, recherche, CRUD, sous-catégorie.
  * Rattachement via PUT parentId (API existante ; le Web ne l'expose pas dans l'UI).
  */
-public final class CategoriesView extends StackPane {
+public final class CategoriesView extends StackPane implements Reloadable {
 
     private final SessionContext session;
     private final CategoryClient categories;
@@ -135,6 +137,7 @@ public final class CategoriesView extends StackPane {
         return new BorderPane(page);
     }
 
+    @Override
     public void reload() {
         errorBanner.hide();
         setBusy(true);

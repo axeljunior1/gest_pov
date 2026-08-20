@@ -1,6 +1,7 @@
 package com.gestpov.desktop.net;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.gestpov.desktop.model.Customer;
 import com.gestpov.desktop.model.PosProduct;
 import com.gestpov.desktop.model.Sale;
 
@@ -22,13 +23,78 @@ public class PosClient {
     }
 
     public void openSession(BigDecimal openingCash) throws ApiException {
+        openSession(openingCash, "CASHIER");
+    }
+
+    public void openSession(BigDecimal openingCash, String sessionType) throws ApiException {
         Map<String, Object> body = new LinkedHashMap<>();
-        body.put("openingCashAmount", openingCash == null ? BigDecimal.ZERO : openingCash);
+        String type = sessionType == null || sessionType.isBlank() ? "CASHIER" : sessionType.trim();
+        body.put("sessionType", type);
+        body.put("openingCashAmount",
+                "CASHIER".equals(type) ? (openingCash == null ? BigDecimal.ZERO : openingCash) : BigDecimal.ZERO);
         api.post("/api/pos/sessions/open", body);
     }
 
+    public JsonNode closePreview() throws ApiException {
+        return api.get("/api/pos/sessions/current/close-preview");
+    }
+
+    public JsonNode closeSession(BigDecimal closingCash) throws ApiException {
+        return closeSession(closingCash, true, null, null, null, null);
+    }
+
+    public JsonNode closeSession(BigDecimal closingCash,
+                                 boolean cancelPendingDrafts,
+                                 String differenceReason,
+                                 String differenceComment,
+                                 String managerEmail,
+                                 String managerPassword) throws ApiException {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("closingCashAmount", closingCash == null ? BigDecimal.ZERO : closingCash);
+        body.put("cancelPendingDrafts", cancelPendingDrafts);
+        if (differenceReason != null && !differenceReason.isBlank()) {
+            body.put("differenceReason", differenceReason.trim());
+        }
+        if (differenceComment != null && !differenceComment.isBlank()) {
+            body.put("differenceComment", differenceComment.trim());
+        }
+        if (managerEmail != null && !managerEmail.isBlank()) {
+            body.put("managerEmail", managerEmail.trim());
+        }
+        if (managerPassword != null && !managerPassword.isBlank()) {
+            body.put("managerPassword", managerPassword);
+        }
+        return api.post("/api/pos/sessions/close", body);
+    }
+
+    public List<JsonNode> listClosedSessions(int limit) throws ApiException {
+        return JsonLists.mapArray(api.get("/api/pos/sessions/closed", Map.of("limit", String.valueOf(limit))), n -> n);
+    }
+
+    public JsonNode sessionReport(long sessionId) throws ApiException {
+        return api.get("/api/pos/sessions/" + sessionId + "/report");
+    }
+
     public List<PosProduct> search(String q) throws ApiException {
-        return PosProduct.fromSearch(api.get("/api/pos/catalog/search", Map.of("q", q == null ? "" : q)));
+        return search(q, 20);
+    }
+
+    public List<PosProduct> search(String q, int limit) throws ApiException {
+        return PosProduct.fromSearch(api.get("/api/pos/catalog/search", Map.of(
+                "q", q == null ? "" : q,
+                "limit", String.valueOf(Math.max(1, Math.min(limit, 50)))
+        )));
+    }
+
+    public List<Customer> searchCustomers(String q) throws ApiException {
+        return searchCustomers(q, 20);
+    }
+
+    public List<Customer> searchCustomers(String q, int limit) throws ApiException {
+        return JsonLists.mapArray(api.get("/api/pos/customers/search", Map.of(
+                "q", q == null ? "" : q,
+                "limit", String.valueOf(Math.max(1, Math.min(limit, 50)))
+        )), Customer::fromJson);
     }
 
     public Sale createSale() throws ApiException {
@@ -39,11 +105,54 @@ public class PosClient {
         return Sale.fromJson(api.get("/api/pos/sales/" + id));
     }
 
+    public List<Sale> listCompletedSales(boolean sessionOnly, int limit) throws ApiException {
+        return JsonLists.mapArray(api.get("/api/pos/sales/completed", Map.of(
+                "sessionOnly", String.valueOf(sessionOnly),
+                "limit", String.valueOf(limit)
+        )), Sale::fromJson);
+    }
+
+    public List<Sale> listPendingPayments() throws ApiException {
+        return JsonLists.mapArray(api.get("/api/pos/sales/pending-payment"), Sale::fromJson);
+    }
+
+    public Sale sendToPayment(long saleId) throws ApiException {
+        return Sale.fromJson(api.post("/api/pos/sales/" + saleId + "/send-to-payment", Map.of()));
+    }
+
+    public Sale recallFromPayment(long saleId) throws ApiException {
+        return Sale.fromJson(api.post("/api/pos/sales/" + saleId + "/recall-from-payment", Map.of()));
+    }
+
+    public Sale holdSale(long saleId, String label) throws ApiException {
+        Map<String, Object> body = new LinkedHashMap<>();
+        if (label != null && !label.isBlank()) {
+            body.put("label", label.trim());
+        }
+        return Sale.fromJson(api.post("/api/pos/sales/" + saleId + "/hold", body));
+    }
+
+    public Sale resumeSale(long saleId) throws ApiException {
+        return Sale.fromJson(api.post("/api/pos/sales/" + saleId + "/resume", Map.of()));
+    }
+
+    public List<Sale> listHold() throws ApiException {
+        return JsonLists.mapArray(api.get("/api/pos/sales/hold"), Sale::fromJson);
+    }
+
     public Sale addLine(long saleId, long productId, Long variantId, BigDecimal quantity) throws ApiException {
+        return addLine(saleId, productId, variantId, null, quantity);
+    }
+
+    public Sale addLine(long saleId, long productId, Long variantId, Long packagingId, BigDecimal quantity)
+            throws ApiException {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("productId", productId);
         if (variantId != null) {
             body.put("variantId", variantId);
+        }
+        if (packagingId != null) {
+            body.put("packagingId", packagingId);
         }
         body.put("quantityInput", quantity);
         return Sale.fromJson(api.post("/api/pos/sales/" + saleId + "/lines", body));
@@ -53,17 +162,38 @@ public class PosClient {
         return Sale.fromJson(api.put("/api/pos/sales/" + saleId + "/lines/" + lineId, Map.of("quantity", quantity)));
     }
 
+    public Sale removeLine(long saleId, long lineId) throws ApiException {
+        return updateQty(saleId, lineId, BigDecimal.ZERO);
+    }
+
     public Sale lineDiscount(long saleId, long lineId, BigDecimal amount) throws ApiException {
         return Sale.fromJson(api.put("/api/pos/sales/" + saleId + "/lines/" + lineId + "/discount",
                 Map.of("discountAmount", amount)));
     }
 
+    public Sale assignCustomer(long saleId, long customerId) throws ApiException {
+        return Sale.fromJson(api.put("/api/pos/sales/" + saleId + "/customer", Map.of("customerId", customerId)));
+    }
+
+    public Sale clearCustomer(long saleId) throws ApiException {
+        return Sale.fromJson(api.delete("/api/pos/sales/" + saleId + "/customer"));
+    }
+
+    public Sale redeemLoyalty(long saleId, int points) throws ApiException {
+        return Sale.fromJson(api.post("/api/pos/sales/" + saleId + "/loyalty/redeem", Map.of("points", points)));
+    }
+
+    public Sale clearLoyalty(long saleId) throws ApiException {
+        return Sale.fromJson(api.delete("/api/pos/sales/" + saleId + "/loyalty/redeem"));
+    }
+
     public Sale validate(long saleId, String method, BigDecimal amount, BigDecimal cashReceived) throws ApiException {
-        Map<String, Object> payment = new LinkedHashMap<>();
-        payment.put("method", method);
-        payment.put("amount", amount);
+        return validate(saleId, List.of(Map.of("method", method, "amount", amount)), cashReceived);
+    }
+
+    public Sale validate(long saleId, List<Map<String, Object>> payments, BigDecimal cashReceived) throws ApiException {
         Map<String, Object> body = new LinkedHashMap<>();
-        body.put("payments", List.of(payment));
+        body.put("payments", payments);
         if (cashReceived != null) {
             body.put("cashReceived", cashReceived);
         }
@@ -72,5 +202,36 @@ public class PosClient {
 
     public JsonNode ticket(long saleId) throws ApiException {
         return api.get("/api/pos/sales/" + saleId + "/ticket");
+    }
+
+    public List<JsonNode> searchRefundable(String q, int limit) throws ApiException {
+        return JsonLists.mapArray(api.get("/api/pos/sales/refundable/search", Map.of(
+                "q", q == null ? "" : q,
+                "limit", String.valueOf(limit)
+        )), n -> n);
+    }
+
+    public JsonNode returnableSale(long saleId) throws ApiException {
+        return api.get("/api/pos/sales/" + saleId + "/returnable");
+    }
+
+    public JsonNode createReturn(long saleId, String reason, boolean returnToStock) throws ApiException {
+        Map<String, Object> body = new LinkedHashMap<>();
+        if (reason != null && !reason.isBlank()) {
+            body.put("reason", reason.trim());
+        }
+        body.put("returnToStock", returnToStock);
+        return api.post("/api/pos/sales/" + saleId + "/returns", body);
+    }
+
+    public JsonNode validateReturn(long returnId, String method, BigDecimal amount) throws ApiException {
+        Map<String, Object> payment = new LinkedHashMap<>();
+        payment.put("method", method);
+        payment.put("amount", amount);
+        return api.post("/api/pos/returns/" + returnId + "/validate", Map.of("payments", List.of(payment)));
+    }
+
+    public JsonNode returnReceipt(long returnId) throws ApiException {
+        return api.get("/api/pos/returns/" + returnId + "/receipt");
     }
 }

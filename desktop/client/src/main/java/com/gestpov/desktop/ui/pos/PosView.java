@@ -1,11 +1,16 @@
 package com.gestpov.desktop.ui.pos;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.gestpov.desktop.model.Customer;
 import com.gestpov.desktop.model.PosProduct;
 import com.gestpov.desktop.model.Sale;
 import com.gestpov.desktop.model.SaleLine;
 import com.gestpov.desktop.net.ApiException;
 import com.gestpov.desktop.net.PosClient;
 import com.gestpov.desktop.session.SessionContext;
+import com.gestpov.desktop.ui.Reloadable;
+import com.gestpov.desktop.ui.component.ConfirmationDialog;
+import com.gestpov.desktop.ui.component.EmptyState;
 import com.gestpov.desktop.ui.component.ErrorBanner;
 import com.gestpov.desktop.ui.component.LoadingOverlay;
 import com.gestpov.desktop.ui.products.ProductLabels;
@@ -22,6 +27,9 @@ import javafx.scene.control.ListView;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
 import javafx.scene.control.TextField;
+import javafx.scene.control.ToggleButton;
+import javafx.scene.control.ToggleGroup;
+import javafx.util.StringConverter;
 import javafx.scene.input.KeyCode;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
@@ -29,53 +37,191 @@ import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.List;
 
 /**
- * POS cœur : session, recherche produit, panier, quantités, remise, paiement, ticket.
+ * POS Desktop aligné web : mode vendeur encaisse OU caisse centrale (préparation + encaissement).
  */
-public final class PosView extends StackPane {
+public final class PosView extends StackPane implements Reloadable {
+
+    private static final String MODE_SELLER = "SELLER_COLLECTS_PAYMENT";
+    private static final String MODE_CENTRAL = "CENTRAL_CASHIER";
+    private static final String TYPE_CASHIER = "CASHIER";
+    private static final String TYPE_SALES = "SALES";
 
     private final SessionContext session;
     private final PosClient pos;
+    private final boolean canPrepare;
+    private final boolean canCollect;
+    private final boolean canOpenSession;
+    private final boolean canCloseSession;
+
     private final ErrorBanner error = new ErrorBanner();
     private final LoadingOverlay loading = new LoadingOverlay();
+
+    private final ToggleButton tabSales = new ToggleButton("Préparation ventes");
+    private final ToggleButton tabCashier = new ToggleButton("Encaissement");
+    private final HBox stationBar = new HBox(8);
+
+    private final Label modeBadge = new Label();
     private final TextField openingCash = new TextField("0");
-    private final Button openSession = new Button("Ouvrir la caisse");
-    private final VBox sessionBar = new VBox(8);
+    private final Button openSessionBtn = new Button("Ouvrir la session");
+    private final Button closeSessionBtn = new Button("Fermer la session");
+    private final VBox sessionOpenBar = new VBox(8);
+    private final HBox sessionActiveBar = new HBox(10);
+    private final Label activeLabel = new Label();
+    private final VBox wrongSessionBar = new VBox(8);
+
+    private final VBox salesWorkspace = new VBox(12);
+    private final VBox cashierWorkspace = new VBox(12);
+    private final StackPane body = new StackPane();
+
     private final TextField search = new TextField();
     private final ListView<PosProduct> results = new ListView<>();
     private final TableView<SaleLine> cart = new TableView<>();
     private final Label total = new Label("0,00 €");
+    private final Label changeLabel = new Label("");
+    private final Label customerLabel = new Label("Aucun client");
+    private final TextField customerSearch = new TextField();
+    private final ComboBox<Customer> customerCombo = new ComboBox<>();
+    private final TextField loyaltyPoints = new TextField();
+    private final Button redeemLoyaltyBtn = new Button("Points fidélité");
     private final TextField qty = new TextField("1");
     private final TextField discount = new TextField("0");
     private final ComboBox<String> payMethod = new ComboBox<>();
     private final TextField cashReceived = new TextField();
+    private final Button payBtn = new Button("Encaisser");
+    private final Button sendBtn = new Button("Envoyer à la caisse");
+    private final Button holdBtn = new Button("Mettre en attente");
+    private final Button resumeBtn = new Button("Reprendre attente");
+    private final HBox payRow = new HBox(10);
+    private final Label paySectionLabel = new Label();
+
+    private final ComboBox<String> pendingPayMethod = new ComboBox<>();
+    private final TextField pendingCashReceived = new TextField();
+    private final Label pendingChangeLabel = new Label("");
+    private final TableView<Sale> pendingTable = new TableView<>();
+    private final Label pendingHint = new Label();
+
     private Sale sale;
+    private String salesFlowMode = MODE_SELLER;
+    private String sessionType;
+    /** Poste actif : SALES ou CASHIER (en mode unifié = CASHIER). */
+    private String station = TYPE_CASHIER;
 
     public PosView(SessionContext session) {
         this.session = session;
         this.pos = new PosClient(session.api());
+        this.canPrepare = session.hasPermission("pos.sale.create")
+                || session.hasPermission("pos.sale.prepare")
+                || session.hasPermission("pos.sale.send_to_payment");
+        this.canCollect = session.hasPermission("pos.payment.collect")
+                || session.hasPermission("pos.sale.validate")
+                || session.hasPermission("pos.payment.validate");
+        this.canOpenSession = session.hasPermission("pos.session.open")
+                || canPrepare
+                || canCollect;
+        this.canCloseSession = session.hasPermission("pos.session.close")
+                || canPrepare
+                || canCollect;
         getChildren().addAll(build(), loading);
         boot();
     }
 
     private VBox build() {
-        Label title = new Label("Caisse");
+        Label title = new Label("Caisse POS");
         title.getStyleClass().addAll("page-title", "pos-title");
-        Label sub = new Label("F2 recherche · Entrée ajouter · Double-clic sur un résultat");
+        Label sub = new Label("F2 recherche · Entrée ajouter · Double-clic résultat");
         sub.getStyleClass().add("page-sub");
+
+        modeBadge.getStyleClass().add("page-sub");
+        modeBadge.setWrapText(true);
+
+        ToggleGroup stations = new ToggleGroup();
+        tabSales.setToggleGroup(stations);
+        tabCashier.setToggleGroup(stations);
+        tabSales.getStyleClass().add("button-secondary");
+        tabCashier.getStyleClass().add("button-secondary");
+        tabSales.setOnAction(e -> {
+            if (!tabSales.isSelected()) {
+                tabSales.setSelected(true);
+            }
+            switchStation(TYPE_SALES);
+        });
+        tabCashier.setOnAction(e -> {
+            if (!tabCashier.isSelected()) {
+                tabCashier.setSelected(true);
+            }
+            switchStation(TYPE_CASHIER);
+        });
+        stationBar.getChildren().addAll(tabSales, tabCashier);
+        stationBar.setAlignment(Pos.CENTER_LEFT);
 
         openingCash.getStyleClass().add("pos-input");
         openingCash.setPromptText("Fond de caisse");
-        openSession.getStyleClass().addAll("button-primary", "pos-action");
-        openSession.setOnAction(e -> open());
-        Label sessionLabel = new Label("Ouverture de caisse");
-        sessionLabel.getStyleClass().add("pos-section-label");
-        sessionBar.getChildren().add(new HBox(12, sessionLabel, openingCash, openSession));
-        sessionBar.getStyleClass().addAll("card", "pos-session-card");
+        openSessionBtn.getStyleClass().addAll("button-primary", "pos-action");
+        openSessionBtn.setOnAction(e -> open());
+        openSessionBtn.setDisable(!canOpenSession);
+        sessionOpenBar.getChildren().add(new HBox(12,
+                labelSection("Ouverture"), openingCash, openSessionBtn));
+        sessionOpenBar.getStyleClass().addAll("card", "pos-session-card");
         HBox.setHgrow(openingCash, Priority.ALWAYS);
 
+        closeSessionBtn.setText("Clôturer la session");
+        closeSessionBtn.getStyleClass().addAll("button-danger", "pos-action");
+        closeSessionBtn.setOnAction(e -> close());
+        closeSessionBtn.setVisible(canCloseSession);
+        closeSessionBtn.setManaged(canCloseSession);
+        closeSessionBtn.setMinWidth(160);
+        activeLabel.getStyleClass().add("pos-section-label");
+        sessionActiveBar.getChildren().addAll(activeLabel, closeSessionBtn);
+        sessionActiveBar.setAlignment(Pos.CENTER_LEFT);
+        sessionActiveBar.getStyleClass().addAll("card", "pos-session-card");
+        sessionActiveBar.setVisible(false);
+        sessionActiveBar.setManaged(false);
+
+        Label wrongTitle = new Label("Session incompatible avec ce poste");
+        wrongTitle.getStyleClass().add("pos-section-label");
+        Label wrongHint = new Label("Fermez la session ouverte, ou basculez de poste.");
+        wrongHint.getStyleClass().add("page-sub");
+        wrongHint.setWrapText(true);
+        Button closeWrong = new Button("Fermer la session actuelle");
+        closeWrong.getStyleClass().addAll("button-danger", "pos-action");
+        closeWrong.setOnAction(e -> close());
+        wrongSessionBar.getChildren().addAll(wrongTitle, wrongHint, closeWrong);
+        wrongSessionBar.getStyleClass().addAll("card", "pos-session-card");
+        wrongSessionBar.setVisible(false);
+        wrongSessionBar.setManaged(false);
+
+        buildSalesWorkspace();
+        buildCashierWorkspace();
+        body.getChildren().addAll(salesWorkspace, cashierWorkspace);
+
+        VBox page = new VBox(14, title, sub, modeBadge, stationBar, error,
+                sessionOpenBar, sessionActiveBar, wrongSessionBar, body);
+        page.getStyleClass().addAll("content", "pos-page");
+        VBox.setVgrow(body, Priority.ALWAYS);
+        page.setPadding(new Insets(0));
+
+        setOnKeyPressed(e -> {
+            if (e.getCode() == KeyCode.F2 && salesWorkspace.isVisible()) {
+                search.requestFocus();
+            }
+        });
+
+        javafx.scene.control.ScrollPane scroll = new javafx.scene.control.ScrollPane(page);
+        scroll.setFitToWidth(true);
+        scroll.setHbarPolicy(javafx.scene.control.ScrollPane.ScrollBarPolicy.NEVER);
+        scroll.setVbarPolicy(javafx.scene.control.ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        scroll.getStyleClass().add("page-scroll");
+        scroll.setStyle("-fx-background-color: transparent; -fx-background: transparent;");
+        VBox wrap = new VBox(scroll);
+        VBox.setVgrow(scroll, Priority.ALWAYS);
+        return wrap;
+    }
+
+    private void buildSalesWorkspace() {
         search.getStyleClass().add("pos-search");
         search.setPromptText("Nom, SKU ou code-barres…");
         search.setOnKeyPressed(e -> {
@@ -90,20 +236,20 @@ public final class PosView extends StackPane {
         HBox.setHgrow(search, Priority.ALWAYS);
 
         results.getStyleClass().add("pos-results");
-        results.setPrefHeight(280);
+        results.setPrefHeight(220);
         results.setCellFactory(lv -> new ListCell<>() {
             @Override
             protected void updateItem(PosProduct item, boolean empty) {
                 super.updateItem(item, empty);
                 if (empty || item == null) {
                     setText(null);
-                    setGraphic(null);
                     return;
                 }
                 String price = ProductLabels.price(item.unitPrice());
                 String sku = item.sku() == null || item.sku().isBlank() ? "" : " · " + item.sku();
-                setText(item.nom() + sku + "  —  " + price);
-                getStyleClass().setAll("pos-result-cell");
+                String stock = item.stockAvailable() == null ? ""
+                        : " · stock " + item.stockAvailable().stripTrailingZeros().toPlainString();
+                setText(item.nom() + sku + stock + "  —  " + price);
             }
         });
         results.setOnMouseClicked(e -> {
@@ -114,43 +260,956 @@ public final class PosView extends StackPane {
 
         qty.getStyleClass().add("pos-qty");
         qty.setPrefWidth(80);
-        Button add = new Button("+ Ajouter");
-        add.getStyleClass().addAll("button-primary", "pos-action");
-        add.setOnAction(e -> addSelected());
-        Label qtyLabel = new Label("Qté");
-        qtyLabel.getStyleClass().add("pos-section-label");
-        HBox addBar = new HBox(10, qtyLabel, qty, add);
-        addBar.setAlignment(Pos.CENTER_LEFT);
+        discount.getStyleClass().add("pos-input");
+        discount.setPrefWidth(90);
 
-        Label searchSection = new Label("Recherche produit");
-        searchSection.getStyleClass().add("pos-section-label");
-        VBox searchCard = new VBox(12, searchSection, searchBar, results, addBar);
-        searchCard.getStyleClass().addAll("card", "pos-panel");
-        VBox.setVgrow(results, Priority.ALWAYS);
-
-        cart.getStyleClass().add("pos-cart");
-        cart.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
-        cart.getColumns().add(col("Produit", l -> l.productNom() == null ? "" : l.productNom()));
-        cart.getColumns().add(col("Qté", l -> l.quantityInput() == null ? "" : l.quantityInput().toPlainString()));
-        cart.getColumns().add(col("Prix", l -> ProductLabels.price(l.unitPrice())));
-        cart.getColumns().add(col("Total", l -> ProductLabels.price(l.lineTotal())));
-        cart.setItems(FXCollections.observableArrayList());
-        VBox.setVgrow(cart, Priority.ALWAYS);
-
-        Button setQty = new Button("Modifier qté");
+        Button setQty = new Button("Qté");
         setQty.getStyleClass().addAll("button-secondary", "pos-action-sm");
         setQty.setOnAction(e -> changeQty());
-        discount.getStyleClass().add("pos-qty");
-        discount.setPrefWidth(100);
+        Button removeLine = new Button("Retirer");
+        removeLine.getStyleClass().addAll("button-ghost", "pos-action-sm");
+        removeLine.setOnAction(e -> removeSelectedLine());
         Button applyDisc = new Button("Remise");
         applyDisc.getStyleClass().addAll("button-secondary", "pos-action-sm");
         applyDisc.setOnAction(e -> applyDiscount());
         applyDisc.setVisible(session.hasPermission("pos.sale.discount"));
-        applyDisc.setManaged(session.hasPermission("pos.sale.discount"));
+        applyDisc.setManaged(applyDisc.isVisible());
 
-        payMethod.getStyleClass().add("pos-input");
+        cart.getStyleClass().add("pos-cart");
+        cart.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
+        cart.getColumns().addAll(
+                col("Produit", SaleLine::productNom),
+                col("Qté", l -> l.quantityInput() == null ? "" : l.quantityInput().stripTrailingZeros().toPlainString()),
+                col("Prix", l -> ProductLabels.price(l.unitPrice())),
+                col("Total", l -> ProductLabels.price(l.lineTotal()))
+        );
+        cart.setPlaceholder(new EmptyState("Panier vide"));
+        cart.setItems(FXCollections.observableArrayList());
+
+        customerSearch.setPromptText("Client…");
+        customerSearch.setOnAction(e -> searchCustomers());
+        customerCombo.setConverter(new StringConverter<>() {
+            @Override
+            public String toString(Customer c) {
+                return c == null ? "" : c.displayLabel();
+            }
+
+            @Override
+            public Customer fromString(String s) {
+                return null;
+            }
+        });
+        customerCombo.setCellFactory(cb -> new ListCell<>() {
+            @Override
+            protected void updateItem(Customer item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty || item == null ? null : item.displayLabel());
+            }
+        });
+        customerCombo.setButtonCell(new ListCell<>() {
+            @Override
+            protected void updateItem(Customer item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty || item == null ? null : item.displayLabel());
+            }
+        });
+        Button findCustomer = new Button("Chercher");
+        findCustomer.getStyleClass().addAll("button-secondary", "pos-action-sm");
+        findCustomer.setOnAction(e -> searchCustomers());
+        Button attachCustomer = new Button("Associer");
+        attachCustomer.getStyleClass().addAll("button-primary", "pos-action-sm");
+        attachCustomer.setOnAction(e -> attachCustomer());
+        Button clearCustomer = new Button("×");
+        clearCustomer.setTooltip(new javafx.scene.control.Tooltip("Retirer le client"));
+        clearCustomer.getStyleClass().addAll("button-ghost", "pos-action-sm");
+        clearCustomer.setOnAction(e -> detachCustomer());
+        Button browseCustomers = new Button("…");
+        browseCustomers.setTooltip(new javafx.scene.control.Tooltip("Afficher les premiers clients"));
+        browseCustomers.getStyleClass().addAll("button-secondary", "pos-action-sm");
+        browseCustomers.setOnAction(e -> {
+            customerSearch.clear();
+            searchCustomers();
+        });
+        loyaltyPoints.setPromptText("Points à utiliser");
+        loyaltyPoints.setPrefWidth(100);
+        redeemLoyaltyBtn.getStyleClass().addAll("button-secondary", "pos-action-sm");
+        redeemLoyaltyBtn.setOnAction(e -> redeemLoyalty());
+        redeemLoyaltyBtn.setVisible(session.hasPermission("loyalty.redeem"));
+        redeemLoyaltyBtn.setManaged(redeemLoyaltyBtn.isVisible());
+        loyaltyPoints.setVisible(redeemLoyaltyBtn.isVisible());
+        loyaltyPoints.setManaged(redeemLoyaltyBtn.isVisible());
+        boolean canCustomer = session.hasPermission("customer.read");
+        HBox customerRow = new HBox(8, customerSearch, findCustomer, customerCombo, attachCustomer, clearCustomer,
+                browseCustomers, loyaltyPoints, redeemLoyaltyBtn);
+        customerRow.setAlignment(Pos.CENTER_LEFT);
+        HBox.setHgrow(customerCombo, Priority.ALWAYS);
+        VBox customerBox = new VBox(6, customerLabel, customerRow);
+        customerBox.setVisible(canCustomer);
+        customerBox.setManaged(canCustomer);
+
         payMethod.getItems().addAll("CASH", "CARD", "MOBILE_MONEY");
-        payMethod.setConverter(new javafx.util.StringConverter<>() {
+        payMethod.setConverter(methodConverter());
+        payMethod.getSelectionModel().select("CASH");
+        payMethod.valueProperty().addListener((o, a, b) -> updateChange());
+        cashReceived.setPromptText("Reçu client");
+        cashReceived.textProperty().addListener((o, a, b) -> updateChange());
+        changeLabel.getStyleClass().add("pos-change");
+
+        payBtn.getStyleClass().addAll("button-pay", "pos-pay-btn");
+        payBtn.setOnAction(e -> pay());
+        sendBtn.getStyleClass().addAll("button-primary", "pos-pay-btn");
+        sendBtn.setOnAction(e -> sendToCash());
+        holdBtn.getStyleClass().addAll("button-secondary", "pos-action");
+        holdBtn.setOnAction(e -> holdCurrent());
+        resumeBtn.getStyleClass().addAll("button-secondary", "pos-action");
+        resumeBtn.setOnAction(e -> resumeHold());
+        Button ticket = new Button("Ticket");
+        ticket.getStyleClass().addAll("button-secondary", "pos-action-sm");
+        ticket.setOnAction(e -> showTicket());
+
+        Label totalCaption = new Label("TOTAL");
+        totalCaption.getStyleClass().add("pos-total-caption");
+        total.getStyleClass().add("pos-total-amount");
+        HBox totalBar = new HBox(16, totalCaption, total);
+        totalBar.getStyleClass().add("pos-total-bar");
+
+        paySectionLabel.getStyleClass().add("pos-section-label");
+        payRow.setAlignment(Pos.CENTER_LEFT);
+        payRow.setSpacing(10);
+        payRow.getChildren().addAll(payMethod, cashReceived, payBtn, sendBtn, holdBtn, resumeBtn, ticket);
+        HBox.setHgrow(cashReceived, Priority.ALWAYS);
+
+        HBox lineActions = new HBox(10, qty, setQty, removeLine, discount, applyDisc);
+        lineActions.setAlignment(Pos.CENTER_LEFT);
+
+        VBox searchCard = new VBox(10, labelSection("Catalogue"), searchBar, results);
+        searchCard.getStyleClass().addAll("card", "pos-panel");
+        VBox.setVgrow(results, Priority.ALWAYS);
+
+        VBox cartCard = new VBox(12, labelSection("Panier"), cart, lineActions, customerBox,
+                totalBar, paySectionLabel, payRow, changeLabel);
+        cartCard.getStyleClass().addAll("card", "pos-panel", "pos-cart-panel");
+        VBox.setVgrow(cart, Priority.ALWAYS);
+
+        HBox workspace = new HBox(16, searchCard, cartCard);
+        HBox.setHgrow(searchCard, Priority.ALWAYS);
+        HBox.setHgrow(cartCard, Priority.ALWAYS);
+        salesWorkspace.getChildren().setAll(workspace);
+        VBox.setVgrow(workspace, Priority.ALWAYS);
+    }
+
+    private void buildCashierWorkspace() {
+        pendingHint.getStyleClass().add("page-sub");
+        pendingHint.setWrapText(true);
+        pendingHint.setText("Ventes envoyées par les vendeurs — sélectionnez puis encaissez.");
+
+        pendingTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
+        pendingTable.getColumns().addAll(
+                saleCol("N°", Sale::saleNumber),
+                saleCol("Vendeur", s -> s.sellerName() == null ? "—" : s.sellerName()),
+                saleCol("Client", s -> s.customerName() == null ? "—" : s.customerName()),
+                saleCol("Total", s -> ProductLabels.price(s.total() == null ? BigDecimal.ZERO : s.total()))
+        );
+        pendingTable.setPlaceholder(new EmptyState("Aucune vente en attente de paiement"));
+        pendingTable.setPrefHeight(280);
+
+        Button refresh = new Button("Actualiser");
+        refresh.getStyleClass().addAll("button-secondary", "pos-action");
+        refresh.setOnAction(e -> reloadPending());
+
+        Button encaisse = new Button("Encaisser la sélection");
+        encaisse.getStyleClass().addAll("button-pay", "pos-pay-btn");
+        encaisse.setOnAction(e -> payPendingSelected());
+
+        Button recall = new Button("Retour vendeur");
+        recall.getStyleClass().addAll("button-ghost", "pos-action");
+        recall.setOnAction(e -> recallPendingSelected());
+
+        pendingPayMethod.getItems().addAll("CASH", "CARD", "MOBILE_MONEY");
+        pendingPayMethod.setConverter(methodConverter());
+        pendingPayMethod.getSelectionModel().select("CASH");
+        pendingPayMethod.valueProperty().addListener((o, a, b) -> updatePendingChange());
+        pendingCashReceived.setPromptText("Reçu client");
+        pendingCashReceived.textProperty().addListener((o, a, b) -> updatePendingChange());
+        pendingChangeLabel.getStyleClass().add("pos-change");
+
+        HBox actions = new HBox(10, refresh, encaisse, recall);
+        actions.setAlignment(Pos.CENTER_LEFT);
+        HBox payPendingRow = new HBox(10, pendingPayMethod, pendingCashReceived);
+        payPendingRow.setAlignment(Pos.CENTER_LEFT);
+        HBox.setHgrow(pendingCashReceived, Priority.ALWAYS);
+
+        cashierWorkspace.getChildren().setAll(pendingHint, pendingTable, actions,
+                labelSection("Paiement (après sélection → Encaisser)"),
+                payPendingRow, pendingChangeLabel);
+        VBox.setVgrow(pendingTable, Priority.ALWAYS);
+        cashierWorkspace.getStyleClass().addAll("card", "pos-panel");
+        cashierWorkspace.setPadding(new Insets(12));
+    }
+
+    @Override
+    public void reload() {
+        loadCatalogPreview();
+        if (sessionMatchesStation() && TYPE_CASHIER.equals(requiredType()) && canCollect && isCentral()) {
+            reloadPending();
+        }
+        FxAsync.run(pos::context, ctx -> applyContext(ctx, false), this::fail);
+    }
+
+    private void boot() {
+        loading.setLoading(true);
+        FxAsync.run(pos::context, ctx -> {
+            loading.setLoading(false);
+            applyContext(ctx, true);
+        }, this::fail);
+    }
+
+    private void applyContext(JsonNode ctx, boolean initStation) {
+        salesFlowMode = readSalesFlowMode(ctx);
+        boolean hasSession = ctx != null && ctx.hasNonNull("session") && !ctx.get("session").isNull();
+        sessionType = hasSession ? textOrNull(ctx.get("session"), "sessionType") : null;
+
+        if (initStation) {
+            station = defaultStation();
+        }
+        syncStationTabs();
+        refreshChrome();
+        if (sessionMatchesStation() && TYPE_SALES.equals(requiredType()) && canPrepare) {
+            ensureSale();
+            loadCatalogPreview();
+        }
+        if (sessionMatchesStation() && TYPE_CASHIER.equals(requiredType()) && canCollect && isCentral()) {
+            reloadPending();
+        }
+        if (sessionMatchesStation() && TYPE_CASHIER.equals(requiredType()) && !isCentral() && canPrepare) {
+            ensureSale();
+            loadCatalogPreview();
+        }
+    }
+
+    private String defaultStation() {
+        if (!isCentral()) {
+            return TYPE_CASHIER;
+        }
+        if (canPrepare && !canCollect) {
+            return TYPE_SALES;
+        }
+        if (canCollect && !canPrepare) {
+            return TYPE_CASHIER;
+        }
+        if (TYPE_CASHIER.equals(sessionType)) {
+            return TYPE_CASHIER;
+        }
+        return TYPE_SALES;
+    }
+
+    private void switchStation(String next) {
+        station = next;
+        syncStationTabs();
+        refreshChrome();
+        if (sessionMatchesStation() && TYPE_SALES.equals(requiredType())) {
+            ensureSale();
+            loadCatalogPreview();
+        }
+        if (sessionMatchesStation() && TYPE_CASHIER.equals(requiredType()) && isCentral()) {
+            reloadPending();
+        }
+    }
+
+    private void syncStationTabs() {
+        boolean dual = isCentral() && canPrepare && canCollect;
+        stationBar.setVisible(dual);
+        stationBar.setManaged(dual);
+        tabSales.setSelected(TYPE_SALES.equals(station));
+        tabCashier.setSelected(TYPE_CASHIER.equals(station));
+        if (isCentral() && canPrepare && !canCollect) {
+            station = TYPE_SALES;
+        }
+        if (isCentral() && canCollect && !canPrepare) {
+            station = TYPE_CASHIER;
+        }
+        if (!isCentral()) {
+            station = TYPE_CASHIER;
+        }
+    }
+
+    private void refreshChrome() {
+        boolean central = isCentral();
+        modeBadge.setText(central
+                ? "Mode caisse centrale — le vendeur prépare, le caissier encaisse."
+                : "Mode vendeur encaisse — vente et paiement sur le même poste.");
+
+        String required = requiredType();
+        boolean open = sessionType != null;
+        boolean match = sessionMatchesStation();
+        boolean wrong = open && !match;
+
+        sessionOpenBar.setVisible(!open);
+        sessionOpenBar.setManaged(!open);
+        sessionActiveBar.setVisible(open && match);
+        sessionActiveBar.setManaged(open && match);
+        wrongSessionBar.setVisible(wrong);
+        wrongSessionBar.setManaged(wrong);
+
+        openingCash.setVisible(TYPE_CASHIER.equals(required));
+        openingCash.setManaged(TYPE_CASHIER.equals(required));
+        openSessionBtn.setText(TYPE_SALES.equals(required) ? "Ouvrir session vente" : "Ouvrir session caisse");
+
+        if (TYPE_SALES.equals(sessionType)) {
+            activeLabel.setText("Session vente ouverte");
+        } else if (TYPE_CASHIER.equals(sessionType)) {
+            activeLabel.setText("Session caisse ouverte");
+        } else {
+            activeLabel.setText("Session ouverte");
+        }
+
+        boolean showSalesUi = open && match && (TYPE_SALES.equals(required) || !central);
+        boolean showCashierPending = open && match && central && TYPE_CASHIER.equals(required);
+
+        salesWorkspace.setVisible(showSalesUi && !wrong);
+        salesWorkspace.setManaged(showSalesUi && !wrong);
+        cashierWorkspace.setVisible(showCashierPending && !wrong);
+        cashierWorkspace.setManaged(showCashierPending && !wrong);
+
+        // Unified seller-collects: sales workspace with pay button
+        boolean showPay = !central && canCollect;
+        boolean showSend = central && canPrepare && TYPE_SALES.equals(required);
+        boolean showHold = canPrepare && (showPay || showSend);
+        payBtn.setVisible(showPay);
+        payBtn.setManaged(showPay);
+        sendBtn.setVisible(showSend);
+        sendBtn.setManaged(showSend);
+        holdBtn.setVisible(showHold);
+        holdBtn.setManaged(showHold);
+        resumeBtn.setVisible(showHold);
+        resumeBtn.setManaged(showHold);
+        payMethod.setVisible(showPay);
+        payMethod.setManaged(showPay);
+        cashReceived.setVisible(showPay);
+        cashReceived.setManaged(showPay);
+        paySectionLabel.setText(showSend ? "Envoi caisse / attente" : "Paiement / attente");
+        paySectionLabel.setVisible(showPay || showSend || showHold);
+        paySectionLabel.setManaged(showPay || showSend || showHold);
+    }
+
+    private String requiredType() {
+        if (!isCentral()) {
+            return TYPE_CASHIER;
+        }
+        return TYPE_SALES.equals(station) ? TYPE_SALES : TYPE_CASHIER;
+    }
+
+    private boolean sessionMatchesStation() {
+        return sessionType != null && sessionType.equals(requiredType());
+    }
+
+    private boolean isCentral() {
+        return MODE_CENTRAL.equals(salesFlowMode);
+    }
+
+    private void open() {
+        String type = requiredType();
+        BigDecimal cash = BigDecimal.ZERO;
+        if (TYPE_CASHIER.equals(type)) {
+            try {
+                cash = parseDecimal(openingCash.getText(), BigDecimal.ZERO);
+            } catch (NumberFormatException e) {
+                error.show("Fond de caisse invalide.");
+                return;
+            }
+        }
+        loading.setLoading(true);
+        BigDecimal opening = cash;
+        String openType = type;
+        FxAsync.runVoid(() -> pos.openSession(opening, openType), () -> {
+            sessionType = openType;
+            refreshChrome();
+            if (TYPE_SALES.equals(openType) || !isCentral()) {
+                ensureSale();
+                loadCatalogPreview();
+            } else {
+                loading.setLoading(false);
+            }
+            if (TYPE_CASHIER.equals(openType) && isCentral()) {
+                reloadPending();
+            }
+        }, this::fail);
+    }
+
+    private void close() {
+        if (TYPE_CASHIER.equals(sessionType)) {
+            javafx.stage.Window owner = getScene() == null ? null : getScene().getWindow();
+            PosCloseSessionDialog.show(owner, pos, report -> afterClosed(), this::fail);
+            return;
+        }
+        if (!ConfirmationDialog.confirm(getScene() == null ? null : getScene().getWindow(),
+                "Fermer la session vente",
+                "Clôturer la session vendeur ? Les brouillons seront annulés.")) {
+            return;
+        }
+        loading.setLoading(true);
+        FxAsync.run(() -> pos.closeSession(BigDecimal.ZERO, true, null, null, null, null), report -> {
+            loading.setLoading(false);
+            afterClosed();
+            int count = report == null ? 0 : report.path("saleCount").asInt(0);
+            error.hide();
+            javafx.scene.control.Alert done = new javafx.scene.control.Alert(
+                    javafx.scene.control.Alert.AlertType.INFORMATION,
+                    "Session vente fermée — " + count + " vente(s).");
+            done.setHeaderText("Clôture");
+            done.showAndWait();
+        }, this::fail);
+    }
+
+    private void afterClosed() {
+        sale = null;
+        sessionType = null;
+        cart.getItems().clear();
+        pendingTable.getItems().clear();
+        total.setText(ProductLabels.price(BigDecimal.ZERO));
+        refreshChrome();
+    }
+
+    private void ensureSale() {
+        if (!canPrepare) {
+            return;
+        }
+        loading.setLoading(true);
+        FxAsync.run(pos::createSale, this::showSale, this::fail);
+    }
+
+    private void sendToCash() {
+        if (sale == null || sale.lignes() == null || sale.lignes().isEmpty()) {
+            error.show("Le panier est vide.");
+            return;
+        }
+        loading.setLoading(true);
+        FxAsync.run(() -> pos.sendToPayment(sale.id()), sent -> {
+            loading.setLoading(false);
+            error.hide();
+            javafx.scene.control.Alert done = new javafx.scene.control.Alert(
+                    javafx.scene.control.Alert.AlertType.INFORMATION,
+                    "Vente " + (sent.saleNumber() == null ? "" : sent.saleNumber())
+                            + " envoyée à la caisse.");
+            done.setHeaderText("Envoi caisse");
+            done.showAndWait();
+            ensureSale();
+        }, this::fail);
+    }
+
+    private void holdCurrent() {
+        if (sale == null || sale.lignes() == null || sale.lignes().isEmpty()) {
+            error.show("Le panier est vide — rien à mettre en attente.");
+            return;
+        }
+        loading.setLoading(true);
+        FxAsync.run(() -> pos.holdSale(sale.id(), "Pause client"), held -> {
+            loading.setLoading(false);
+            error.hide();
+            javafx.scene.control.Alert done = new javafx.scene.control.Alert(
+                    javafx.scene.control.Alert.AlertType.INFORMATION,
+                    "Vente " + (held.saleNumber() == null ? "" : held.saleNumber())
+                            + " mise en attente.");
+            done.setHeaderText("En attente");
+            done.showAndWait();
+            ensureSale();
+        }, this::fail);
+    }
+
+    private void resumeHold() {
+        loading.setLoading(true);
+        FxAsync.run(pos::listHold, list -> {
+            loading.setLoading(false);
+            if (list.isEmpty()) {
+                error.show("Aucune vente en attente.");
+                return;
+            }
+            ListView<Sale> lv = new ListView<>();
+            lv.getItems().setAll(list);
+            lv.setCellFactory(v -> new ListCell<>() {
+                @Override
+                protected void updateItem(Sale item, boolean empty) {
+                    super.updateItem(item, empty);
+                    if (empty || item == null) {
+                        setText(null);
+                    } else {
+                        setText((item.saleNumber() == null ? "#" + item.id() : item.saleNumber())
+                                + " — " + ProductLabels.price(item.total() == null ? BigDecimal.ZERO : item.total())
+                                + (item.customerName() == null ? "" : " · " + item.customerName()));
+                    }
+                }
+            });
+            lv.setPrefHeight(220);
+            lv.getSelectionModel().selectFirst();
+            javafx.scene.control.Dialog<Sale> dialog = new javafx.scene.control.Dialog<>();
+            dialog.setTitle("Reprendre une vente");
+            dialog.setHeaderText("Ventes en attente");
+            dialog.getDialogPane().setContent(lv);
+            dialog.getDialogPane().getButtonTypes().addAll(
+                    javafx.scene.control.ButtonType.CANCEL, javafx.scene.control.ButtonType.OK);
+            dialog.setResultConverter(btn -> {
+                if (btn == javafx.scene.control.ButtonType.OK) {
+                    return lv.getSelectionModel().getSelectedItem();
+                }
+                return null;
+            });
+            dialog.showAndWait().ifPresent(selected -> {
+                if (selected == null || selected.id() == null) {
+                    return;
+                }
+                loading.setLoading(true);
+                FxAsync.run(() -> pos.resumeSale(selected.id()), this::showSale, this::fail);
+            });
+        }, this::fail);
+    }
+
+    private void reloadPending() {
+        if (!canCollect) {
+            return;
+        }
+        pendingHint.setText("Chargement des ventes en attente…");
+        loading.setLoading(true);
+        FxAsync.run(pos::listPendingPayments, list -> {
+            loading.setLoading(false);
+            error.hide();
+            pendingTable.getItems().setAll(list);
+            pendingHint.setText(list.size() + " vente(s) en attente de paiement.");
+        }, t -> {
+            loading.setLoading(false);
+            pendingHint.setText("Échec du chargement — voir le message d'erreur.");
+            fail(t);
+        });
+    }
+
+    private void loadCatalogPreview() {
+        if (!canPrepare) {
+            return;
+        }
+        String q = search.getText() == null ? "" : search.getText().trim();
+        if (!q.isEmpty()) {
+            return;
+        }
+        FxAsync.run(() -> pos.search("", 20), list -> results.getItems().setAll(list), ignored -> {
+        });
+    }
+
+    private void searchNow() {
+        String q = search.getText() == null ? "" : search.getText().trim();
+        loading.setLoading(true);
+        FxAsync.run(() -> pos.search(q, 20), list -> {
+            loading.setLoading(false);
+            error.hide();
+            results.getItems().setAll(list);
+            if (list.isEmpty()) {
+                error.show(q.isEmpty()
+                        ? "Aucun produit à afficher."
+                        : "Aucun résultat pour « " + q + " ».");
+            } else if (list.size() == 1 && !q.isEmpty()) {
+                results.getSelectionModel().select(0);
+                addSelected();
+            }
+        }, this::fail);
+    }
+
+    private void payPendingSelected() {
+        Sale selected = pendingTable.getSelectionModel().getSelectedItem();
+        if (selected == null) {
+            error.show("Sélectionnez une vente à encaisser.");
+            return;
+        }
+        loading.setLoading(true);
+        FxAsync.run(() -> pos.getSale(selected.id()), full -> {
+            loading.setLoading(false);
+            sale = full;
+            if (full.total() != null && (pendingCashReceived.getText() == null || pendingCashReceived.getText().isBlank())) {
+                pendingCashReceived.setText(full.total().toPlainString());
+            }
+            updatePendingChange();
+            payWith(pendingPayMethod.getValue(), pendingCashReceived.getText(), true);
+        }, this::fail);
+    }
+
+    private void recallPendingSelected() {
+        Sale selected = pendingTable.getSelectionModel().getSelectedItem();
+        if (selected == null || selected.id() == null) {
+            error.show("Sélectionnez une vente.");
+            return;
+        }
+        if (!ConfirmationDialog.confirm(getScene() == null ? null : getScene().getWindow(),
+                "Retour vendeur",
+                "Renvoyer cette vente au poste vendeur ?")) {
+            return;
+        }
+        loading.setLoading(true);
+        FxAsync.run(() -> pos.recallFromPayment(selected.id()), ignored -> {
+            loading.setLoading(false);
+            reloadPending();
+        }, this::fail);
+    }
+
+    private void addSelected() {
+        PosProduct product = results.getSelectionModel().getSelectedItem();
+        if (product == null || sale == null) {
+            if (sale == null) {
+                error.show("Ouvrez la session avant d'ajouter un produit.");
+            }
+            return;
+        }
+        BigDecimal quantity;
+        try {
+            quantity = parseDecimal(qty.getText(), BigDecimal.ONE);
+            if (quantity.compareTo(BigDecimal.ZERO) <= 0) {
+                error.show("Quantité invalide.");
+                return;
+            }
+        } catch (NumberFormatException e) {
+            error.show("Quantité invalide.");
+            return;
+        }
+        Long variantId = product.matchedVariantId();
+        Long packagingId = product.matchedPackagingId();
+        if (product.needsVariantPick()) {
+            javafx.scene.control.ChoiceDialog<PosProduct.PosVariant> dlg =
+                    new javafx.scene.control.ChoiceDialog<>(product.variants().get(0), product.variants());
+            dlg.setTitle("Variante");
+            dlg.setHeaderText(product.nom());
+            dlg.setContentText("Choisir la variante :");
+            var picked = dlg.showAndWait();
+            if (picked.isEmpty()) {
+                return;
+            }
+            variantId = picked.get().id();
+            if (picked.get().packagings() != null && picked.get().packagings().size() > 1) {
+                packagingId = pickPackaging(picked.get().packagings());
+                if (packagingId == null && picked.get().packagings().size() > 1) {
+                    return;
+                }
+            }
+        } else if (product.needsPackagingPick()) {
+            packagingId = pickPackaging(product.packagings());
+            if (packagingId == null) {
+                return;
+            }
+        }
+        Long v = variantId;
+        Long p = packagingId;
+        loading.setLoading(true);
+        FxAsync.run(() -> pos.addLine(sale.id(), product.id(), v, p, quantity), this::showSale, this::fail);
+    }
+
+    private Long pickPackaging(List<PosProduct.PosPackaging> packs) {
+        if (packs == null || packs.isEmpty()) {
+            return null;
+        }
+        if (packs.size() == 1) {
+            return packs.get(0).id();
+        }
+        javafx.scene.control.ChoiceDialog<PosProduct.PosPackaging> dlg =
+                new javafx.scene.control.ChoiceDialog<>(packs.get(0), packs);
+        dlg.setTitle("Conditionnement");
+        dlg.setHeaderText("Choisir le conditionnement");
+        return dlg.showAndWait().map(PosProduct.PosPackaging::id).orElse(null);
+    }
+
+    private void changeQty() {
+        SaleLine line = cart.getSelectionModel().getSelectedItem();
+        if (line == null || sale == null) {
+            error.show("Sélectionnez une ligne.");
+            return;
+        }
+        BigDecimal quantity;
+        try {
+            quantity = parseDecimal(qty.getText(), null);
+        } catch (Exception e) {
+            error.show("Quantité invalide.");
+            return;
+        }
+        loading.setLoading(true);
+        FxAsync.run(() -> pos.updateQty(sale.id(), line.id(), quantity), this::showSale, this::fail);
+    }
+
+    private void removeSelectedLine() {
+        SaleLine line = cart.getSelectionModel().getSelectedItem();
+        if (line == null || sale == null) {
+            error.show("Sélectionnez une ligne à retirer.");
+            return;
+        }
+        loading.setLoading(true);
+        FxAsync.run(() -> pos.removeLine(sale.id(), line.id()), this::showSale, this::fail);
+    }
+
+    private void applyDiscount() {
+        SaleLine line = cart.getSelectionModel().getSelectedItem();
+        if (line == null || sale == null) {
+            error.show("Sélectionnez une ligne.");
+            return;
+        }
+        BigDecimal amount;
+        try {
+            amount = parseDecimal(discount.getText(), BigDecimal.ZERO);
+        } catch (Exception e) {
+            error.show("Remise invalide.");
+            return;
+        }
+        loading.setLoading(true);
+        FxAsync.run(() -> pos.lineDiscount(sale.id(), line.id(), amount), this::showSale, this::fail);
+    }
+
+    private void searchCustomers() {
+        String q = customerSearch.getText() == null ? "" : customerSearch.getText().trim();
+        loading.setLoading(true);
+        FxAsync.run(() -> pos.searchCustomers(q, 20), list -> {
+            loading.setLoading(false);
+            error.hide();
+            customerCombo.getItems().setAll(list);
+            if (!list.isEmpty()) {
+                customerCombo.getSelectionModel().selectFirst();
+            } else {
+                error.show(q.isEmpty()
+                        ? "Aucun client à afficher."
+                        : "Aucun client trouvé.");
+            }
+        }, this::fail);
+    }
+
+    private void attachCustomer() {
+        Customer c = customerCombo.getSelectionModel().getSelectedItem();
+        if (c == null || c.id() == null || sale == null) {
+            error.show("Choisissez un client.");
+            return;
+        }
+        loading.setLoading(true);
+        FxAsync.run(() -> pos.assignCustomer(sale.id(), c.id()), this::showSale, this::fail);
+    }
+
+    private void detachCustomer() {
+        if (sale == null || !sale.hasCustomer()) {
+            return;
+        }
+        loading.setLoading(true);
+        FxAsync.run(() -> pos.clearCustomer(sale.id()), this::showSale, this::fail);
+    }
+
+    private void redeemLoyalty() {
+        if (sale == null || !sale.hasCustomer()) {
+            error.show("Associez un client avant d'utiliser des points.");
+            return;
+        }
+        int points;
+        try {
+            points = Integer.parseInt(loyaltyPoints.getText().trim());
+        } catch (Exception e) {
+            error.show("Nombre de points invalide.");
+            return;
+        }
+        if (points <= 0) {
+            error.show("Saisissez un nombre de points positif.");
+            return;
+        }
+        loading.setLoading(true);
+        FxAsync.run(() -> pos.redeemLoyalty(sale.id(), points), this::showSale, this::fail);
+    }
+
+    private void pay() {
+        payWith(payMethod.getValue(), cashReceived.getText(), false);
+    }
+
+    private void payWith(String methodRaw, String cashText, boolean fromPending) {
+        if (sale == null || sale.total() == null) {
+            return;
+        }
+        if (sale.lignes() == null || sale.lignes().isEmpty()) {
+            error.show("Le panier est vide.");
+            return;
+        }
+        String method = methodRaw == null ? "CASH" : methodRaw;
+        BigDecimal cash = null;
+        if (cashText != null && !cashText.isBlank()) {
+            try {
+                cash = parseDecimal(cashText, null);
+            } catch (NumberFormatException e) {
+                error.show("Montant reçu invalide.");
+                return;
+            }
+        }
+        if ("CASH".equals(method) && cash != null && cash.compareTo(sale.total()) < 0) {
+            error.show("Montant reçu inférieur au total.");
+            return;
+        }
+        loading.setLoading(true);
+        BigDecimal amount = sale.total();
+        BigDecimal received = cash;
+        FxAsync.run(() -> pos.validate(sale.id(), method, amount, received), paid -> {
+            error.hide();
+            if (!fromPending) {
+                showSale(paid);
+            }
+            String changeInfo = "";
+            if ("CASH".equals(method) && received != null && paid.total() != null) {
+                BigDecimal change = received.subtract(paid.total());
+                if (change.compareTo(BigDecimal.ZERO) > 0) {
+                    changeInfo = "\nMonnaie : " + ProductLabels.price(change);
+                }
+            }
+            javafx.scene.control.Alert done = new javafx.scene.control.Alert(
+                    javafx.scene.control.Alert.AlertType.INFORMATION,
+                    "Vente " + (paid.saleNumber() == null ? "" : paid.saleNumber()) + " validée — "
+                            + ProductLabels.price(paid.total()) + changeInfo);
+            done.setHeaderText("Encaissement");
+            done.showAndWait();
+            if (fromPending) {
+                sale = null;
+                reloadPending();
+            } else {
+                ensureSale();
+            }
+        }, this::fail);
+    }
+
+    private void showTicket() {
+        if (sale == null) {
+            return;
+        }
+        loading.setLoading(true);
+        FxAsync.run(() -> pos.ticket(sale.id()), node -> {
+            loading.setLoading(false);
+            PosTicketHelper.showAndOfferPrint(getScene() == null ? null : getScene().getWindow(), node);
+        }, this::fail);
+    }
+
+    private void showSale(Sale next) {
+        loading.setLoading(false);
+        sale = next;
+        cart.getItems().setAll(next.lignes() == null ? List.of() : next.lignes());
+        total.setText(ProductLabels.price(next.total() == null ? BigDecimal.ZERO : next.total()));
+        if (next.hasCustomer()) {
+            customerLabel.setText("Client : " + (next.customerName() == null ? "#" + next.customerId() : next.customerName())
+                    + (next.customerLoyaltyPoints() == null ? "" : " · " + next.customerLoyaltyPoints() + " pts"));
+        } else {
+            customerLabel.setText("Aucun client");
+        }
+        if ("CASH".equals(payMethod.getValue()) && next.total() != null
+                && (cashReceived.getText() == null || cashReceived.getText().isBlank()
+                || cart.getItems().isEmpty())) {
+            cashReceived.setText(next.total().toPlainString());
+        }
+        updateChange();
+    }
+
+    private void updateChange() {
+        if (!payBtn.isVisible() || !"CASH".equals(payMethod.getValue()) || sale == null || sale.total() == null) {
+            changeLabel.setText("");
+            return;
+        }
+        try {
+            BigDecimal received = parseDecimal(cashReceived.getText(), null);
+            BigDecimal change = received.subtract(sale.total()).setScale(2, RoundingMode.HALF_UP);
+            if (change.compareTo(BigDecimal.ZERO) >= 0) {
+                changeLabel.setText("Monnaie à rendre : " + ProductLabels.price(change));
+            } else {
+                changeLabel.setText("Manque : " + ProductLabels.price(change.abs()));
+            }
+        } catch (Exception e) {
+            changeLabel.setText("");
+        }
+    }
+
+    private void updatePendingChange() {
+        Sale selected = pendingTable.getSelectionModel().getSelectedItem();
+        BigDecimal totalAmt = selected == null ? null : selected.total();
+        if (sale != null && sale.total() != null) {
+            totalAmt = sale.total();
+        }
+        if (!"CASH".equals(pendingPayMethod.getValue()) || totalAmt == null) {
+            pendingChangeLabel.setText("");
+            return;
+        }
+        try {
+            BigDecimal received = parseDecimal(pendingCashReceived.getText(), null);
+            BigDecimal change = received.subtract(totalAmt).setScale(2, RoundingMode.HALF_UP);
+            if (change.compareTo(BigDecimal.ZERO) >= 0) {
+                pendingChangeLabel.setText("Monnaie à rendre : " + ProductLabels.price(change));
+            } else {
+                pendingChangeLabel.setText("Manque : " + ProductLabels.price(change.abs()));
+            }
+        } catch (Exception e) {
+            pendingChangeLabel.setText("");
+        }
+    }
+
+    private void fail(Throwable t) {
+        loading.setLoading(false);
+        if (t instanceof ApiException api && api.isUnauthorized()) {
+            return;
+        }
+        String message;
+        if (t instanceof ApiException api) {
+            message = ApiException.userMessage(api);
+        } else if (t != null && t.getMessage() != null && !t.getMessage().isBlank()) {
+            message = t.getMessage();
+        } else {
+            message = "Une erreur est survenue.";
+        }
+        error.show(message);
+    }
+
+    public void focusSearch() {
+        search.requestFocus();
+    }
+
+    private static String readSalesFlowMode(JsonNode ctx) {
+        if (ctx == null) {
+            return MODE_SELLER;
+        }
+        JsonNode cfg = ctx.get("posConfig");
+        if (cfg != null && cfg.hasNonNull("salesFlowMode")) {
+            return cfg.get("salesFlowMode").asText(MODE_SELLER);
+        }
+        if (cfg != null && cfg.hasNonNull("cashHandlingMode")) {
+            return "CENTRAL_CASHIER".equals(cfg.get("cashHandlingMode").asText(""))
+                    ? MODE_CENTRAL : MODE_SELLER;
+        }
+        return MODE_SELLER;
+    }
+
+    private static String textOrNull(JsonNode node, String field) {
+        if (node == null || !node.hasNonNull(field)) {
+            return null;
+        }
+        String v = node.get(field).asText(null);
+        return v == null || v.isBlank() ? null : v;
+    }
+
+    private static Label labelSection(String text) {
+        Label l = new Label(text);
+        l.getStyleClass().add("pos-section-label");
+        return l;
+    }
+
+    private static BigDecimal parseDecimal(String text, BigDecimal defaultValue) {
+        if (text == null || text.isBlank()) {
+            if (defaultValue == null) {
+                throw new NumberFormatException("empty");
+            }
+            return defaultValue;
+        }
+        return new BigDecimal(text.trim().replace(',', '.'));
+    }
+
+    private static TableColumn<SaleLine, String> col(String title, java.util.function.Function<SaleLine, String> fn) {
+        TableColumn<SaleLine, String> col = new TableColumn<>(title);
+        col.setCellValueFactory(d -> new ReadOnlyStringWrapper(d.getValue() == null ? "" : fn.apply(d.getValue())));
+        return col;
+    }
+
+    private static TableColumn<Sale, String> saleCol(String title, java.util.function.Function<Sale, String> fn) {
+        TableColumn<Sale, String> col = new TableColumn<>(title);
+        col.setCellValueFactory(d -> new ReadOnlyStringWrapper(d.getValue() == null ? "" : fn.apply(d.getValue())));
+        return col;
+    }
+
+    private static javafx.util.StringConverter<String> methodConverter() {
+        return new javafx.util.StringConverter<>() {
             @Override
             public String toString(String value) {
                 if (value == null) {
@@ -168,252 +1227,6 @@ public final class PosView extends StackPane {
             public String fromString(String string) {
                 return null;
             }
-        });
-        payMethod.getSelectionModel().select("CASH");
-
-        cashReceived.getStyleClass().add("pos-input");
-        cashReceived.setPromptText("Reçu client");
-        Button pay = new Button("Encaisser");
-        pay.getStyleClass().addAll("button-pay", "pos-pay-btn");
-        pay.setOnAction(e -> pay());
-        pay.setVisible(session.hasPermission("pos.payment.collect")
-                || session.hasPermission("pos.sale.validate")
-                || session.hasPermission("pos.payment.validate"));
-        pay.setManaged(pay.isVisible());
-        Button ticket = new Button("Ticket");
-        ticket.getStyleClass().addAll("button-secondary", "pos-action-sm");
-        ticket.setOnAction(e -> showTicket());
-
-        Label totalCaption = new Label("TOTAL À PAYER");
-        totalCaption.getStyleClass().add("pos-total-caption");
-        total.getStyleClass().add("pos-total-amount");
-
-        HBox totalBar = new HBox(16, totalCaption, total);
-        totalBar.setAlignment(Pos.CENTER_LEFT);
-        totalBar.getStyleClass().add("pos-total-bar");
-
-        Label payLabel = new Label("Paiement");
-        payLabel.getStyleClass().add("pos-section-label");
-        HBox payRow = new HBox(10, payMethod, cashReceived, pay, ticket);
-        payRow.setAlignment(Pos.CENTER_LEFT);
-        HBox.setHgrow(cashReceived, Priority.ALWAYS);
-
-        HBox lineActions = new HBox(10, setQty, discount, applyDisc);
-        lineActions.setAlignment(Pos.CENTER_LEFT);
-
-        Label cartSection = new Label("Panier");
-        cartSection.getStyleClass().add("pos-section-label");
-        VBox cartCard = new VBox(12, cartSection, cart, lineActions, totalBar, payLabel, payRow);
-        cartCard.getStyleClass().addAll("card", "pos-panel", "pos-cart-panel");
-        VBox.setVgrow(cart, Priority.ALWAYS);
-
-        HBox workspace = new HBox(16, searchCard, cartCard);
-        workspace.getStyleClass().add("pos-workspace");
-        HBox.setHgrow(searchCard, Priority.ALWAYS);
-        HBox.setHgrow(cartCard, Priority.ALWAYS);
-        searchCard.setPrefWidth(420);
-        cartCard.setPrefWidth(520);
-
-        VBox page = new VBox(14, title, sub, error, sessionBar, workspace);
-        page.getStyleClass().addAll("content", "pos-page");
-        VBox.setVgrow(workspace, Priority.ALWAYS);
-        page.setPadding(new Insets(0));
-
-        setOnKeyPressed(e -> {
-            if (e.getCode() == KeyCode.F2) {
-                search.requestFocus();
-            }
-        });
-        return page;
-    }
-
-    private void boot() {
-        loading.setLoading(true);
-        FxAsync.run(pos::context, ctx -> {
-            loading.setLoading(false);
-            boolean hasSession = ctx.hasNonNull("session") && !ctx.get("session").isNull();
-            sessionBar.setVisible(!hasSession);
-            sessionBar.setManaged(!hasSession);
-            if (hasSession && session.hasPermission("pos.sale.create")) {
-                ensureSale();
-            }
-        }, this::fail);
-    }
-
-    private void open() {
-        BigDecimal cash;
-        try {
-            cash = new BigDecimal(openingCash.getText().trim().isEmpty() ? "0" : openingCash.getText().trim().replace(',', '.'));
-        } catch (NumberFormatException e) {
-            error.show("Fond de caisse invalide.");
-            return;
-        }
-        loading.setLoading(true);
-        FxAsync.runVoid(() -> pos.openSession(cash), () -> {
-            sessionBar.setVisible(false);
-            sessionBar.setManaged(false);
-            ensureSale();
-        }, this::fail);
-    }
-
-    private void ensureSale() {
-        if (!session.hasPermission("pos.sale.create")) {
-            return;
-        }
-        loading.setLoading(true);
-        FxAsync.run(pos::createSale, this::showSale, this::fail);
-    }
-
-    private void searchNow() {
-        String q = search.getText() == null ? "" : search.getText().trim();
-        if (q.isEmpty()) {
-            return;
-        }
-        loading.setLoading(true);
-        FxAsync.run(() -> pos.search(q), list -> {
-            loading.setLoading(false);
-            results.getItems().setAll(list);
-            if (list.size() == 1) {
-                results.getSelectionModel().select(0);
-                addSelected();
-            }
-        }, this::fail);
-    }
-
-    private void addSelected() {
-        PosProduct product = results.getSelectionModel().getSelectedItem();
-        if (product == null || sale == null) {
-            return;
-        }
-        BigDecimal quantity;
-        try {
-            quantity = new BigDecimal(qty.getText().trim().isEmpty() ? "1" : qty.getText().trim().replace(',', '.'));
-        } catch (NumberFormatException e) {
-            error.show("Quantité invalide.");
-            return;
-        }
-        loading.setLoading(true);
-        FxAsync.run(() -> pos.addLine(sale.id(), product.id(), product.matchedVariantId(), quantity),
-                this::showSale, this::fail);
-    }
-
-    private void changeQty() {
-        SaleLine line = cart.getSelectionModel().getSelectedItem();
-        if (line == null || sale == null) {
-            error.show("Sélectionnez une ligne.");
-            return;
-        }
-        BigDecimal quantity;
-        try {
-            quantity = new BigDecimal(qty.getText().trim().replace(',', '.'));
-        } catch (Exception e) {
-            error.show("Quantité invalide.");
-            return;
-        }
-        loading.setLoading(true);
-        FxAsync.run(() -> pos.updateQty(sale.id(), line.id(), quantity), this::showSale, this::fail);
-    }
-
-    private void applyDiscount() {
-        SaleLine line = cart.getSelectionModel().getSelectedItem();
-        if (line == null || sale == null) {
-            error.show("Sélectionnez une ligne.");
-            return;
-        }
-        BigDecimal amount;
-        try {
-            amount = new BigDecimal(discount.getText().trim().replace(',', '.'));
-        } catch (Exception e) {
-            error.show("Remise invalide.");
-            return;
-        }
-        loading.setLoading(true);
-        FxAsync.run(() -> pos.lineDiscount(sale.id(), line.id(), amount), this::showSale, this::fail);
-    }
-
-    private void pay() {
-        if (sale == null || sale.total() == null) {
-            return;
-        }
-        String method = payMethod.getValue() == null ? "CASH" : payMethod.getValue();
-        BigDecimal cash = null;
-        if (cashReceived.getText() != null && !cashReceived.getText().isBlank()) {
-            try {
-                cash = new BigDecimal(cashReceived.getText().trim().replace(',', '.'));
-            } catch (NumberFormatException e) {
-                error.show("Montant reçu invalide.");
-                return;
-            }
-        }
-        loading.setLoading(true);
-        BigDecimal amount = sale.total();
-        BigDecimal received = cash;
-        FxAsync.run(() -> pos.validate(sale.id(), method, amount, received), paid -> {
-            error.hide();
-            showSale(paid);
-            javafx.scene.control.Alert done = new javafx.scene.control.Alert(
-                    javafx.scene.control.Alert.AlertType.INFORMATION,
-                    "Vente " + (paid.saleNumber() == null ? "" : paid.saleNumber()) + " validée — "
-                            + ProductLabels.price(paid.total()));
-            done.setHeaderText("Encaissement");
-            done.showAndWait();
-            ensureSale();
-        }, this::fail);
-    }
-
-    private void showTicket() {
-        if (sale == null) {
-            return;
-        }
-        loading.setLoading(true);
-        FxAsync.run(() -> pos.ticket(sale.id()), node -> {
-            loading.setLoading(false);
-            String text = node == null ? "" : node.toPrettyString();
-            javafx.scene.control.TextArea area = new javafx.scene.control.TextArea(text);
-            area.setEditable(false);
-            area.setPrefSize(480, 360);
-            javafx.scene.control.Dialog<Void> dialog = new javafx.scene.control.Dialog<>();
-            dialog.setTitle("Ticket");
-            dialog.getDialogPane().setContent(area);
-            dialog.getDialogPane().getButtonTypes().add(javafx.scene.control.ButtonType.CLOSE);
-            dialog.showAndWait();
-        }, this::fail);
-    }
-
-    private void showSale(Sale next) {
-        loading.setLoading(false);
-        this.sale = next;
-        List<SaleLine> lines = next.lignes() == null ? List.of() : next.lignes();
-        cart.getItems().setAll(lines);
-        total.setText(next.total() == null ? "—" : ProductLabels.price(next.total()));
-        if (Boolean.TRUE.equals(next.hasStockIssues())) {
-            error.show("Stock insuffisant sur au moins une ligne.");
-        } else {
-            error.hide();
-        }
-        cashReceived.setText(next.total() == null ? "" : next.total().toPlainString());
-    }
-
-    private void fail(Throwable t) {
-        loading.setLoading(false);
-        if (t instanceof ApiException api && api.isUnauthorized()) {
-            return;
-        }
-        if (t instanceof ApiException api) {
-            error.show(ApiException.userMessage(api));
-        } else {
-            error.show("Une erreur est survenue.");
-        }
-    }
-
-    private static TableColumn<SaleLine, String> col(String title, java.util.function.Function<SaleLine, String> fn) {
-        TableColumn<SaleLine, String> col = new TableColumn<>(title);
-        col.setCellValueFactory(d -> new ReadOnlyStringWrapper(d.getValue() == null ? "" : fn.apply(d.getValue())));
-        col.setStyle("-fx-font-size: 15px; -fx-font-weight: bold;");
-        return col;
-    }
-
-    public void focusSearch() {
-        search.requestFocus();
+        };
     }
 }

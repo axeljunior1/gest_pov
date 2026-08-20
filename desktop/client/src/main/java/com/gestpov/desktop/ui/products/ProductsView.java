@@ -1,10 +1,14 @@
 package com.gestpov.desktop.ui.products;
 
+import com.gestpov.desktop.ui.Reloadable;
+
+import com.gestpov.desktop.model.Brand;
 import com.gestpov.desktop.model.Category;
 import com.gestpov.desktop.model.Product;
 import com.gestpov.desktop.model.ProductQuery;
 import com.gestpov.desktop.model.Supplier;
 import com.gestpov.desktop.net.ApiException;
+import com.gestpov.desktop.net.BrandClient;
 import com.gestpov.desktop.net.CategoryClient;
 import com.gestpov.desktop.net.ProductClient;
 import com.gestpov.desktop.net.SupplierClient;
@@ -12,6 +16,7 @@ import com.gestpov.desktop.session.SessionContext;
 import com.gestpov.desktop.ui.component.ConfirmationDialog;
 import com.gestpov.desktop.ui.component.EmptyState;
 import com.gestpov.desktop.ui.component.ErrorBanner;
+import com.gestpov.desktop.ui.component.ListPager;
 import com.gestpov.desktop.ui.component.LoadingOverlay;
 import com.gestpov.desktop.util.FxAsync;
 import javafx.beans.property.ReadOnlyObjectWrapper;
@@ -40,7 +45,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.LongConsumer;
 
-public final class ProductsView extends StackPane {
+public final class ProductsView extends StackPane implements Reloadable {
 
     private final SessionContext session;
     private final ProductClient products;
@@ -51,13 +56,16 @@ public final class ProductsView extends StackPane {
     private final ObservableList<Product> rows = FXCollections.observableArrayList();
     private final Set<Long> selectedIds = new HashSet<>();
     private final TableView<Product> table = new TableView<>();
+    private final ListPager<Product> pager = new ListPager<>(table);
     private final ErrorBanner errorBanner = new ErrorBanner();
     private final LoadingOverlay loading = new LoadingOverlay();
-    private final EmptyState emptyState = new EmptyState("Aucun produit trouvé");
+    private final EmptyState emptyState = new EmptyState("Aucun produit — créez-en un avec « Nouveau produit »");
+    private final Label countLabel = new Label();
     private final TextField query = new TextField();
     private final ComboBox<FilterOption> categoryFilter = new ComboBox<>();
     private final ComboBox<FilterOption> supplierFilter = new ComboBox<>();
-    private final TextField brandFilter = new TextField();
+    private final ComboBox<FilterOption> brandFilter = new ComboBox<>();
+    private final BrandClient brands;
     private final ComboBox<FilterOption> lifecycleFilter = new ComboBox<>();
     private final CheckBox stockFaible = new CheckBox("Stock faible");
     private final CheckBox rupture = new CheckBox("Rupture");
@@ -72,6 +80,7 @@ public final class ProductsView extends StackPane {
         this.products = new ProductClient(session.api());
         this.categories = new CategoryClient(session.api());
         this.suppliers = new SupplierClient(session.api());
+        this.brands = new BrandClient(session.api());
         this.onCreate = onCreate;
         this.onOpen = onOpen;
         getChildren().addAll(buildContent(), loading);
@@ -82,8 +91,9 @@ public final class ProductsView extends StackPane {
     private BorderPane buildContent() {
         Label title = new Label("Produits");
         title.getStyleClass().add("page-title");
-        Label sub = new Label("Catalogue et fiches produits");
+        Label sub = new Label("Catalogue et fiches produits — double-clic pour ouvrir");
         sub.getStyleClass().add("page-sub");
+        countLabel.getStyleClass().add("page-sub");
 
         createButton.getStyleClass().add("button-primary");
         createButton.setOnAction(e -> onCreate.run());
@@ -97,7 +107,7 @@ public final class ProductsView extends StackPane {
 
         query.setPromptText("Rechercher un produit");
         query.setOnAction(e -> reload());
-        brandFilter.setPromptText("Marque");
+        brandFilter.setPromptText("Toutes marques");
         categoryFilter.setPromptText("Toutes catégories");
         supplierFilter.setPromptText("Tous fournisseurs");
         lifecycleFilter.getItems().add(FilterOption.all("Tous cycles de vie"));
@@ -133,8 +143,7 @@ public final class ProductsView extends StackPane {
         bulkBar.setVisible(false);
         bulkBar.setManaged(false);
 
-        table.setItems(rows);
-        table.setPlaceholder(emptyState);
+                table.setPlaceholder(emptyState);
         table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         if (session.hasPermission("products.delete")) {
             TableColumn<Product, Boolean> selCol = new TableColumn<>();
@@ -227,7 +236,7 @@ public final class ProductsView extends StackPane {
             table.getColumns().add(actions);
         }
         table.setOnMouseClicked(e -> {
-            if (e.getClickCount() != 1) {
+            if (e.getClickCount() != 2) {
                 return;
             }
             Object target = e.getTarget();
@@ -241,7 +250,7 @@ public final class ProductsView extends StackPane {
             }
         });
 
-        VBox page = new VBox(16, header, sub, errorBanner, filters, bulkBar, table);
+        VBox page = new VBox(16, header, sub, countLabel, errorBanner, filters, bulkBar, table, pager.bar());
         VBox.setVgrow(table, Priority.ALWAYS);
         page.getStyleClass().add("content");
         page.setPadding(new Insets(0));
@@ -255,6 +264,7 @@ public final class ProductsView extends StackPane {
         return col;
     }
 
+    @Override
     public void reload() {
         errorBanner.hide();
         setBusy(true);
@@ -263,6 +273,8 @@ public final class ProductsView extends StackPane {
             setBusy(false);
             selectedIds.clear();
             rows.setAll(list);
+            pager.setItems(list);
+            countLabel.setText(list.size() + " produit(s)");
             refreshSelection();
         }, this::showError);
     }
@@ -272,6 +284,7 @@ public final class ProductsView extends StackPane {
             FilterData data = new FilterData();
             data.categories = categories.getTree();
             data.suppliers = suppliers.findAll();
+            data.brands = brands.findAll();
             return data;
         }, data -> {
             categoryFilter.getItems().setAll(FilterOption.all("Toutes catégories"));
@@ -282,6 +295,11 @@ public final class ProductsView extends StackPane {
                 supplierFilter.getItems().add(new FilterOption(String.valueOf(supplier.id()), supplier.nom()));
             }
             supplierFilter.getSelectionModel().selectFirst();
+            brandFilter.getItems().setAll(FilterOption.all("Toutes marques"));
+            for (Brand brand : data.brands) {
+                brandFilter.getItems().add(new FilterOption(brand.nom(), brand.nom()));
+            }
+            brandFilter.getSelectionModel().selectFirst();
         }, ignored -> {
             // filtres optionnels
         });
@@ -290,7 +308,10 @@ public final class ProductsView extends StackPane {
     private ProductQuery currentQuery() {
         ProductQuery q = new ProductQuery();
         q.query = query.getText();
-        q.marque = brandFilter.getText();
+        FilterOption brand = brandFilter.getValue();
+        if (brand != null && brand.id != null) {
+            q.marque = brand.id;
+        }
         FilterOption cat = categoryFilter.getValue();
         if (cat != null && cat.id != null) {
             q.categorieId = Long.parseLong(cat.id);
@@ -380,6 +401,7 @@ public final class ProductsView extends StackPane {
     private static final class FilterData {
         List<Category> categories = List.of();
         List<Supplier> suppliers = List.of();
+        List<Brand> brands = List.of();
     }
 
     static final class FilterOption {

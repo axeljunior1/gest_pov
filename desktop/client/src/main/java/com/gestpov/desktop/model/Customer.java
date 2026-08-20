@@ -34,4 +34,18 @@ public record Customer(
     public String displayName() {
         return (firstName + " " + lastName).trim();
     }
+
+    public String displayLabel() {
+        String name = displayName();
+        if (name.isBlank()) {
+            name = companyName == null || companyName.isBlank() ? ("#" + id) : companyName;
+        }
+        String phonePart = phone == null || phone.isBlank() ? "" : " · " + phone;
+        return name + phonePart;
+    }
+
+    @Override
+    public String toString() {
+        return displayLabel();
+    }
 }

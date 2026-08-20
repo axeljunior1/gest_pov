@@ -16,4 +16,10 @@ Tests secrets : `desktop/scripts/server/tests/Test-GestPovSecrets.ps1`
 
 ## Build editeur
 
-`desktop/scripts/build/build-offline-package.ps1` — Internet OK chez l'editeur uniquement.
+| Script | Role |
+|--------|------|
+| `build/build-offline-package.ps1` | Package dossier serveur USB (Internet OK chez l'editeur uniquement) |
+| `build/build-client-package.ps1` | Package dossier client USB |
+| `build/build-exe-stub.ps1` | Stub doc jpackage `.exe` (Phase H) — ne casse pas les builds dossier |
+
+Roadmap `.exe` / VM / backlog : `desktop/docs/phase-h.md`.

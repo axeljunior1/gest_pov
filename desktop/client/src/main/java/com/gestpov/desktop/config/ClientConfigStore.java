@@ -49,7 +49,8 @@ public class ClientConfigStore {
                 props.getProperty("server.hostname", ""),
                 props.getProperty("client.version", ClientConfig.CURRENT_VERSION),
                 parseInt(props.getProperty("discovery.udp.port"), 38471),
-                parseInt(props.getProperty("http.timeout.ms"), 20000)
+                parseInt(props.getProperty("http.timeout.ms"), 20000),
+                props.getProperty("auth.last.email", "")
         );
     }
 
@@ -64,6 +65,7 @@ public class ClientConfigStore {
         props.setProperty("client.version", nullToEmpty(config.clientVersion()));
         props.setProperty("discovery.udp.port", String.valueOf(config.discoveryUdpPort()));
         props.setProperty("http.timeout.ms", String.valueOf(config.timeoutMs()));
+        props.setProperty("auth.last.email", nullToEmpty(config.lastLoginEmail()));
         try (OutputStream out = Files.newOutputStream(configFile)) {
             props.store(out, "Gest POV Desktop — pas de secrets DB");
         }
