@@ -37,6 +37,32 @@ class ApiClientStatusTest {
     }
 
     @Test
+    void getBytes_404_doesNotTriggerUnauthorizedHandler() throws Exception {
+        try (FakeHttpServer server = new FakeHttpServer()) {
+            ApiClient api = new ApiClient("127.0.0.1", server.port(), Duration.ofSeconds(2));
+            AtomicBoolean expired = new AtomicBoolean(false);
+            api.setUnauthorizedHandler(e -> expired.set(true));
+            ApiException ex = assertThrows(ApiException.class,
+                    () -> api.getBytes("/api/status/404"));
+            assertEquals(404, ex.statusCode());
+            assertFalse(expired.get());
+        }
+    }
+
+    @Test
+    void getBytes_401_triggersUnauthorizedHandler() throws Exception {
+        try (FakeHttpServer server = new FakeHttpServer()) {
+            ApiClient api = new ApiClient("127.0.0.1", server.port(), Duration.ofSeconds(2));
+            AtomicBoolean expired = new AtomicBoolean(false);
+            api.setUnauthorizedHandler(e -> expired.set(true));
+            ApiException ex = assertThrows(ApiException.class,
+                    () -> api.getBytes("/api/status/401"));
+            assertEquals(401, ex.statusCode());
+            assertTrue(expired.get());
+        }
+    }
+
+    @Test
     void forbidden403() throws Exception {
         try (FakeHttpServer server = new FakeHttpServer()) {
             ApiClient api = new ApiClient("127.0.0.1", server.port(), Duration.ofSeconds(2));

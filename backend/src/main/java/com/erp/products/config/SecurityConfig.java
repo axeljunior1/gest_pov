@@ -2,6 +2,7 @@ package com.erp.products.config;
 
 import com.erp.products.security.JwtAuthenticationFilter;
 import com.erp.products.license.LicenseEnforcementFilter;
+import jakarta.servlet.DispatcherType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
@@ -83,6 +84,9 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
+                        // Sinon un 404 MVC est renvoyé comme 401 via /error (clients déconnectés à tort).
+                        .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
+                        .requestMatchers(antMatcher("/error")).permitAll()
                         .requestMatchers(antMatcher(HttpMethod.OPTIONS, "/**")).permitAll()
                         .requestMatchers(antMatcher("/api/license/**")).permitAll()
                         .requestMatchers(antMatcher("/api/discovery"), antMatcher("/api/discovery/**")).permitAll()

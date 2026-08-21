@@ -8,4 +8,6 @@ import java.util.Optional;
 public interface UnitOfMeasureRepository extends JpaRepository<UnitOfMeasure, Long> {
 
     Optional<UnitOfMeasure> findBySymbole(String symbole);
+
+    Optional<UnitOfMeasure> findByNomIgnoreCase(String nom);
 }

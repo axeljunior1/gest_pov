@@ -231,6 +231,9 @@ export function getErrorMessage(error, options = {}) {
       return 'Email ou mot de passe incorrect.'
     }
     if (status === 401) return SESSION_EXPIRED_MESSAGE
+    if (status === 404 && context.module === 'import') {
+      return "Template d'import indisponible. Redémarrez ou mettez à jour le serveur Gest POV."
+    }
     return HTTP_MESSAGES[status]
   }
 

@@ -22,10 +22,34 @@ api.interceptors.request.use((config) => {
   return config
 })
 
+async function normalizeBlobErrorData(error) {
+  const data = error.response?.data
+  if (!(typeof Blob !== 'undefined' && data instanceof Blob)) {
+    return
+  }
+  try {
+    const text = await data.text()
+    if (!text) {
+      error.response.data = {}
+      return
+    }
+    try {
+      error.response.data = JSON.parse(text)
+    } catch {
+      error.response.data = { message: text }
+    }
+  } catch {
+    // conserver le Blob si lecture impossible
+  }
+}
+
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
-    if (error.response?.status === 401 && !error.config?.url?.includes('/auth/login')) {
+  async (error) => {
+    await normalizeBlobErrorData(error)
+    const status = error.response?.status
+    // 403/404 (ex. template manquant) ne doivent pas déconnecter.
+    if (status === 401 && !error.config?.url?.includes('/auth/login')) {
       markSessionExpired()
       localStorage.removeItem('erp_auth_token')
       localStorage.removeItem('erp_auth_user')

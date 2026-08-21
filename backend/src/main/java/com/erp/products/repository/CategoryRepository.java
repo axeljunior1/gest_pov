@@ -17,4 +17,8 @@ public interface CategoryRepository extends JpaRepository<Category, Long> {
     List<Category> searchByNom(String nom);
 
     Optional<Category> findFirstByNomIgnoreCase(String nom);
+
+    Optional<Category> findFirstByNomIgnoreCaseAndParentIsNull(String nom);
+
+    Optional<Category> findFirstByNomIgnoreCaseAndParent_Id(String nom, Long parentId);
 }

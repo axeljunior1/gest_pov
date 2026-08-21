@@ -7,12 +7,32 @@ import { getErrorMessage } from '../utils/errors'
 
 const EXPORT_TYPES = [
   { key: 'products', label: 'Produits', fn: exportApi.products },
+  { key: 'brands', label: 'Marques', fn: exportApi.brands },
+  { key: 'categories', label: 'Catégories', fn: exportApi.categories },
+  { key: 'suppliers', label: 'Fournisseurs', fn: exportApi.suppliers },
+  { key: 'units', label: 'Unités', fn: exportApi.units },
+  { key: 'warehouses', label: 'Entrepôts', fn: exportApi.warehouses },
   { key: 'stock', label: 'Stock actuel', fn: exportApi.stock },
   { key: 'movements', label: 'Mouvements', fn: exportApi.movements },
   { key: 'entries', label: 'Entrées', fn: exportApi.entries },
   { key: 'exits', label: 'Sorties', fn: exportApi.exits },
   { key: 'alerts', label: 'Alertes', fn: exportApi.alerts },
   { key: 'inventories', label: 'Inventaires', fn: exportApi.inventories },
+]
+
+const IMPORT_TYPES_WITH_DUPLICATE = new Set([
+  'products', 'brands', 'categories', 'suppliers', 'units', 'warehouses',
+])
+
+const IMPORT_TYPE_OPTIONS = [
+  { value: 'products', label: 'Produits', template: 'products' },
+  { value: 'brands', label: 'Marques', template: 'brands' },
+  { value: 'categories', label: 'Catégories', template: 'categories' },
+  { value: 'suppliers', label: 'Fournisseurs', template: 'suppliers' },
+  { value: 'units', label: 'Unités', template: 'units' },
+  { value: 'warehouses', label: 'Entrepôts', template: 'warehouses' },
+  { value: 'packagings', label: 'Conditionnements', template: 'packagings' },
+  { value: 'initial-stock', label: 'Stock initial', template: 'initial-stock' },
 ]
 
 export default function ImportExportPage() {
@@ -56,11 +76,7 @@ export default function ImportExportPage() {
     }
     setLoading(true)
     try {
-      const result = importType === 'products'
-        ? await importApi.previewProducts(file, duplicateMode)
-        : importType === 'packagings'
-          ? await importApi.previewPackagings(file)
-          : await importApi.previewInitialStock(file)
+      const result = await runImportAction('preview')
       setPreview(result)
     } catch (e) {
       notify.error(getErrorMessage(e, { module: 'import' }))
@@ -73,11 +89,7 @@ export default function ImportExportPage() {
     if (!file || !canValidate) return
     setLoading(true)
     try {
-      const result = importType === 'products'
-        ? await importApi.validateProducts(file, duplicateMode)
-        : importType === 'packagings'
-          ? await importApi.validatePackagings(file)
-          : await importApi.validateInitialStock(file)
+      const result = await runImportAction('validate')
       setPreview(result)
       notify.success(`Import terminé — ${result.job.successRows} ligne(s) OK`)
       importApi.history().then(setHistory).catch(() => {})
@@ -88,10 +100,38 @@ export default function ImportExportPage() {
     }
   }
 
+  const runImportAction = async (action) => {
+    if (action === 'preview') {
+      if (importType === 'products') return importApi.previewProducts(file, duplicateMode)
+      if (importType === 'brands') return importApi.previewBrands(file, duplicateMode)
+      if (importType === 'categories') return importApi.previewCategories(file, duplicateMode)
+      if (importType === 'suppliers') return importApi.previewSuppliers(file, duplicateMode)
+      if (importType === 'units') return importApi.previewUnits(file, duplicateMode)
+      if (importType === 'warehouses') return importApi.previewWarehouses(file, duplicateMode)
+      if (importType === 'packagings') return importApi.previewPackagings(file)
+      return importApi.previewInitialStock(file)
+    }
+    if (importType === 'products') return importApi.validateProducts(file, duplicateMode)
+    if (importType === 'brands') return importApi.validateBrands(file, duplicateMode)
+    if (importType === 'categories') return importApi.validateCategories(file, duplicateMode)
+    if (importType === 'suppliers') return importApi.validateSuppliers(file, duplicateMode)
+    if (importType === 'units') return importApi.validateUnits(file, duplicateMode)
+    if (importType === 'warehouses') return importApi.validateWarehouses(file, duplicateMode)
+    if (importType === 'packagings') return importApi.validatePackagings(file)
+    return importApi.validateInitialStock(file)
+  }
+
   const downloadTemplate = async (type) => {
     try {
       await importApi.downloadTemplate(type, format)
+      notify.success('Template téléchargé')
     } catch (e) {
+      // 403/404 : message clair, pas de redirect login (géré côté client.js + wrapper)
+      const status = e?.response?.status
+      if (status === 404) {
+        notify.error("Template d'import indisponible. Redémarrez ou mettez à jour le serveur Gest POV.")
+        return
+      }
       notify.error(getErrorMessage(e, { module: 'import' }))
     }
   }
@@ -135,18 +175,19 @@ export default function ImportExportPage() {
           <h3 className="text-sm font-semibold text-gray-900 mb-4">Import</h3>
           <div className="flex flex-wrap gap-3 mb-4">
             <select className="border border-gray-200 rounded-lg px-3 py-2 text-sm" value={importType} onChange={(e) => { setImportType(e.target.value); setPreview(null); setFile(null) }}>
-              <option value="products">Produits</option>
-              <option value="packagings">Conditionnements</option>
-              <option value="initial-stock">Stock initial</option>
+              {IMPORT_TYPE_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
             </select>
-            {importType === 'products' && (
+            {IMPORT_TYPES_WITH_DUPLICATE.has(importType) && (
               <select className="border border-gray-200 rounded-lg px-3 py-2 text-sm" value={duplicateMode} onChange={(e) => setDuplicateMode(e.target.value)}>
-                <option value="REJECT">SKU existant → refuser</option>
-                <option value="UPDATE">SKU existant → mettre à jour</option>
+                <option value="REJECT">Existant → refuser</option>
+                <option value="UPDATE">Existant → mettre à jour</option>
+                <option value="SKIP">Existant → ignorer</option>
               </select>
             )}
             <Button variant="secondary" onClick={() => downloadTemplate(
-              importType === 'products' ? 'products' : importType === 'packagings' ? 'packagings' : 'initial-stock'
+              IMPORT_TYPE_OPTIONS.find((o) => o.value === importType)?.template || importType
             )}>
               Télécharger le template
             </Button>

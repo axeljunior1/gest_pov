@@ -293,6 +293,21 @@ export const exportApi = {
   products: (format = 'CSV') =>
     api.get('/export/products', { params: { format }, responseType: 'blob' })
       .then(r => { downloadBlob(r.data, `products.${format === 'XLSX' ? 'xlsx' : 'csv'}`, r.headers['content-type']); return r.data }),
+  brands: (format = 'CSV') =>
+    api.get('/export/brands', { params: { format }, responseType: 'blob' })
+      .then(r => { downloadBlob(r.data, `brands.${format === 'XLSX' ? 'xlsx' : 'csv'}`, r.headers['content-type']); return r.data }),
+  categories: (format = 'CSV') =>
+    api.get('/export/categories', { params: { format }, responseType: 'blob' })
+      .then(r => { downloadBlob(r.data, `categories.${format === 'XLSX' ? 'xlsx' : 'csv'}`, r.headers['content-type']); return r.data }),
+  suppliers: (format = 'CSV') =>
+    api.get('/export/suppliers', { params: { format }, responseType: 'blob' })
+      .then(r => { downloadBlob(r.data, `suppliers.${format === 'XLSX' ? 'xlsx' : 'csv'}`, r.headers['content-type']); return r.data }),
+  units: (format = 'CSV') =>
+    api.get('/export/units', { params: { format }, responseType: 'blob' })
+      .then(r => { downloadBlob(r.data, `units.${format === 'XLSX' ? 'xlsx' : 'csv'}`, r.headers['content-type']); return r.data }),
+  warehouses: (format = 'CSV') =>
+    api.get('/export/warehouses', { params: { format }, responseType: 'blob' })
+      .then(r => { downloadBlob(r.data, `warehouses.${format === 'XLSX' ? 'xlsx' : 'csv'}`, r.headers['content-type']); return r.data }),
   stock: (format = 'CSV', params = {}) =>
     api.get('/export/stock', { params: { format, ...params }, responseType: 'blob' })
       .then(r => { downloadBlob(r.data, `stock.${format === 'XLSX' ? 'xlsx' : 'csv'}`, r.headers['content-type']); return r.data }),
@@ -314,9 +329,23 @@ export const exportApi = {
 }
 
 export const importApi = {
-  downloadTemplate: (type, format = 'CSV') =>
-    api.get(`/import/templates/${type}`, { params: { format }, responseType: 'blob' })
-      .then(r => { downloadBlob(r.data, `template-${type}.${format === 'XLSX' ? 'xlsx' : 'csv'}`, r.headers['content-type']); return r.data }),
+  downloadTemplate: async (type, format = 'CSV') => {
+    try {
+      const r = await api.get(`/import/templates/${type}`, { params: { format }, responseType: 'blob' })
+      downloadBlob(r.data, `template-${type}.${format === 'XLSX' ? 'xlsx' : 'csv'}`, r.headers['content-type'])
+      return r.data
+    } catch (e) {
+      if (e?.response?.status === 404) {
+        const err = new Error(
+          "Template d'import indisponible. Redémarrez ou mettez à jour le serveur Gest POV.",
+        )
+        err.response = e.response
+        err.code = e.code
+        throw err
+      }
+      throw e
+    }
+  },
   previewProducts: (file, duplicateMode = 'REJECT') => {
     const form = new FormData()
     form.append('file', file)
@@ -326,6 +355,56 @@ export const importApi = {
     const form = new FormData()
     form.append('file', file)
     return postMultipart(`/import/products/validate?duplicateMode=${duplicateMode}`, form)
+  },
+  previewBrands: (file, duplicateMode = 'REJECT') => {
+    const form = new FormData()
+    form.append('file', file)
+    return postMultipart(`/import/brands/preview?duplicateMode=${duplicateMode}`, form)
+  },
+  validateBrands: (file, duplicateMode = 'REJECT') => {
+    const form = new FormData()
+    form.append('file', file)
+    return postMultipart(`/import/brands/validate?duplicateMode=${duplicateMode}`, form)
+  },
+  previewCategories: (file, duplicateMode = 'REJECT') => {
+    const form = new FormData()
+    form.append('file', file)
+    return postMultipart(`/import/categories/preview?duplicateMode=${duplicateMode}`, form)
+  },
+  validateCategories: (file, duplicateMode = 'REJECT') => {
+    const form = new FormData()
+    form.append('file', file)
+    return postMultipart(`/import/categories/validate?duplicateMode=${duplicateMode}`, form)
+  },
+  previewSuppliers: (file, duplicateMode = 'REJECT') => {
+    const form = new FormData()
+    form.append('file', file)
+    return postMultipart(`/import/suppliers/preview?duplicateMode=${duplicateMode}`, form)
+  },
+  validateSuppliers: (file, duplicateMode = 'REJECT') => {
+    const form = new FormData()
+    form.append('file', file)
+    return postMultipart(`/import/suppliers/validate?duplicateMode=${duplicateMode}`, form)
+  },
+  previewUnits: (file, duplicateMode = 'REJECT') => {
+    const form = new FormData()
+    form.append('file', file)
+    return postMultipart(`/import/units/preview?duplicateMode=${duplicateMode}`, form)
+  },
+  validateUnits: (file, duplicateMode = 'REJECT') => {
+    const form = new FormData()
+    form.append('file', file)
+    return postMultipart(`/import/units/validate?duplicateMode=${duplicateMode}`, form)
+  },
+  previewWarehouses: (file, duplicateMode = 'REJECT') => {
+    const form = new FormData()
+    form.append('file', file)
+    return postMultipart(`/import/warehouses/preview?duplicateMode=${duplicateMode}`, form)
+  },
+  validateWarehouses: (file, duplicateMode = 'REJECT') => {
+    const form = new FormData()
+    form.append('file', file)
+    return postMultipart(`/import/warehouses/validate?duplicateMode=${duplicateMode}`, form)
   },
   previewInitialStock: (file) => {
     const form = new FormData()

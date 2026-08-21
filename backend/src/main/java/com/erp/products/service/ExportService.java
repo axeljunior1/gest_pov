@@ -6,10 +6,16 @@ import com.erp.products.domain.enums.ExportFormat;
 import com.erp.products.domain.enums.InventoryCountStatus;
 import com.erp.products.domain.enums.StockEntryStatus;
 import com.erp.products.domain.enums.StockExitStatus;
+import com.erp.products.domain.entity.Category;
 import com.erp.products.dto.*;
 import com.erp.products.mapper.AlertMapper;
 import com.erp.products.mapper.ProductMapper;
+import com.erp.products.repository.BrandRepository;
+import com.erp.products.repository.CategoryRepository;
 import com.erp.products.repository.ProductRepository;
+import com.erp.products.repository.SupplierRepository;
+import com.erp.products.repository.UnitOfMeasureRepository;
+import com.erp.products.repository.WarehouseRepository;
 import com.erp.products.service.alert.AlertService;
 import com.erp.products.specification.ProductSpecification;
 import com.erp.products.util.TabularFileHelper;
@@ -19,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
 @Service
@@ -34,6 +41,11 @@ public class ExportService {
     private final AlertService alertService;
     private final AlertMapper alertMapper;
     private final InventoryService inventoryService;
+    private final BrandRepository brandRepository;
+    private final CategoryRepository categoryRepository;
+    private final SupplierRepository supplierRepository;
+    private final UnitOfMeasureRepository unitRepository;
+    private final WarehouseRepository warehouseRepository;
 
     @Transactional(readOnly = true)
     public byte[] exportProducts(ExportFormat format, ProductSearchCriteria criteria) {
@@ -178,6 +190,58 @@ public class ExportService {
                 }
             }
         }
+        return TabularFileHelper.write(format, headers, rows);
+    }
+
+    @Transactional(readOnly = true)
+    public byte[] exportBrands(ExportFormat format) {
+        List<String> headers = List.of("nom");
+        List<List<String>> rows = brandRepository.findAllByOrderByNomAsc().stream()
+                .map(b -> List.of(str(b.getNom())))
+                .toList();
+        return TabularFileHelper.write(format, headers, rows);
+    }
+
+    @Transactional(readOnly = true)
+    public byte[] exportCategories(ExportFormat format) {
+        List<String> headers = List.of("nom", "parentNom");
+        List<List<String>> rows = categoryRepository.findAll().stream()
+                .sorted(Comparator.comparing((Category c) -> c.getParent() == null ? 0 : 1)
+                        .thenComparing(Category::getNom, String.CASE_INSENSITIVE_ORDER))
+                .map(c -> List.of(
+                        str(c.getNom()),
+                        c.getParent() != null ? str(c.getParent().getNom()) : ""))
+                .toList();
+        return TabularFileHelper.write(format, headers, rows);
+    }
+
+    @Transactional(readOnly = true)
+    public byte[] exportSuppliers(ExportFormat format) {
+        List<String> headers = List.of("nom", "email", "telephone", "adresse");
+        List<List<String>> rows = supplierRepository.findAll().stream()
+                .sorted(Comparator.comparing(s -> s.getNom() == null ? "" : s.getNom(), String.CASE_INSENSITIVE_ORDER))
+                .map(s -> List.of(str(s.getNom()), str(s.getEmail()), str(s.getTelephone()), str(s.getAdresse())))
+                .toList();
+        return TabularFileHelper.write(format, headers, rows);
+    }
+
+    @Transactional(readOnly = true)
+    public byte[] exportUnits(ExportFormat format) {
+        List<String> headers = List.of("nom", "symbole");
+        List<List<String>> rows = unitRepository.findAll().stream()
+                .sorted(Comparator.comparing(u -> u.getNom() == null ? "" : u.getNom(), String.CASE_INSENSITIVE_ORDER))
+                .map(u -> List.of(str(u.getNom()), str(u.getSymbole())))
+                .toList();
+        return TabularFileHelper.write(format, headers, rows);
+    }
+
+    @Transactional(readOnly = true)
+    public byte[] exportWarehouses(ExportFormat format) {
+        List<String> headers = List.of("code", "nom", "adresse");
+        List<List<String>> rows = warehouseRepository.findAll().stream()
+                .sorted(Comparator.comparing(w -> w.getCode() == null ? "" : w.getCode(), String.CASE_INSENSITIVE_ORDER))
+                .map(w -> List.of(str(w.getCode()), str(w.getNom()), str(w.getAdresse())))
+                .toList();
         return TabularFileHelper.write(format, headers, rows);
     }
 

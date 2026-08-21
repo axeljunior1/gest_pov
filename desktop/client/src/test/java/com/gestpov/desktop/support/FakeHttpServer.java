@@ -129,6 +129,7 @@ public final class FakeHttpServer implements AutoCloseable {
         });
         server.createContext("/api/status/401", exchange -> json(exchange, 401, "{\"message\":\"Authentification requise\"}"));
         server.createContext("/api/status/403", exchange -> json(exchange, 403, "{\"message\":\"Acces refuse — permission insuffisante\"}"));
+        server.createContext("/api/status/404", exchange -> json(exchange, 404, "{\"message\":\"introuvable\"}"));
         server.createContext("/api/status/500", exchange -> json(exchange, 500, "{\"message\":\"boom\"}"));
         server.createContext("/api/status/invalid-json", exchange -> text(exchange, 200, "<<<not-json>>>"));
         server.createContext("/api/brands", this::handleBrands);

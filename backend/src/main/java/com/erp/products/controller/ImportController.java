@@ -43,6 +43,36 @@ public class ImportController {
         return templateResponse("template-stock-initial", format, importService.initialStockTemplate(format));
     }
 
+    @GetMapping("/templates/brands")
+    @PreAuthorize("@permissionChecker.has(authentication, 'import.read')")
+    public ResponseEntity<byte[]> brandTemplate(@RequestParam(defaultValue = "CSV") ExportFormat format) {
+        return templateResponse("template-marques", format, importService.brandTemplate(format));
+    }
+
+    @GetMapping("/templates/categories")
+    @PreAuthorize("@permissionChecker.has(authentication, 'import.read')")
+    public ResponseEntity<byte[]> categoryTemplate(@RequestParam(defaultValue = "CSV") ExportFormat format) {
+        return templateResponse("template-categories", format, importService.categoryTemplate(format));
+    }
+
+    @GetMapping("/templates/suppliers")
+    @PreAuthorize("@permissionChecker.has(authentication, 'import.read')")
+    public ResponseEntity<byte[]> supplierTemplate(@RequestParam(defaultValue = "CSV") ExportFormat format) {
+        return templateResponse("template-fournisseurs", format, importService.supplierTemplate(format));
+    }
+
+    @GetMapping("/templates/units")
+    @PreAuthorize("@permissionChecker.has(authentication, 'import.read')")
+    public ResponseEntity<byte[]> unitTemplate(@RequestParam(defaultValue = "CSV") ExportFormat format) {
+        return templateResponse("template-unites", format, importService.unitTemplate(format));
+    }
+
+    @GetMapping("/templates/warehouses")
+    @PreAuthorize("@permissionChecker.has(authentication, 'import.read')")
+    public ResponseEntity<byte[]> warehouseTemplate(@RequestParam(defaultValue = "CSV") ExportFormat format) {
+        return templateResponse("template-entrepots", format, importService.warehouseTemplate(format));
+    }
+
     @PostMapping(value = "/products/preview", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("@permissionChecker.has(authentication, 'import.read')")
     public ImportPreviewResponse previewProducts(
@@ -81,6 +111,86 @@ public class ImportController {
     @PreAuthorize("@permissionChecker.has(authentication, 'import.create')")
     public ImportValidateResponse validateInitialStock(@RequestPart("file") MultipartFile file) {
         return importService.validateInitialStock(file, currentUserService.getCurrentUserEmail());
+    }
+
+    @PostMapping(value = "/brands/preview", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("@permissionChecker.has(authentication, 'import.read')")
+    public ImportPreviewResponse previewBrands(
+            @RequestPart("file") MultipartFile file,
+            @RequestParam(defaultValue = "REJECT") DuplicateSkuMode duplicateMode) {
+        return importService.previewBrands(file, duplicateMode);
+    }
+
+    @PostMapping(value = "/brands/validate", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("@permissionChecker.has(authentication, 'import.create')")
+    public ImportValidateResponse validateBrands(
+            @RequestPart("file") MultipartFile file,
+            @RequestParam(defaultValue = "REJECT") DuplicateSkuMode duplicateMode) {
+        return importService.validateBrands(file, duplicateMode, currentUserService.getCurrentUserEmail());
+    }
+
+    @PostMapping(value = "/categories/preview", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("@permissionChecker.has(authentication, 'import.read')")
+    public ImportPreviewResponse previewCategories(
+            @RequestPart("file") MultipartFile file,
+            @RequestParam(defaultValue = "REJECT") DuplicateSkuMode duplicateMode) {
+        return importService.previewCategories(file, duplicateMode);
+    }
+
+    @PostMapping(value = "/categories/validate", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("@permissionChecker.has(authentication, 'import.create')")
+    public ImportValidateResponse validateCategories(
+            @RequestPart("file") MultipartFile file,
+            @RequestParam(defaultValue = "REJECT") DuplicateSkuMode duplicateMode) {
+        return importService.validateCategories(file, duplicateMode, currentUserService.getCurrentUserEmail());
+    }
+
+    @PostMapping(value = "/suppliers/preview", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("@permissionChecker.has(authentication, 'import.read')")
+    public ImportPreviewResponse previewSuppliers(
+            @RequestPart("file") MultipartFile file,
+            @RequestParam(defaultValue = "REJECT") DuplicateSkuMode duplicateMode) {
+        return importService.previewSuppliers(file, duplicateMode);
+    }
+
+    @PostMapping(value = "/suppliers/validate", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("@permissionChecker.has(authentication, 'import.create')")
+    public ImportValidateResponse validateSuppliers(
+            @RequestPart("file") MultipartFile file,
+            @RequestParam(defaultValue = "REJECT") DuplicateSkuMode duplicateMode) {
+        return importService.validateSuppliers(file, duplicateMode, currentUserService.getCurrentUserEmail());
+    }
+
+    @PostMapping(value = "/units/preview", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("@permissionChecker.has(authentication, 'import.read')")
+    public ImportPreviewResponse previewUnits(
+            @RequestPart("file") MultipartFile file,
+            @RequestParam(defaultValue = "REJECT") DuplicateSkuMode duplicateMode) {
+        return importService.previewUnits(file, duplicateMode);
+    }
+
+    @PostMapping(value = "/units/validate", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("@permissionChecker.has(authentication, 'import.create')")
+    public ImportValidateResponse validateUnits(
+            @RequestPart("file") MultipartFile file,
+            @RequestParam(defaultValue = "REJECT") DuplicateSkuMode duplicateMode) {
+        return importService.validateUnits(file, duplicateMode, currentUserService.getCurrentUserEmail());
+    }
+
+    @PostMapping(value = "/warehouses/preview", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("@permissionChecker.has(authentication, 'import.read')")
+    public ImportPreviewResponse previewWarehouses(
+            @RequestPart("file") MultipartFile file,
+            @RequestParam(defaultValue = "REJECT") DuplicateSkuMode duplicateMode) {
+        return importService.previewWarehouses(file, duplicateMode);
+    }
+
+    @PostMapping(value = "/warehouses/validate", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("@permissionChecker.has(authentication, 'import.create')")
+    public ImportValidateResponse validateWarehouses(
+            @RequestPart("file") MultipartFile file,
+            @RequestParam(defaultValue = "REJECT") DuplicateSkuMode duplicateMode) {
+        return importService.validateWarehouses(file, duplicateMode, currentUserService.getCurrentUserEmail());
     }
 
     @GetMapping("/history")

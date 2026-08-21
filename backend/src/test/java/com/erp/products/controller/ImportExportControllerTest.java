@@ -226,6 +226,113 @@ class ImportExportControllerTest extends com.erp.products.AbstractIntegrationTes
                 .andExpect(jsonPath("$.quantityOnHand").value(10));
     }
 
+    @Test
+    void shouldImportBrandCategorySupplierWarehouseWithUniqueness() throws Exception {
+        String brandCsv = """
+                nom
+                Marque Imp P1
+                """;
+        mockMvc.perform(multipart("/api/import/brands/validate")
+                        .file(csvFile("brands.csv", brandCsv))
+                        .param("duplicateMode", "REJECT"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.job.successRows", is(1)))
+                .andExpect(jsonPath("$.job.importType", is("BRANDS")));
+
+        mockMvc.perform(multipart("/api/import/brands/preview")
+                        .file(csvFile("brands.csv", brandCsv))
+                        .param("duplicateMode", "REJECT"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.errorRows", is(1)))
+                .andExpect(jsonPath("$.lines[0].message", containsString("deja existante")));
+
+        mockMvc.perform(multipart("/api/import/brands/preview")
+                        .file(csvFile("brands.csv", brandCsv))
+                        .param("duplicateMode", "SKIP"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.validRows", is(1)))
+                .andExpect(jsonPath("$.lines[0].action", is("SKIP")));
+
+        String catCsv = """
+                nom;parentNom
+                Cat Racine;
+                Sous Cat;Cat Racine
+                """;
+        mockMvc.perform(multipart("/api/import/categories/validate")
+                        .file(csvFile("categories.csv", catCsv))
+                        .param("duplicateMode", "REJECT"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.job.successRows", is(2)));
+
+        String supplierCsv = """
+                nom;email;telephone;adresse
+                Fournisseur Imp;f@example.com;0102030405;Paris
+                """;
+        mockMvc.perform(multipart("/api/import/suppliers/validate")
+                        .file(csvFile("suppliers.csv", supplierCsv))
+                        .param("duplicateMode", "REJECT"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.job.successRows", is(1)));
+
+        mockMvc.perform(multipart("/api/import/suppliers/validate")
+                        .file(csvFile("suppliers.csv", """
+                                nom;email;telephone;adresse
+                                Fournisseur Imp;autre@example.com;99;Lyon
+                                """))
+                        .param("duplicateMode", "UPDATE"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.job.successRows", is(1)));
+
+        String whCode = "WH" + UUID.randomUUID().toString().substring(0, 6).toUpperCase();
+        String warehouseCsv = """
+                code;nom;adresse
+                %s;Entrepot Imp;Adresse
+                """.formatted(whCode);
+        mockMvc.perform(multipart("/api/import/warehouses/validate")
+                        .file(csvFile("warehouses.csv", warehouseCsv))
+                        .param("duplicateMode", "REJECT"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.job.successRows", is(1)));
+
+        mockMvc.perform(get("/api/export/brands").param("format", "CSV"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Disposition", containsString("brands.csv")));
+        mockMvc.perform(get("/api/export/categories").param("format", "CSV"))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/api/export/suppliers").param("format", "CSV"))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/api/export/units").param("format", "CSV"))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/api/export/warehouses").param("format", "CSV"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/import/templates/brands").param("format", "CSV"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Disposition", containsString("template-marques")));
+        mockMvc.perform(get("/api/import/templates/categories").param("format", "CSV"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Disposition", containsString("template-categories")));
+        mockMvc.perform(get("/api/import/templates/suppliers").param("format", "CSV"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Disposition", containsString("template-fournisseurs")));
+    }
+
+    @Test
+    void shouldRejectDuplicateBrandWithinSameFile() throws Exception {
+        String csv = """
+                nom
+                Doublon Fichier
+                doublon fichier
+                """;
+        mockMvc.perform(multipart("/api/import/brands/preview")
+                        .file(csvFile("brands.csv", csv))
+                        .param("duplicateMode", "REJECT"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.validRows", is(1)))
+                .andExpect(jsonPath("$.errorRows", is(1)))
+                .andExpect(jsonPath("$.lines[1].message", containsString("dupliquee")));
+    }
+
     private MockMultipartFile csvFile(String name, String content) {
         return new MockMultipartFile("file", name, "text/csv", content.getBytes(StandardCharsets.UTF_8));
     }

@@ -1,6 +1,7 @@
 package com.erp.products.license;
 
 import com.erp.products.config.LicenseProperties;
+import com.erp.products.discovery.ServerIdentityService;
 import com.erp.products.repository.UserRepository;
 import com.erp.products.support.LicenseTestSupport;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -38,11 +39,14 @@ class LicenseServiceTest {
 
         LicenseSignatureVerifier verifier = new LicenseSignatureVerifier(
                 properties, new DefaultResourceLoader());
+        ServerIdentityService serverIdentity = mock(ServerIdentityService.class);
+        when(serverIdentity.getServerId()).thenReturn("11111111-2222-3333-4444-555555555555");
         licenseService = new LicenseService(
                 properties,
                 verifier,
                 new ObjectMapper(),
-                mock(UserRepository.class));
+                mock(UserRepository.class),
+                serverIdentity);
         licenseService.init();
         installationId = licenseService.getInstallationId();
     }
@@ -156,8 +160,10 @@ class LicenseServiceTest {
         properties.setEnforcementEnabled(true);
         LicenseSignatureVerifier verifier = new LicenseSignatureVerifier(
                 properties, new DefaultResourceLoader());
+        ServerIdentityService serverIdentity = mock(ServerIdentityService.class);
+        when(serverIdentity.getServerId()).thenReturn("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
         LicenseService service = new LicenseService(
-                properties, verifier, new ObjectMapper(), userRepository);
+                properties, verifier, new ObjectMapper(), userRepository, serverIdentity);
         service.init();
 
         String content = LicenseTestSupport.buildSignedLicenseFile(

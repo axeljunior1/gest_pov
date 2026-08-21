@@ -16,27 +16,43 @@ public class ImportExportClient {
     }
 
     public byte[] productTemplate(String format) throws ApiException {
-        return api.getBytes("/api/import/templates/products", Map.of("format", format == null ? "CSV" : format));
+        return template("products", format);
+    }
+
+    public byte[] template(String type, String format) throws ApiException {
+        return api.getBytes("/api/import/templates/" + type, Map.of("format", format == null ? "CSV" : format));
     }
 
     public ImportPreview previewProducts(String fileName, byte[] bytes, String duplicateMode) throws ApiException {
-        Map<String, String> fields = new LinkedHashMap<>();
-        fields.put("duplicateMode", duplicateMode == null ? "REJECT" : duplicateMode);
-        return ImportPreview.fromJson(api.postMultipart("/api/import/products/preview", "file", fileName, bytes, fields));
+        return preview("products", fileName, bytes, duplicateMode);
     }
 
     public ImportPreview validateProducts(String fileName, byte[] bytes, String duplicateMode) throws ApiException {
+        return validate("products", fileName, bytes, duplicateMode);
+    }
+
+    public ImportPreview preview(String type, String fileName, byte[] bytes, String duplicateMode) throws ApiException {
         Map<String, String> fields = new LinkedHashMap<>();
-        fields.put("duplicateMode", duplicateMode == null ? "REJECT" : duplicateMode);
-        // validate returns ImportValidateResponse — reuse preview fields for MVP summary
-        var node = api.postMultipart("/api/import/products/validate", "file", fileName, bytes, fields);
+        if (duplicateMode != null) {
+            fields.put("duplicateMode", duplicateMode);
+        }
+        return ImportPreview.fromJson(api.postMultipart("/api/import/" + type + "/preview", "file", fileName, bytes, fields));
+    }
+
+    public ImportPreview validate(String type, String fileName, byte[] bytes, String duplicateMode) throws ApiException {
+        Map<String, String> fields = new LinkedHashMap<>();
+        if (duplicateMode != null) {
+            fields.put("duplicateMode", duplicateMode);
+        }
+        var node = api.postMultipart("/api/import/" + type + "/validate", "file", fileName, bytes, fields);
         if (node.has("totalRows")) {
             return ImportPreview.fromJson(node);
         }
+        var job = node.path("job");
         return new ImportPreview(
-                node.path("totalRows").asInt(0),
-                node.path("successRows").asInt(node.path("validRows").asInt(0)),
-                node.path("errorRows").asInt(0)
+                job.path("totalRows").asInt(node.path("totalRows").asInt(0)),
+                job.path("successRows").asInt(node.path("successRows").asInt(node.path("validRows").asInt(0))),
+                job.path("errorRows").asInt(node.path("errorRows").asInt(0))
         );
     }
 
@@ -45,14 +61,18 @@ public class ImportExportClient {
     }
 
     public byte[] exportProducts(String format) throws ApiException {
-        return api.getBytes("/api/export/products", Map.of("format", format == null ? "CSV" : format));
+        return export("products", format);
     }
 
     public byte[] exportStock(String format) throws ApiException {
-        return api.getBytes("/api/export/stock", Map.of("format", format == null ? "CSV" : format));
+        return export("stock", format);
     }
 
     public byte[] exportAlerts(String format) throws ApiException {
-        return api.getBytes("/api/export/alerts", Map.of("format", format == null ? "CSV" : format));
+        return export("alerts", format);
+    }
+
+    public byte[] export(String type, String format) throws ApiException {
+        return api.getBytes("/api/export/" + type, Map.of("format", format == null ? "CSV" : format));
     }
 }

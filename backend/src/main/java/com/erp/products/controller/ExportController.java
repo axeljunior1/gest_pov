@@ -114,6 +114,36 @@ public class ExportController {
                 exportService.exportInventories(format, warehouseId, status));
     }
 
+    @GetMapping("/brands")
+    @PreAuthorize("@permissionChecker.has(authentication, 'export.read')")
+    public ResponseEntity<byte[]> exportBrands(@RequestParam(defaultValue = "CSV") ExportFormat format) {
+        return fileResponse("brands", format, exportService.exportBrands(format));
+    }
+
+    @GetMapping("/categories")
+    @PreAuthorize("@permissionChecker.has(authentication, 'export.read')")
+    public ResponseEntity<byte[]> exportCategories(@RequestParam(defaultValue = "CSV") ExportFormat format) {
+        return fileResponse("categories", format, exportService.exportCategories(format));
+    }
+
+    @GetMapping("/suppliers")
+    @PreAuthorize("@permissionChecker.has(authentication, 'export.read')")
+    public ResponseEntity<byte[]> exportSuppliers(@RequestParam(defaultValue = "CSV") ExportFormat format) {
+        return fileResponse("suppliers", format, exportService.exportSuppliers(format));
+    }
+
+    @GetMapping("/units")
+    @PreAuthorize("@permissionChecker.has(authentication, 'export.read')")
+    public ResponseEntity<byte[]> exportUnits(@RequestParam(defaultValue = "CSV") ExportFormat format) {
+        return fileResponse("units", format, exportService.exportUnits(format));
+    }
+
+    @GetMapping("/warehouses")
+    @PreAuthorize("@permissionChecker.has(authentication, 'export.read')")
+    public ResponseEntity<byte[]> exportWarehouses(@RequestParam(defaultValue = "CSV") ExportFormat format) {
+        return fileResponse("warehouses", format, exportService.exportWarehouses(format));
+    }
+
     private ResponseEntity<byte[]> fileResponse(String baseName, ExportFormat format, byte[] body) {
         String ext = TabularFileHelper.extension(format);
         MediaType mediaType = format == ExportFormat.XLSX

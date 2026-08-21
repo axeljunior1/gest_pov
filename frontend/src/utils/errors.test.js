@@ -26,6 +26,11 @@ describe('getErrorMessage', () => {
       .toBe('Email ou mot de passe incorrect.')
   })
 
+  it('mappe 404 import vers template indisponible', () => {
+    expect(getErrorMessage(axiosError(404), { module: 'import' }))
+      .toContain('Template d\'import indisponible')
+  })
+
   it('ne renvoie pas de message technique axios brut', () => {
     expect(getErrorMessage(axiosError(500))).toBe(
       'Une erreur technique est survenue. Réessayez dans quelques instants.',

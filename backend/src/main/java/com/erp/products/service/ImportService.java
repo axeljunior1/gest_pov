@@ -30,11 +30,17 @@ public class ImportService {
             "productSku", "nom", "symbole", "quantiteBase", "codeBarre", "principal");
     private static final List<String> INITIAL_STOCK_HEADERS = List.of(
             "productSku", "variantSku", "warehouseCode", "locationCode", "quantity", "lotNumber", "expiryDate");
+    private static final List<String> BRAND_HEADERS = List.of("nom");
+    private static final List<String> CATEGORY_HEADERS = List.of("nom", "parentNom");
+    private static final List<String> SUPPLIER_HEADERS = List.of("nom", "email", "telephone", "adresse");
+    private static final List<String> UNIT_HEADERS = List.of("nom", "symbole");
+    private static final List<String> WAREHOUSE_HEADERS = List.of("code", "nom", "adresse");
 
     private final ProductRepository productRepository;
     private final ProductVariantRepository variantRepository;
     private final CategoryRepository categoryRepository;
     private final BrandRepository brandRepository;
+    private final SupplierRepository supplierRepository;
     private final UnitOfMeasureRepository unitRepository;
     private final ProductPackagingRepository packagingRepository;
     private final WarehouseRepository warehouseRepository;
@@ -55,6 +61,26 @@ public class ImportService {
 
     public byte[] initialStockTemplate(ExportFormat format) {
         return TabularFileHelper.template(format, INITIAL_STOCK_HEADERS);
+    }
+
+    public byte[] brandTemplate(ExportFormat format) {
+        return TabularFileHelper.template(format, BRAND_HEADERS);
+    }
+
+    public byte[] categoryTemplate(ExportFormat format) {
+        return TabularFileHelper.template(format, CATEGORY_HEADERS);
+    }
+
+    public byte[] supplierTemplate(ExportFormat format) {
+        return TabularFileHelper.template(format, SUPPLIER_HEADERS);
+    }
+
+    public byte[] unitTemplate(ExportFormat format) {
+        return TabularFileHelper.template(format, UNIT_HEADERS);
+    }
+
+    public byte[] warehouseTemplate(ExportFormat format) {
+        return TabularFileHelper.template(format, WAREHOUSE_HEADERS);
     }
 
     @Transactional(readOnly = true)
@@ -124,6 +150,86 @@ public class ImportService {
     }
 
     @Transactional(readOnly = true)
+    public ImportPreviewResponse previewBrands(MultipartFile file, DuplicateSkuMode duplicateMode) {
+        return buildBrandPreview(readData(file), duplicateMode);
+    }
+
+    @Transactional
+    public ImportValidateResponse validateBrands(MultipartFile file, DuplicateSkuMode duplicateMode, String user) {
+        List<String[]> rows = readData(file);
+        ImportPreviewResponse preview = buildBrandPreview(rows, duplicateMode);
+        String actor = currentUserService.resolveActor(user);
+        int success = applyOkLines(preview, rows, (row, mode) -> applyBrandLine(row, mode), duplicateMode);
+        ImportJob job = saveJob(ImportType.BRANDS, file.getOriginalFilename(), actor,
+                preview.getTotalRows(), success, preview.getErrorRows(), preview.getLines());
+        return ImportValidateResponse.builder().job(toJobResponse(job)).lines(preview.getLines()).build();
+    }
+
+    @Transactional(readOnly = true)
+    public ImportPreviewResponse previewCategories(MultipartFile file, DuplicateSkuMode duplicateMode) {
+        return buildCategoryPreview(readData(file), duplicateMode);
+    }
+
+    @Transactional
+    public ImportValidateResponse validateCategories(MultipartFile file, DuplicateSkuMode duplicateMode, String user) {
+        List<String[]> rows = readData(file);
+        ImportPreviewResponse preview = buildCategoryPreview(rows, duplicateMode);
+        String actor = currentUserService.resolveActor(user);
+        int success = applyOkLines(preview, rows, (row, mode) -> applyCategoryLine(row, mode), duplicateMode);
+        ImportJob job = saveJob(ImportType.CATEGORIES, file.getOriginalFilename(), actor,
+                preview.getTotalRows(), success, preview.getErrorRows(), preview.getLines());
+        return ImportValidateResponse.builder().job(toJobResponse(job)).lines(preview.getLines()).build();
+    }
+
+    @Transactional(readOnly = true)
+    public ImportPreviewResponse previewSuppliers(MultipartFile file, DuplicateSkuMode duplicateMode) {
+        return buildSupplierPreview(readData(file), duplicateMode);
+    }
+
+    @Transactional
+    public ImportValidateResponse validateSuppliers(MultipartFile file, DuplicateSkuMode duplicateMode, String user) {
+        List<String[]> rows = readData(file);
+        ImportPreviewResponse preview = buildSupplierPreview(rows, duplicateMode);
+        String actor = currentUserService.resolveActor(user);
+        int success = applyOkLines(preview, rows, (row, mode) -> applySupplierLine(row, mode), duplicateMode);
+        ImportJob job = saveJob(ImportType.SUPPLIERS, file.getOriginalFilename(), actor,
+                preview.getTotalRows(), success, preview.getErrorRows(), preview.getLines());
+        return ImportValidateResponse.builder().job(toJobResponse(job)).lines(preview.getLines()).build();
+    }
+
+    @Transactional(readOnly = true)
+    public ImportPreviewResponse previewUnits(MultipartFile file, DuplicateSkuMode duplicateMode) {
+        return buildUnitPreview(readData(file), duplicateMode);
+    }
+
+    @Transactional
+    public ImportValidateResponse validateUnits(MultipartFile file, DuplicateSkuMode duplicateMode, String user) {
+        List<String[]> rows = readData(file);
+        ImportPreviewResponse preview = buildUnitPreview(rows, duplicateMode);
+        String actor = currentUserService.resolveActor(user);
+        int success = applyOkLines(preview, rows, (row, mode) -> applyUnitLine(row, mode), duplicateMode);
+        ImportJob job = saveJob(ImportType.UNITS, file.getOriginalFilename(), actor,
+                preview.getTotalRows(), success, preview.getErrorRows(), preview.getLines());
+        return ImportValidateResponse.builder().job(toJobResponse(job)).lines(preview.getLines()).build();
+    }
+
+    @Transactional(readOnly = true)
+    public ImportPreviewResponse previewWarehouses(MultipartFile file, DuplicateSkuMode duplicateMode) {
+        return buildWarehousePreview(readData(file), duplicateMode);
+    }
+
+    @Transactional
+    public ImportValidateResponse validateWarehouses(MultipartFile file, DuplicateSkuMode duplicateMode, String user) {
+        List<String[]> rows = readData(file);
+        ImportPreviewResponse preview = buildWarehousePreview(rows, duplicateMode);
+        String actor = currentUserService.resolveActor(user);
+        int success = applyOkLines(preview, rows, (row, mode) -> applyWarehouseLine(row, mode), duplicateMode);
+        ImportJob job = saveJob(ImportType.WAREHOUSES, file.getOriginalFilename(), actor,
+                preview.getTotalRows(), success, preview.getErrorRows(), preview.getLines());
+        return ImportValidateResponse.builder().job(toJobResponse(job)).lines(preview.getLines()).build();
+    }
+
+    @Transactional(readOnly = true)
     public List<ImportJobResponse> listHistory() {
         return importJobRepository.findTop50ByOrderByCreatedAtDesc().stream()
                 .map(this::toJobResponse)
@@ -167,11 +273,7 @@ public class ImportService {
             }
             Optional<Product> existing = productRepository.findBySku(sku);
             if (existing.isPresent()) {
-                if (duplicateMode == DuplicateSkuMode.REJECT) {
-                    lines.add(error(lineNum, i, sku, "SKU deja existant"));
-                } else {
-                    lines.add(ok(lineNum, i, sku, "UPDATE"));
-                }
+                lines.add(duplicateResult(lineNum, i, sku, duplicateMode, "SKU deja existant"));
             } else {
                 String unitSymbole = TabularFileHelper.cell(row, 5);
                 if (unitSymbole.isBlank()) {
@@ -228,6 +330,349 @@ public class ImportService {
                     .build();
             productRepository.save(product);
         }
+    }
+
+    private ImportPreviewResponse buildBrandPreview(List<String[]> rows, DuplicateSkuMode duplicateMode) {
+        if (rows.isEmpty()) {
+            throw new BusinessException("Fichier vide");
+        }
+        validateHeaders(rows.get(0), BRAND_HEADERS);
+        List<ImportLineResult> lines = new ArrayList<>();
+        Set<String> seen = new HashSet<>();
+        int lineNum = 0;
+        for (int i = 1; i < rows.size(); i++) {
+            lineNum++;
+            String[] row = rows.get(i);
+            String nom = TabularFileHelper.cell(row, 0);
+            if (nom.isBlank()) {
+                continue;
+            }
+            String key = nom.toLowerCase(Locale.ROOT);
+            if (!seen.add(key)) {
+                lines.add(error(lineNum, i, nom, "Marque dupliquee dans le fichier"));
+                continue;
+            }
+            if (brandRepository.findFirstByNomIgnoreCase(nom).isPresent()) {
+                lines.add(duplicateResult(lineNum, i, nom, duplicateMode, "Marque deja existante"));
+            } else {
+                lines.add(ok(lineNum, i, nom, "CREATE"));
+            }
+        }
+        return summarize(lines);
+    }
+
+    private void applyBrandLine(String[] row, DuplicateSkuMode duplicateMode) {
+        String nom = TabularFileHelper.cell(row, 0).trim();
+        Optional<Brand> existing = brandRepository.findFirstByNomIgnoreCase(nom);
+        if (existing.isPresent()) {
+            if (duplicateMode != DuplicateSkuMode.UPDATE) {
+                throw new BusinessException("Marque existante: " + nom);
+            }
+            // Unique key is nom — nothing else to update
+            brandRepository.save(existing.get());
+        } else {
+            brandRepository.save(Brand.builder().nom(nom).build());
+        }
+    }
+
+    private ImportPreviewResponse buildCategoryPreview(List<String[]> rows, DuplicateSkuMode duplicateMode) {
+        if (rows.isEmpty()) {
+            throw new BusinessException("Fichier vide");
+        }
+        validateHeaders(rows.get(0), CATEGORY_HEADERS);
+        List<ImportLineResult> lines = new ArrayList<>();
+        Set<String> seen = new HashSet<>();
+        Set<String> pendingNoms = new HashSet<>();
+        int lineNum = 0;
+        for (int i = 1; i < rows.size(); i++) {
+            lineNum++;
+            String[] row = rows.get(i);
+            String nom = TabularFileHelper.cell(row, 0);
+            String parentNom = TabularFileHelper.cell(row, 1);
+            if (nom.isBlank() && parentNom.isBlank()) {
+                continue;
+            }
+            if (nom.isBlank()) {
+                lines.add(error(lineNum, i, "", "Nom obligatoire"));
+                continue;
+            }
+            String fileKey = (parentNom.isBlank() ? "" : parentNom.toLowerCase(Locale.ROOT))
+                    + "|" + nom.toLowerCase(Locale.ROOT);
+            if (!seen.add(fileKey)) {
+                lines.add(error(lineNum, i, nom, "Categorie dupliquee dans le fichier"));
+                continue;
+            }
+            Category parent = null;
+            if (!parentNom.isBlank()) {
+                parent = categoryRepository.findFirstByNomIgnoreCase(parentNom).orElse(null);
+                if (parent == null && !pendingNoms.contains(parentNom.toLowerCase(Locale.ROOT))) {
+                    lines.add(error(lineNum, i, nom, "Parent inconnu: " + parentNom));
+                    continue;
+                }
+            }
+            Optional<Category> existing = (!parentNom.isBlank() && parent == null)
+                    ? Optional.empty()
+                    : findCategoryByNomAndParent(nom, parent);
+            if (existing.isPresent()) {
+                lines.add(duplicateResult(lineNum, i, nom, duplicateMode, "Categorie deja existante"));
+            } else {
+                lines.add(ok(lineNum, i, nom, "CREATE"));
+                pendingNoms.add(nom.toLowerCase(Locale.ROOT));
+            }
+        }
+        return summarize(lines);
+    }
+
+    private void applyCategoryLine(String[] row, DuplicateSkuMode duplicateMode) {
+        String nom = TabularFileHelper.cell(row, 0).trim();
+        String parentNom = TabularFileHelper.cell(row, 1);
+        Category parent = null;
+        if (!parentNom.isBlank()) {
+            parent = categoryRepository.findFirstByNomIgnoreCase(parentNom.trim())
+                    .orElseThrow(() -> new BusinessException("Parent inconnu: " + parentNom));
+        }
+        Optional<Category> existing = findCategoryByNomAndParent(nom, parent);
+        if (existing.isPresent()) {
+            if (duplicateMode != DuplicateSkuMode.UPDATE) {
+                throw new BusinessException("Categorie existante: " + nom);
+            }
+            categoryRepository.save(existing.get());
+        } else {
+            categoryRepository.save(Category.builder().nom(nom).parent(parent).build());
+        }
+    }
+
+    private Optional<Category> findCategoryByNomAndParent(String nom, Category parent) {
+        if (parent == null) {
+            return categoryRepository.findFirstByNomIgnoreCaseAndParentIsNull(nom);
+        }
+        return categoryRepository.findFirstByNomIgnoreCaseAndParent_Id(nom, parent.getId());
+    }
+
+    private ImportPreviewResponse buildSupplierPreview(List<String[]> rows, DuplicateSkuMode duplicateMode) {
+        if (rows.isEmpty()) {
+            throw new BusinessException("Fichier vide");
+        }
+        validateHeaders(rows.get(0), SUPPLIER_HEADERS);
+        List<ImportLineResult> lines = new ArrayList<>();
+        Set<String> seen = new HashSet<>();
+        int lineNum = 0;
+        for (int i = 1; i < rows.size(); i++) {
+            lineNum++;
+            String[] row = rows.get(i);
+            String nom = TabularFileHelper.cell(row, 0);
+            String email = TabularFileHelper.cell(row, 1);
+            if (nom.isBlank() && email.isBlank()) {
+                continue;
+            }
+            if (nom.isBlank()) {
+                lines.add(error(lineNum, i, email, "Nom obligatoire"));
+                continue;
+            }
+            String key = nom.toLowerCase(Locale.ROOT);
+            if (!seen.add(key)) {
+                lines.add(error(lineNum, i, nom, "Fournisseur duplique dans le fichier"));
+                continue;
+            }
+            Optional<Supplier> existing = findSupplierByUniqueKey(nom, email);
+            if (existing.isPresent()) {
+                lines.add(duplicateResult(lineNum, i, nom, duplicateMode, "Fournisseur deja existant"));
+            } else {
+                lines.add(ok(lineNum, i, nom, "CREATE"));
+            }
+        }
+        return summarize(lines);
+    }
+
+    private void applySupplierLine(String[] row, DuplicateSkuMode duplicateMode) {
+        String nom = TabularFileHelper.cell(row, 0).trim();
+        String email = emptyToNull(TabularFileHelper.cell(row, 1));
+        String telephone = emptyToNull(TabularFileHelper.cell(row, 2));
+        String adresse = emptyToNull(TabularFileHelper.cell(row, 3));
+        Optional<Supplier> existing = findSupplierByUniqueKey(nom, email);
+        if (existing.isPresent()) {
+            if (duplicateMode != DuplicateSkuMode.UPDATE) {
+                throw new BusinessException("Fournisseur existant: " + nom);
+            }
+            Supplier supplier = existing.get();
+            supplier.setNom(nom);
+            supplier.setEmail(email);
+            supplier.setTelephone(telephone);
+            supplier.setAdresse(adresse);
+            supplierRepository.save(supplier);
+        } else {
+            supplierRepository.save(Supplier.builder()
+                    .nom(nom)
+                    .email(email)
+                    .telephone(telephone)
+                    .adresse(adresse)
+                    .build());
+        }
+    }
+
+    private Optional<Supplier> findSupplierByUniqueKey(String nom, String email) {
+        Optional<Supplier> byNom = supplierRepository.findFirstByNomIgnoreCase(nom);
+        if (byNom.isPresent()) {
+            return byNom;
+        }
+        if (email != null && !email.isBlank()) {
+            return supplierRepository.findFirstByEmailIgnoreCase(email.trim());
+        }
+        return Optional.empty();
+    }
+
+    private ImportPreviewResponse buildUnitPreview(List<String[]> rows, DuplicateSkuMode duplicateMode) {
+        if (rows.isEmpty()) {
+            throw new BusinessException("Fichier vide");
+        }
+        validateHeaders(rows.get(0), UNIT_HEADERS);
+        List<ImportLineResult> lines = new ArrayList<>();
+        Set<String> seen = new HashSet<>();
+        int lineNum = 0;
+        for (int i = 1; i < rows.size(); i++) {
+            lineNum++;
+            String[] row = rows.get(i);
+            String nom = TabularFileHelper.cell(row, 0);
+            String symbole = TabularFileHelper.cell(row, 1);
+            if (nom.isBlank() && symbole.isBlank()) {
+                continue;
+            }
+            if (symbole.isBlank()) {
+                lines.add(error(lineNum, i, nom, "Symbole obligatoire"));
+                continue;
+            }
+            if (nom.isBlank()) {
+                lines.add(error(lineNum, i, symbole, "Nom obligatoire"));
+                continue;
+            }
+            String key = symbole.toLowerCase(Locale.ROOT);
+            if (!seen.add(key)) {
+                lines.add(error(lineNum, i, symbole, "Unite dupliquee dans le fichier"));
+                continue;
+            }
+            Optional<UnitOfMeasure> existing = unitRepository.findBySymbole(symbole);
+            if (existing.isPresent()) {
+                lines.add(duplicateResult(lineNum, i, symbole, duplicateMode, "Unite deja existante"));
+            } else {
+                Optional<UnitOfMeasure> byNom = unitRepository.findByNomIgnoreCase(nom);
+                if (byNom.isPresent()) {
+                    lines.add(error(lineNum, i, symbole, "Nom d'unite deja utilise: " + nom));
+                    continue;
+                }
+                lines.add(ok(lineNum, i, symbole, "CREATE"));
+            }
+        }
+        return summarize(lines);
+    }
+
+    private void applyUnitLine(String[] row, DuplicateSkuMode duplicateMode) {
+        String nom = TabularFileHelper.cell(row, 0).trim();
+        String symbole = TabularFileHelper.cell(row, 1).trim();
+        Optional<UnitOfMeasure> existing = unitRepository.findBySymbole(symbole);
+        if (existing.isPresent()) {
+            if (duplicateMode != DuplicateSkuMode.UPDATE) {
+                throw new BusinessException("Unite existante: " + symbole);
+            }
+            UnitOfMeasure unit = existing.get();
+            Optional<UnitOfMeasure> byNom = unitRepository.findByNomIgnoreCase(nom);
+            if (byNom.isPresent() && !byNom.get().getId().equals(unit.getId())) {
+                throw new BusinessException("Nom d'unite deja utilise: " + nom);
+            }
+            unit.setNom(nom);
+            unitRepository.save(unit);
+        } else {
+            unitRepository.save(UnitOfMeasure.builder().nom(nom).symbole(symbole).build());
+        }
+    }
+
+    private ImportPreviewResponse buildWarehousePreview(List<String[]> rows, DuplicateSkuMode duplicateMode) {
+        if (rows.isEmpty()) {
+            throw new BusinessException("Fichier vide");
+        }
+        validateHeaders(rows.get(0), WAREHOUSE_HEADERS);
+        List<ImportLineResult> lines = new ArrayList<>();
+        Set<String> seen = new HashSet<>();
+        int lineNum = 0;
+        for (int i = 1; i < rows.size(); i++) {
+            lineNum++;
+            String[] row = rows.get(i);
+            String code = TabularFileHelper.cell(row, 0);
+            String nom = TabularFileHelper.cell(row, 1);
+            if (code.isBlank() && nom.isBlank()) {
+                continue;
+            }
+            if (code.isBlank()) {
+                lines.add(error(lineNum, i, nom, "Code obligatoire"));
+                continue;
+            }
+            if (nom.isBlank()) {
+                lines.add(error(lineNum, i, code, "Nom obligatoire"));
+                continue;
+            }
+            String key = code.toUpperCase(Locale.ROOT);
+            if (!seen.add(key)) {
+                lines.add(error(lineNum, i, code, "Entrepot duplique dans le fichier"));
+                continue;
+            }
+            Optional<Warehouse> existing = warehouseRepository.findByCode(key);
+            if (existing.isPresent()) {
+                lines.add(duplicateResult(lineNum, i, code, duplicateMode, "Entrepot deja existant"));
+            } else {
+                lines.add(ok(lineNum, i, code, "CREATE"));
+            }
+        }
+        return summarize(lines);
+    }
+
+    private void applyWarehouseLine(String[] row, DuplicateSkuMode duplicateMode) {
+        String code = TabularFileHelper.cell(row, 0).trim().toUpperCase(Locale.ROOT);
+        String nom = TabularFileHelper.cell(row, 1).trim();
+        String adresse = emptyToNull(TabularFileHelper.cell(row, 2));
+        Optional<Warehouse> existing = warehouseRepository.findByCode(code);
+        if (existing.isPresent()) {
+            if (duplicateMode != DuplicateSkuMode.UPDATE) {
+                throw new BusinessException("Entrepot existant: " + code);
+            }
+            Warehouse warehouse = existing.get();
+            warehouse.setNom(nom);
+            warehouse.setAdresse(adresse);
+            warehouseRepository.save(warehouse);
+        } else {
+            warehouseRepository.save(Warehouse.builder()
+                    .code(code)
+                    .nom(nom)
+                    .adresse(adresse)
+                    .actif(true)
+                    .build());
+        }
+    }
+
+    @FunctionalInterface
+    private interface LineApplier {
+        void apply(String[] row, DuplicateSkuMode mode);
+    }
+
+    private int applyOkLines(ImportPreviewResponse preview, List<String[]> rows,
+                             LineApplier applier, DuplicateSkuMode duplicateMode) {
+        int success = 0;
+        for (ImportLineResult line : preview.getLines()) {
+            if ("OK".equals(line.getStatus()) && line.getAction() != null && !"SKIP".equals(line.getAction())) {
+                applier.apply(rows.get(line.getDataRowIndex()), duplicateMode);
+                success++;
+            }
+        }
+        return success;
+    }
+
+    private ImportLineResult duplicateResult(int line, int dataRowIndex, String id,
+                                             DuplicateSkuMode mode, String rejectMessage) {
+        if (mode == DuplicateSkuMode.REJECT) {
+            return error(line, dataRowIndex, id, rejectMessage);
+        }
+        if (mode == DuplicateSkuMode.SKIP) {
+            return ok(line, dataRowIndex, id, "SKIP");
+        }
+        return ok(line, dataRowIndex, id, "UPDATE");
     }
 
     private ImportPreviewResponse buildPackagingPreview(List<String[]> rows, boolean forValidate) {

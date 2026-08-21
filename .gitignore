@@ -69,3 +69,4 @@ desktop/server-package/vendor/*.zip
 desktop/server-package/vendor/*.exe
 desktop/server-package/vendor/pgsql-extract/
 desktop/client-package/build/
+desktop/_dist/
