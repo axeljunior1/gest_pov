@@ -223,20 +223,21 @@ public final class PosView extends StackPane implements Reloadable {
 
     private void buildSalesWorkspace() {
         search.getStyleClass().add("pos-search");
-        search.setPromptText("Nom, SKU ou code-barres…");
+        search.setPromptText("Nom, SKU ou code-barres… (Entrée = scan → panier)");
         search.setOnKeyPressed(e -> {
             if (e.getCode() == KeyCode.ENTER) {
-                searchNow();
+                onSearchOrScan();
             }
         });
         Button searchBtn = new Button("Chercher");
         searchBtn.getStyleClass().addAll("button-secondary", "pos-action");
-        searchBtn.setOnAction(e -> searchNow());
+        searchBtn.setOnAction(e -> onSearchOrScan());
         HBox searchBar = new HBox(10, search, searchBtn);
         HBox.setHgrow(search, Priority.ALWAYS);
 
         results.getStyleClass().add("pos-results");
         results.setPrefHeight(220);
+        results.setPlaceholder(new EmptyState("Catalogue vide — créez un produit Actif ou scannez un code-barres"));
         results.setCellFactory(lv -> new ListCell<>() {
             @Override
             protected void updateItem(PosProduct item, boolean empty) {
@@ -789,26 +790,95 @@ public final class PosView extends StackPane implements Reloadable {
         if (!q.isEmpty()) {
             return;
         }
-        FxAsync.run(() -> pos.search("", 20), list -> results.getItems().setAll(list), ignored -> {
+        FxAsync.run(() -> pos.browseCatalog(20), list -> {
+            results.getItems().setAll(list);
+            if (list.isEmpty()) {
+                results.setPlaceholder(new EmptyState(
+                        "Aucun produit Actif — passez le cycle de vie à « Actif » sur la fiche produit"));
+            }
+        }, ignored -> {
+        });
+    }
+
+    /** Entrée / Chercher : code-barres → ajout panier ; sinon recherche catalogue. */
+    private void onSearchOrScan() {
+        String q = search.getText() == null ? "" : search.getText().trim();
+        if (looksLikeBarcode(q)) {
+            scanBarcodeToCart(q);
+            return;
+        }
+        searchNow();
+    }
+
+    private void scanBarcodeToCart(String code) {
+        if (sale == null || sale.id() == null) {
+            error.show("Ouvrez la session et créez une vente avant de scanner.");
+            return;
+        }
+        BigDecimal quantity;
+        try {
+            quantity = parseDecimal(qty.getText(), BigDecimal.ONE);
+            if (quantity.compareTo(BigDecimal.ZERO) <= 0) {
+                error.show("Quantité invalide.");
+                return;
+            }
+        } catch (NumberFormatException e) {
+            error.show("Quantité invalide.");
+            return;
+        }
+        loading.setLoading(true);
+        BigDecimal qtyToAdd = quantity;
+        FxAsync.run(() -> pos.scanItem(sale.id(), code, qtyToAdd), paid -> {
+            loading.setLoading(false);
+            error.hide();
+            showSale(paid);
+            search.clear();
+            qty.setText("1");
+            loadCatalogPreview();
+            search.requestFocus();
+        }, t -> {
+            loading.setLoading(false);
+            fail(t);
+            search.selectAll();
+            search.requestFocus();
         });
     }
 
     private void searchNow() {
         String q = search.getText() == null ? "" : search.getText().trim();
         loading.setLoading(true);
-        FxAsync.run(() -> pos.search(q, 20), list -> {
+        FxAsync.run(() -> q.isEmpty() ? pos.browseCatalog(20) : pos.search(q, 20), list -> {
             loading.setLoading(false);
             error.hide();
             results.getItems().setAll(list);
             if (list.isEmpty()) {
-                error.show(q.isEmpty()
-                        ? "Aucun produit à afficher."
-                        : "Aucun résultat pour « " + q + " ».");
+                if (q.isEmpty()) {
+                    results.setPlaceholder(new EmptyState(
+                            "Aucun produit Actif — vérifiez statut / cycle de vie sur Produits"));
+                } else {
+                    error.show("Aucun résultat pour « " + q + " ».");
+                }
             } else if (list.size() == 1 && !q.isEmpty()) {
                 results.getSelectionModel().select(0);
                 addSelected();
             }
         }, this::fail);
+    }
+
+    private static boolean looksLikeBarcode(String term) {
+        if (term == null || term.isBlank()) {
+            return false;
+        }
+        String t = term.trim();
+        if (t.length() < 6) {
+            return false;
+        }
+        for (int i = 0; i < t.length(); i++) {
+            if (!Character.isDigit(t.charAt(i))) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private void payPendingSelected() {

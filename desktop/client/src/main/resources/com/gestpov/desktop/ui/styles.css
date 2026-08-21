@@ -5,6 +5,33 @@
     -fx-text-fill: #0f172a;
 }
 
+/* Contraste contenu clair (pas la sidebar sombre). */
+.content .label .text,
+.card .label .text,
+.status-message .text {
+    -fx-fill: #0f172a;
+}
+
+.content .error-banner-text .text,
+.error-banner .error-banner-text .text,
+.error-banner-text .text {
+    -fx-fill: #7f1d1d;
+}
+
+.content .status-message-error .text,
+.status-message-error .text {
+    -fx-fill: #7f1d1d;
+}
+
+.content .license-need-title .text,
+.license-need-title .text {
+    -fx-fill: #7c2d12;
+}
+
+.content .license-need-banner .page-sub .text {
+    -fx-fill: #7c2d12;
+}
+
 .top-bar {
     -fx-background-color: #ffffff;
     -fx-border-color: #cbd5e1;
@@ -14,7 +41,11 @@
 
 .health-label {
     -fx-font-size: 12px;
-    -fx-text-fill: #334155;
+    -fx-text-fill: #1e293b;
+}
+
+.health-label .text {
+    -fx-fill: #1e293b;
 }
 
 .health-dot {
@@ -22,15 +53,27 @@
 }
 
 .health-ok {
-    -fx-text-fill: #16a34a;
+    -fx-text-fill: #15803d;
+}
+
+.health-ok .text {
+    -fx-fill: #15803d;
 }
 
 .health-down {
-    -fx-text-fill: #dc2626;
+    -fx-text-fill: #b91c1c;
+}
+
+.health-down .text {
+    -fx-fill: #b91c1c;
 }
 
 .health-unknown {
-    -fx-text-fill: #ca8a04;
+    -fx-text-fill: #a16207;
+}
+
+.health-unknown .text {
+    -fx-fill: #a16207;
 }
 
 .sidebar {
@@ -63,16 +106,28 @@
     -fx-text-fill: #ffffff;
 }
 
+.brand-title .text {
+    -fx-fill: #ffffff;
+}
+
 .brand-sub {
     -fx-font-size: 12px;
-    -fx-text-fill: #cbd5e1;
+    -fx-text-fill: #e2e8f0;
+}
+
+.brand-sub .text {
+    -fx-fill: #e2e8f0;
 }
 
 .nav-section {
     -fx-font-size: 11px;
     -fx-font-weight: 700;
-    -fx-text-fill: #93c5fd;
+    -fx-text-fill: #bfdbfe;
     -fx-padding: 14 8 6 8;
+}
+
+.nav-section .text {
+    -fx-fill: #bfdbfe;
 }
 
 .nav-button {
@@ -129,9 +184,45 @@
     -fx-text-fill: #0f172a;
 }
 
+.page-title .text {
+    -fx-fill: #0f172a;
+}
+
 .page-sub {
-    -fx-text-fill: #334155;
+    -fx-text-fill: #1e293b;
     -fx-font-size: 13px;
+    -fx-font-weight: 600;
+}
+
+.page-sub .text {
+    -fx-fill: #1e293b;
+}
+
+/* Messages login / statut / info (hors ErrorBanner) */
+.status-message {
+    -fx-text-fill: #0f172a;
+    -fx-font-size: 14px;
+    -fx-font-weight: 700;
+    -fx-padding: 10 12 10 12;
+    -fx-background-color: #ffffff;
+    -fx-background-radius: 10;
+    -fx-border-color: #94a3b8;
+    -fx-border-radius: 10;
+    -fx-border-width: 1;
+}
+
+.status-message .text {
+    -fx-fill: #0f172a;
+}
+
+.status-message-error {
+    -fx-text-fill: #7f1d1d;
+    -fx-background-color: #fee2e2;
+    -fx-border-color: #f87171;
+}
+
+.status-message-error .text {
+    -fx-fill: #7f1d1d;
 }
 
 .card {
@@ -205,8 +296,9 @@
 }
 
 .error-banner {
-    -fx-background-color: #fff1f2;
-    -fx-border-color: #fda4af;
+    -fx-background-color: #fecaca;
+    -fx-border-color: #b91c1c;
+    -fx-border-width: 1.5;
     -fx-border-radius: 10;
     -fx-background-radius: 10;
     -fx-padding: 11 13 11 13;
@@ -224,16 +316,44 @@
 }
 
 .error-banner-text {
-    -fx-text-fill: #9f1239;
-    -fx-font-size: 13px;
-    -fx-font-weight: 600;
+    -fx-text-fill: #7f1d1d;
+    -fx-font-size: 14px;
+    -fx-font-weight: 700;
     -fx-padding: 2 4 2 0;
 }
 
+.error-banner-text .text {
+    -fx-fill: #7f1d1d;
+}
+
+.error-banner .button-ghost {
+    -fx-text-fill: #7f1d1d;
+    -fx-font-weight: 800;
+    -fx-background-color: #ffffff;
+    -fx-border-color: #b91c1c;
+    -fx-border-width: 1;
+    -fx-border-radius: 8;
+    -fx-background-radius: 8;
+    -fx-padding: 6 10 6 10;
+}
+
+.error-banner .button-ghost .text {
+    -fx-fill: #7f1d1d;
+}
+
+.error-banner .button-ghost:hover {
+    -fx-background-color: #fee2e2;
+}
+
 .empty-state {
-    -fx-text-fill: #475569;
+    -fx-text-fill: #1e293b;
     -fx-font-size: 14px;
+    -fx-font-weight: 600;
     -fx-padding: 30 12 30 12;
+}
+
+.empty-state .text {
+    -fx-fill: #1e293b;
 }
 
 .table-view {
@@ -259,23 +379,12 @@
     -fx-background-color: rgba(15, 23, 42, 0.30);
 }
 
-.user-label {
-    -fx-text-fill: #1e293b;
-    -fx-font-size: 13px;
-    -fx-font-weight: 600;
-}
-
 .tree-view, .list-view {
     -fx-background-color: #ffffff;
     -fx-background-radius: 10;
     -fx-border-color: #bfdbfe;
     -fx-border-radius: 10;
     -fx-padding: 8;
-}
-
-.tree-cell {
-    -fx-padding: 5 7 5 7;
-    -fx-font-size: 14px;
 }
 
 .category-name {
@@ -285,7 +394,47 @@
 .form-label {
     -fx-font-size: 12px;
     -fx-font-weight: 700;
-    -fx-text-fill: #334155;
+    -fx-text-fill: #0f172a;
+}
+
+.form-label .text {
+    -fx-fill: #0f172a;
+}
+
+.user-label {
+    -fx-text-fill: #0f172a;
+    -fx-font-size: 13px;
+    -fx-font-weight: 700;
+}
+
+.user-label .text {
+    -fx-fill: #0f172a;
+}
+
+.table-view .table-cell {
+    -fx-text-fill: #0f172a;
+}
+
+.table-view .table-cell .text {
+    -fx-fill: #0f172a;
+}
+
+.list-cell {
+    -fx-text-fill: #0f172a;
+}
+
+.list-cell .text {
+    -fx-fill: #0f172a;
+}
+
+.tree-cell {
+    -fx-padding: 5 7 5 7;
+    -fx-font-size: 14px;
+    -fx-text-fill: #0f172a;
+}
+
+.tree-cell .text {
+    -fx-fill: #0f172a;
 }
 
 .check-box {
@@ -318,11 +467,59 @@
     -fx-text-fill: #0f172a;
 }
 
+.license-need-banner {
+    -fx-background-color: #ffedd5;
+    -fx-border-color: #c2410c;
+    -fx-border-width: 1.5;
+    -fx-background-radius: 10;
+    -fx-border-radius: 10;
+}
+
+.license-need-title {
+    -fx-font-size: 15px;
+    -fx-font-weight: 800;
+    -fx-text-fill: #7c2d12;
+}
+
+.license-need-title .text {
+    -fx-fill: #7c2d12;
+}
+
+.license-need-banner .page-sub {
+    -fx-text-fill: #7c2d12;
+    -fx-font-weight: 600;
+}
+
+.license-need-banner .page-sub .text {
+    -fx-fill: #7c2d12;
+}
+
+.license-hero-id {
+    -fx-font-family: "Consolas", "Courier New", monospace;
+    -fx-font-size: 15px;
+    -fx-font-weight: 800;
+    -fx-text-fill: #0f172a;
+    -fx-padding: 8 10 8 10;
+    -fx-background-color: #ffffff;
+    -fx-background-radius: 8;
+    -fx-border-color: #1e3a8a;
+    -fx-border-width: 1;
+    -fx-border-radius: 8;
+}
+
+.license-hero-id .text {
+    -fx-fill: #0f172a;
+}
+
 .settings-install-id {
     -fx-font-family: "Consolas", "Courier New", monospace;
     -fx-font-size: 13px;
     -fx-font-weight: 700;
-    -fx-text-fill: #1e3a8a;
+    -fx-text-fill: #0f172a;
+}
+
+.settings-install-id .text {
+    -fx-fill: #0f172a;
 }
 
 .settings-json {

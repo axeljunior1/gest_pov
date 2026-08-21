@@ -39,21 +39,14 @@ Sortie : `desktop\client-package\build\GestPOV-Client-Offline\`
 
 ## Installer sur un poste (offline)
 
-```powershell
-# USB → dossier local, PowerShell (utilisateur suffit)
-cd GestPOV-Client-Offline
-Set-ExecutionPolicy -Scope Process Bypass
-.\install-client.ps1
+```text
+1. Copier GestPOV-Client-Offline sur le PC
+2. Double-clic : 01-Installer.cmd
+   (ou 02-Menu.cmd)
+3. Lancer : raccourci menu Demarrer, ou GestPOV-Client.cmd
 ```
 
-Tous les utilisateurs (Program Files, **admin**) :
-
-```powershell
-.\install-client.ps1 -AllUsers
-```
-
-Sans script : lancer `GestPOV-Client.bat` depuis le dossier USB (moins pratique).
-
+Tous les utilisateurs (Program Files, **admin**) : `02-Menu.cmd` → option 2.
 ---
 
 ## Premier lancement — découverte serveur

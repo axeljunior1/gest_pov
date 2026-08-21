@@ -1398,13 +1398,37 @@ public final class FakeHttpServer implements AutoCloseable {
             json(exchange, 200, sb.append(']').toString());
             return;
         }
+        if ("GET".equals(method) && path.equals("/api/pos/catalog")) {
+            StringBuilder sb = new StringBuilder("{\"products\":[");
+            boolean first = true;
+            int count = 0;
+            for (ProductRow p : products) {
+                if (count >= 50) {
+                    break;
+                }
+                if (!first) {
+                    sb.append(',');
+                }
+                first = false;
+                count++;
+                sb.append("{\"id\":").append(p.id)
+                        .append(",\"nom\":\"").append(p.nom).append("\"");
+                appendStr(sb, "sku", p.sku);
+                appendNum(sb, "unitPrice", p.prixVente);
+                sb.append(",\"stockAvailable\":").append(p.stockTotal)
+                        .append(",\"hasVariants\":false}");
+            }
+            json(exchange, 200, sb.append("]}").toString());
+            return;
+        }
         if ("GET".equals(method) && path.equals("/api/pos/catalog/search")) {
             String q = queryParam(query, "q").toLowerCase();
             StringBuilder sb = new StringBuilder("{\"products\":[");
             boolean first = true;
             for (ProductRow p : products) {
                 if (!q.isEmpty() && !p.nom.toLowerCase().contains(q)
-                        && (p.sku == null || !p.sku.toLowerCase().contains(q))) {
+                        && (p.sku == null || !p.sku.toLowerCase().contains(q))
+                        && (p.codeBarre == null || !p.codeBarre.toLowerCase().contains(q))) {
                     continue;
                 }
                 if (!first) {
@@ -1477,6 +1501,31 @@ public final class FakeHttpServer implements AutoCloseable {
             if ("POST".equals(method) && segs.length == 2 && "resume".equals(segs[1])) {
                 sale.status = "DRAFT";
                 json(exchange, 200, saleJson(sale));
+                return;
+            }
+            if ("POST".equals(method) && segs.length == 2 && "scan".equals(segs[1])) {
+                String body = readBody(exchange);
+                String code = extractStringField(body, "code");
+                String qty = extractNumberField(body, "quantityInput");
+                ProductRow product = null;
+                if (code != null && !code.isBlank()) {
+                    String c = code.trim();
+                    for (ProductRow p : products) {
+                        if (c.equals(p.codeBarre) || c.equalsIgnoreCase(p.sku)) {
+                            product = p;
+                            break;
+                        }
+                    }
+                }
+                if (product == null) {
+                    json(exchange, 400, "{\"message\":\"Aucun produit trouvé pour ce code-barres\"}");
+                    return;
+                }
+                SaleLineRow line = new SaleLineRow(nextSaleLineId.getAndIncrement(), product.id, product.nom,
+                        qty == null ? "1" : qty, product.prixVente == null ? "0" : product.prixVente);
+                sale.lines.add(line);
+                json(exchange, 200, "{\"sale\":" + saleJson(sale)
+                        + ",\"message\":\"Produit ajouté : " + product.nom + "\"}");
                 return;
             }
             if ("POST".equals(method) && segs.length == 2 && "lines".equals(segs[1])) {

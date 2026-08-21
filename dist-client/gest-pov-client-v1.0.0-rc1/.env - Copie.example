@@ -1,0 +1,46 @@
+# =============================================================================
+# Gest_POV — variables Docker CLIENT (copier vers .env à la racine du dépôt)
+#   cp .env.example .env
+# Ne jamais committer .env (secrets réels)
+# =============================================================================
+
+# --- PostgreSQL ---
+POSTGRES_DB=erp_products
+POSTGRES_USER=erp_user
+POSTGRES_PASSWORD=change-me-use-openssl-rand-base64-24
+
+# Exposition PostgreSQL (images pré-buildées / admin local uniquement)
+POSTGRES_BIND=127.0.0.1
+POSTGRES_PORT=5432
+
+# --- Spring Boot (service backend, hôte = nom Docker "postgres") ---
+SPRING_PROFILES_ACTIVE=prod,docker
+SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/erp_products
+SPRING_DATASOURCE_USERNAME=erp_user
+SPRING_DATASOURCE_PASSWORD=change-me-use-openssl-rand-base64-24
+
+# JWT (min. 32 caractères aléatoires)
+APP_JWT_SECRET=change-me-use-openssl-rand-base64-32
+
+# --- Premier administrateur (obligatoire au 1er démarrage client, profil prod) ---
+# Générer un mot de passe fort : openssl rand -base64 24
+APP_BOOTSTRAP_ADMIN_EMAIL=admin@your-company.example
+APP_BOOTSTRAP_ADMIN_PASSWORD=change-me-min-12-chars-strong-password
+APP_BOOTSTRAP_ADMIN_NAME=Administrateur
+APP_BOOTSTRAP_ADMIN_LAST_NAME=ERP
+
+# --- Accès application (reverse proxy Caddy) ---
+# 127.0.0.1 = localhost uniquement (recommandé client)
+APP_BIND=127.0.0.1
+APP_PORT=80
+
+# Alias compose dev racine
+FRONTEND_PORT=80
+
+# --- Images pré-buildées (deploy/compose.client.images.yml) ---
+# Laisser vide ou commenter si build local (docker-compose.client.yml)
+BACKEND_IMAGE=gest-pov-backend:1.0.0
+FRONTEND_IMAGE=gest-pov-frontend:1.0.0
+
+# --- Optionnel ---
+# BACKEND_PORT=8080

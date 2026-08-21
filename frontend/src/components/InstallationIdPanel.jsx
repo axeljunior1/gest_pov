@@ -35,7 +35,7 @@ export default function InstallationIdPanel({ compact = false }) {
         </div>
       )}
       <div>
-        <label className="text-xs font-medium text-gray-500 uppercase">Identifiant machine</label>
+        <label className="text-xs font-medium text-gray-500 uppercase">Identifiant serveur (server.id)</label>
         <div className="mt-1 flex gap-2 items-stretch">
           <code className="flex-1 text-sm font-mono bg-gray-50 border rounded-lg px-3 py-2 break-all select-all">
             {installationId || '—'}

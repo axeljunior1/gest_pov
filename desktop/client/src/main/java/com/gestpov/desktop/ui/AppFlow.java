@@ -10,6 +10,7 @@ import com.gestpov.desktop.net.ApiException;
 import com.gestpov.desktop.net.AuthClient;
 import com.gestpov.desktop.net.AuthSession;
 import com.gestpov.desktop.session.SessionContext;
+import com.gestpov.desktop.ui.license.LicenseView;
 import com.gestpov.desktop.util.FxAsync;
 import com.gestpov.desktop.version.CompatibilityStatus;
 import com.gestpov.desktop.version.VersionCompatibility;
@@ -178,10 +179,14 @@ public final class AppFlow {
                         + " — " + server.compatibility()));
         status.setWrapText(true);
         status.setMaxWidth(480);
+        status.getStyleClass().add("status-message");
+        if (preset != null && !preset.isBlank()) {
+            status.getStyleClass().add("status-message-error");
+        }
 
         javafx.scene.control.ScrollPane statusScroll = new javafx.scene.control.ScrollPane(status);
         statusScroll.setFitToWidth(true);
-        statusScroll.setMaxHeight(120);
+        statusScroll.setMaxHeight(140);
         statusScroll.setHbarPolicy(javafx.scene.control.ScrollPane.ScrollBarPolicy.NEVER);
         statusScroll.setStyle("-fx-background-color: transparent; -fx-background: transparent;");
 
@@ -222,24 +227,93 @@ public final class AppFlow {
         login.setDisable(true);
         status.setText("Connexion…");
         FxAsync.run(() -> {
-            auth.login(email, password);
-            return auth.me();
-        }, me -> {
+            AuthSession loggedIn = auth.login(email, password);
+            try {
+                return new LoginOutcome(auth.me(), null);
+            } catch (ApiException api) {
+                if (api.isLicenseRequired()) {
+                    return new LoginOutcome(loggedIn, api);
+                }
+                throw api;
+            }
+        }, outcome -> {
             try {
                 config = config.withLastLoginEmail(email);
                 store.save(config);
             } catch (Exception ignored) {
                 // config locale optionnelle
             }
-            showHome(server, me);
+            if (outcome.licenseError() != null) {
+                showLicenseActivation(server, outcome.session(), outcome.licenseError());
+            } else {
+                showHome(server, outcome.session());
+            }
         }, error -> {
             login.setDisable(false);
             if (error instanceof ApiException api) {
                 status.setText(ApiException.loginMessage(api));
+                if (!status.getStyleClass().contains("status-message-error")) {
+                    status.getStyleClass().add("status-message-error");
+                }
             } else {
                 status.setText("Connexion au serveur impossible. Vérifiez que le serveur Gest POV est démarré.");
+                if (!status.getStyleClass().contains("status-message-error")) {
+                    status.getStyleClass().add("status-message-error");
+                }
             }
         });
+    }
+
+    private void showLicenseActivation(DiscoveredServer server, AuthSession me, ApiException licenseError) {
+        session.setUser(me);
+        stage.setMinWidth(720);
+        stage.setMinHeight(560);
+        Label heading = title("Licence requise");
+        Label explain = new Label(
+                "Le serveur exige une licence. Copiez le server.id ci-dessous, générez le fichier .lic, puis importez-le.");
+        explain.getStyleClass().add("page-sub");
+        explain.setWrapText(true);
+
+        String presetId = licenseError.installationId();
+        if (presetId == null || presetId.isBlank()) {
+            presetId = server.serverId();
+        }
+
+        LicenseView licenseView = new LicenseView(session, () -> {
+            FxAsync.run(auth::me, refreshed -> showHome(server, refreshed), err -> {
+                if (err instanceof ApiException api && api.isLicenseRequired()) {
+                    // reste sur cet ecran
+                } else if (err instanceof ApiException api) {
+                    showLogin(server, ApiException.loginMessage(api));
+                }
+            });
+        });
+
+        Button back = new Button("Retour connexion");
+        back.getStyleClass().add("button-ghost");
+        back.setOnAction(e -> {
+            session.clear();
+            showLogin(server, null);
+        });
+
+        VBox root = box(heading, explain, licenseView, back);
+        if (presetId != null && !presetId.isBlank()) {
+            Label idLine = new Label("server.id : " + presetId);
+            idLine.getStyleClass().add("license-hero-id");
+            idLine.setWrapText(true);
+            Button copy = new Button("Copier server.id");
+            copy.getStyleClass().add("button-primary");
+            String idCopy = presetId;
+            copy.setOnAction(e -> {
+                javafx.scene.input.ClipboardContent content = new javafx.scene.input.ClipboardContent();
+                content.putString(idCopy);
+                javafx.scene.input.Clipboard.getSystemClipboard().setContent(content);
+            });
+            root.getChildren().add(2, new VBox(8, idLine, copy));
+        }
+
+        UiTheme.apply(stage, root, 780, 640);
+        stage.setTitle("Gest POV — Activation licence");
     }
 
     private void showHome(DiscoveredServer server, AuthSession me) {
@@ -249,6 +323,9 @@ public final class AppFlow {
         MainWindow main = new MainWindow(session, this::logout);
         UiTheme.apply(stage, main, 1100, 720);
         stage.setTitle("Gest POV — " + (server.serverName() == null ? "Desktop" : server.serverName()));
+    }
+
+    private record LoginOutcome(AuthSession session, ApiException licenseError) {
     }
 
     private void logout() {

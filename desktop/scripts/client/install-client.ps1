@@ -67,8 +67,12 @@ New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
 robocopy $PackageRoot $InstallDir /E /NFL /NDL /NJH /NJS /nc /ns /np | Out-Null
 if ($LASTEXITCODE -ge 8) { throw "Copie du package client a echoue (robocopy $LASTEXITCODE)." }
 
-$launcher = Join-Path $InstallDir 'GestPOV-Client.bat'
-if (-not (Test-Path $launcher)) { throw "GestPOV-Client.bat introuvable apres copie." }
+$launcherCmd = Join-Path $InstallDir 'GestPOV-Client.cmd'
+$launcherBat = Join-Path $InstallDir 'GestPOV-Client.bat'
+if (-not (Test-Path $launcherCmd) -and -not (Test-Path $launcherBat)) {
+    throw "GestPOV-Client.cmd introuvable apres copie."
+}
+$launcher = if (Test-Path $launcherCmd) { $launcherCmd } else { $launcherBat }
 
 $programs = if ($AllUsers) {
     Join-Path $env:PROGRAMDATA 'Microsoft\Windows\Start Menu\Programs'

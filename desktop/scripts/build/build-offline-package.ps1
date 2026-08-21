@@ -153,9 +153,13 @@ New-Item -ItemType Directory -Path $backendOut, (Join-Path $outRoot 'winsw'), (J
 Copy-Item $jarSrc (Join-Path $backendOut 'gest-pov-server.jar') -Force
 Copy-Item $winsw (Join-Path $outRoot 'winsw\WinSW.exe') -Force
 
+# Scripts serveur + UI (menu / install PowerShell)
 $srcScripts = Join-Path $RepoRoot 'desktop\scripts\server'
 Copy-Item (Join-Path $srcScripts '*.ps1') (Join-Path $outRoot 'scripts\server') -Force
 Copy-Item (Join-Path $srcScripts 'lib\*.ps1') (Join-Path $outRoot 'scripts\server\lib') -Force
+$uiOut = Join-Path $outRoot 'scripts\server\ui'
+New-Item -ItemType Directory -Path $uiOut -Force | Out-Null
+Copy-Item (Join-Path $srcScripts 'ui\*.ps1') $uiOut -Force
 
 $tplDir = Join-Path $outRoot 'config\templates'
 New-Item -ItemType Directory -Path $tplDir -Force | Out-Null
@@ -164,58 +168,50 @@ if (Test-Path $tplSrc) {
     Copy-Item $tplSrc (Join-Path $tplDir 'application-desktop-server.yml.template') -Force
 }
 
-$rootInstall = Join-Path $outRoot 'install-server.ps1'
-@(
-    '#Requires -RunAsAdministrator'
-    '$here = $PSScriptRoot'
-    '& (Join-Path $here ''scripts\server\install-server.ps1'') -PackageRoot $here @args'
-) | Set-Content $rootInstall -Encoding UTF8
+# Lanceurs .cmd ASCII+CRLF uniquement (jamais UTF-8 — bug cmd.exe)
+. (Join-Path $srcScripts 'lib\Write-GestPovAsciiCmd.ps1')
+Write-GestPovAsciiCmd -Path (Join-Path $outRoot '01-Installer.cmd') -Content @'
+@echo off
+cd /d "%~dp0"
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\server\ui\Start-Install.ps1"
+'@
+Write-GestPovAsciiCmd -Path (Join-Path $outRoot '02-Menu.cmd') -Content @'
+@echo off
+cd /d "%~dp0"
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\server\ui\Start-Menu.ps1"
+'@
 
-$rootUninstall = Join-Path $outRoot 'uninstall-server.ps1'
-@(
-    '#Requires -RunAsAdministrator'
-    '$here = $PSScriptRoot'
-    '& (Join-Path $here ''scripts\server\uninstall-server.ps1'') @args'
-) | Set-Content $rootUninstall -Encoding UTF8
+$lireMoi = @"
+Gest POV Serveur - package offline
+==================================
+Windows 10/11 64-bit. Internet / Java / PostgreSQL / Docker : NON requis.
 
-$rootHealth = Join-Path $outRoot 'health-check.ps1'
-@(
-    '$here = $PSScriptRoot'
-    '& (Join-Path $here ''scripts\server\health-check.ps1'') @args'
-) | Set-Content $rootHealth -Encoding UTF8
+FICHIERS A UTILISER (racine)
+---------------------------
+  01-Installer.cmd   Premiere installation (UAC admin)
+  02-Menu.cmd        Demarrer, arreter, diagnostic, reparer...
+  LIRE-MOI.txt       Ce fichier
 
-$batSrc = Join-Path $RepoRoot 'desktop\scripts\server\bat'
-if (Test-Path $batSrc) {
-    Get-ChildItem $batSrc -Filter '*.bat' | ForEach-Object {
-        Copy-Item $_.FullName (Join-Path $outRoot $_.Name) -Force
-    }
-}
+Ne touchez PAS au dossier scripts\ (technique).
 
-@"
-Gest POV Server - package offline
-=================================
-Machine cible : Windows 10/11 64-bit, administrateur.
-Internet, Java, PostgreSQL, Docker, Maven, Git, Node : NON requis.
+INSTALLATION
+------------
+1. Copier ce dossier sur le PC serveur.
+2. Double-clic 01-Installer.cmd (accepte UAC).
+3. Double-clic 02-Menu.cmd -> 4) Diagnostic.
 
-1. Copier ce dossier sur le PC (cle USB).
-2. Double-clic (recommande) :
-     install-server.bat          (1ere install, admin)
-     fix-server-start.bat        (reparer + demarrer, admin)
-     health-check.bat            (diagnostic)
-3. Desktop local : pointer http://127.0.0.1:8080
-4. Admin initial : C:\ProgramData\GestPOV\config\INITIAL_ADMIN.txt (nouveau site)
+Admin initial (nouveau site) :
+  C:\ProgramData\GestPOV\config\INITIAL_ADMIN.txt
 
-Autres commandes (admin) : start-server.bat, stop-server.bat, restart-server.bat
-
-Desinstallation (conserve les donnees) : uninstall-server.bat
-Purge complete :
-     powershell -File scripts\server\uninstall-server.ps1 -PurgeData
-
-Alternative PowerShell (si besoin) :
-     .\install-server.ps1
-     .\health-check.ps1
-"@ | Set-Content (Join-Path $outRoot 'README.txt') -Encoding UTF8
+Clients caisses : package GestPOV-Client-Offline.
+API : http://127.0.0.1:8080
+Firewall : TCP 8080 + UDP 38471
+"@
+# LIRE-MOI en ASCII aussi (pas de tiret long / accents)
+$lireMoiAscii = ($lireMoi -replace '[^\x00-\x7F]', '?')
+$enc = [System.Text.Encoding]::ASCII
+[System.IO.File]::WriteAllText((Join-Path $outRoot 'LIRE-MOI.txt'), ($lireMoiAscii -replace "`n", "`r`n"), $enc)
 
 Write-Host ""
 Write-Host "Package pret : $outRoot"
-Write-Host "Copiez ce dossier sur une cle USB."
+Write-Host "Utilisez : 01-Installer.cmd  puis  02-Menu.cmd"

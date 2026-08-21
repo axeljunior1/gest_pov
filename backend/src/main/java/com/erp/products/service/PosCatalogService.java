@@ -79,7 +79,9 @@ public class PosCatalogService {
         int max = resolveLimit(limit);
         if (query == null || query.isBlank()) {
             ProductSearchCriteria criteria = new ProductSearchCriteria();
-            applySellableProductFilters(criteria);
+            // Aperçu caisse : produits statut Actif (cycle quelconque) pour ne pas cacher les fiches
+            // encore en brouillon — l'ajout / scan exige toujours le cycle Actif.
+            criteria.setStatut(ProductStatus.ACTIF);
             if (categoryId != null) {
                 criteria.setCategorieId(categoryId);
             }

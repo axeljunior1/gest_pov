@@ -47,6 +47,7 @@ public final class ErrorBanner extends HBox {
     public void show(String message) {
         String msg = message == null ? "" : message;
         text.setText(msg);
+        text.setStyle("-fx-text-fill: #7f1d1d; -fx-font-size: 14px; -fx-font-weight: 700;");
         // Hauteur dynamique plafonnée pour forcer l'ascenseur si besoin
         text.applyCss();
         double needed = Math.min(MAX_TEXT_HEIGHT, Math.max(40, estimateHeight(msg)));

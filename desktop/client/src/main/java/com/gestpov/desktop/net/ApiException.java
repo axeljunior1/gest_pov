@@ -1,6 +1,11 @@
 package com.gestpov.desktop.net;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 public class ApiException extends Exception {
+
+    private static final ObjectMapper BODY_MAPPER = new ObjectMapper();
 
     private final int statusCode;
     private final String responseBody;
@@ -47,9 +52,39 @@ public class ApiException extends Exception {
         return statusCode == 403;
     }
 
-    /**
-     * Message UI. Jamais de stack, SQL ni JSON brut.
-     */
+    public boolean isLicenseRequired() {
+        if (statusCode != 403) {
+            return false;
+        }
+        String err = bodyField("error");
+        if (err != null && "LICENSE_REQUIRED".equalsIgnoreCase(err)) {
+            return true;
+        }
+        String msg = getMessage();
+        return msg != null && msg.toLowerCase().contains("licence");
+    }
+
+    /** UUID a transmettre pour generer le .lic. */
+    public String installationId() {
+        return bodyField("installationId");
+    }
+
+    private String bodyField(String name) {
+        if (responseBody == null || responseBody.isBlank()) {
+            return null;
+        }
+        try {
+            JsonNode node = BODY_MAPPER.readTree(responseBody);
+            if (node != null && node.hasNonNull(name)) {
+                String v = node.get(name).asText("").trim();
+                return v.isEmpty() ? null : v;
+            }
+        } catch (Exception ignored) {
+            // ignore
+        }
+        return null;
+    }
+
     public static String userMessage(ApiException e) {
         return userMessage(e, false);
     }
@@ -72,9 +107,12 @@ public class ApiException extends Exception {
             return "Votre session a expiré. Veuillez vous reconnecter.";
         }
         if (e.statusCode() == 403) {
-            String backend = e.getMessage();
-            if (backend != null && backend.toLowerCase().contains("licence")) {
-                return backend;
+            if (e.isLicenseRequired()) {
+                String id = e.installationId();
+                if (id != null) {
+                    return "Licence requise. Identifiant serveur (server.id) : " + id;
+                }
+                return "Licence Gest POV requise. Ouvrez l'écran Licence pour copier le server.id.";
             }
             return "Vous n'avez pas l'autorisation d'effectuer cette opération.";
         }

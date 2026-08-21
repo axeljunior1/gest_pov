@@ -1,6 +1,6 @@
 # Phase 9 — POS (Desktop)
 
-**Statut :** caisse cœur livrée (session, recherche, panier, paiement, ticket JSON). Pas de retours / reports / double poste préparateur-caissier.
+**Statut :** caisse cœur + hold / pending / historique / reports / retours livrés (voir `migration-status.md`). Reste : ESC-POS natif, polish scan / parité fine vs Web.
 
 ---
 

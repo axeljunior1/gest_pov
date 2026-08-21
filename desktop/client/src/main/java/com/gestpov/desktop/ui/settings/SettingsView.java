@@ -209,7 +209,7 @@ public final class SettingsView extends StackPane implements Reloadable {
     }
 
     private VBox buildInstallationCard() {
-        Label h = new Label("Identifiant d'installation (licence)");
+        Label h = new Label("Identifiant serveur (server.id) — licence");
         h.getStyleClass().add("settings-group-title");
         installIdValue.getStyleClass().add("settings-install-id");
         installIdValue.setWrapText(true);
@@ -227,7 +227,7 @@ public final class SettingsView extends StackPane implements Reloadable {
         HBox row = new HBox(12, installIdValue, copy);
         row.setAlignment(Pos.CENTER_LEFT);
         HBox.setHgrow(installIdValue, Priority.ALWAYS);
-        Label hint = new Label("La licence .lic doit être émise pour cet ID, puis importée sur le serveur.");
+        Label hint = new Label("La licence .lic doit être émise pour ce server.id, puis importée sur le serveur.");
         hint.getStyleClass().add("page-sub");
         VBox card = new VBox(10, h, row, hint);
         if (openLicense != null) {

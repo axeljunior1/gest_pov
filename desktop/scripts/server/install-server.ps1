@@ -151,6 +151,57 @@ Ce fichier est restreint Administrateurs. Conservez-le hors du PC (coffre) puis 
 
 $sec = Unprotect-GestPovSecrets -Path $P.SecretsFile -Scope LocalMachine
 
+# ConvertFrom-Json -> PSCustomObject ; garantir les champs requis (install partielle / ancien fichier)
+# StrictMode: ([string]$null).Trim() PLANTE — toujours passer par ConvertTo-GestPovText
+function ConvertTo-GestPovText {
+    param($Value)
+    if ($null -eq $Value) { return '' }
+    return ("$Value").Trim()
+}
+function Get-GestPovSecretText {
+    param($Secrets, [string]$Name)
+    $prop = $Secrets.PSObject.Properties[$Name]
+    if (-not $prop) { return $null }
+    $v = $prop.Value
+    if ($null -eq $v) { return $null }
+    $text = ConvertTo-GestPovText $v
+    if ($text -eq '') { return $null }
+    return $text
+}
+function Set-GestPovSecretText {
+    param($Secrets, [string]$Name, [string]$Value)
+    if ($Secrets.PSObject.Properties[$Name]) {
+        $Secrets.$Name = $Value
+    } else {
+        Add-Member -InputObject $Secrets -NotePropertyName $Name -NotePropertyValue $Value -Force
+    }
+}
+$secretRepaired = $false
+foreach ($pair in @(
+        @{ Name = 'dbAdminUser'; Default = $P.DbAdminUser },
+        @{ Name = 'dbAppUser'; Default = $P.DbAppUser },
+        @{ Name = 'dbName'; Default = $P.DbName }
+    )) {
+    if ([string]::IsNullOrWhiteSpace((Get-GestPovSecretText $sec $pair.Name))) {
+        Set-GestPovSecretText $sec $pair.Name $pair.Default
+        $secretRepaired = $true
+    }
+}
+foreach ($pwName in @('dbAdminPassword', 'dbAppPassword', 'jwtSecret', 'bootstrapAdminPassword')) {
+    if ([string]::IsNullOrWhiteSpace((Get-GestPovSecretText $sec $pwName))) {
+        $len = if ($pwName -eq 'jwtSecret') { 48 } elseif ($pwName -eq 'bootstrapAdminPassword') { 20 } else { 28 }
+        Set-GestPovSecretText $sec $pwName (New-GestPovPassword $len)
+        $secretRepaired = $true
+        Write-GestPovLog -LogFile $log -Message "Secret manquant regenere: $pwName (valeur non journalisee)."
+    }
+}
+if ($secretRepaired) {
+    $hash = @{}
+    foreach ($p in $sec.PSObject.Properties) { $hash[$p.Name] = $p.Value }
+    Protect-GestPovSecrets -Secrets $hash -Path $P.SecretsFile -Scope LocalMachine
+    Write-GestPovLog -LogFile $log -Message "Fichier secrets.dpapi mis a jour (champs manquants)."
+}
+
 # --- PostgreSQL cluster ---
 $pgData = $P.PgDataDir
 $pgMarker = Join-Path $pgData 'PG_VERSION'
@@ -158,11 +209,11 @@ if (-not (Test-Path $pgMarker)) {
     Write-GestPovLog -LogFile $log -Message "Initialisation cluster PostgreSQL..."
     $pwFile = Join-Path $env:TEMP 'gestpov-init-pw.txt'
     try {
-        Set-Content -Path $pwFile -Value $sec.dbAdminPassword -Encoding ASCII -NoNewline
+        Set-Content -Path $pwFile -Value (Get-GestPovSecretText $sec 'dbAdminPassword') -Encoding ASCII -NoNewline
         $initdb = Join-Path $pgBin 'initdb.exe'
         $arg = @(
             '-D', $pgData,
-            '-U', $sec.dbAdminUser,
+            '-U', (Get-GestPovSecretText $sec 'dbAdminUser'),
             '-A', 'scram-sha-256',
             '--locale=C',
             '--encoding=UTF8',
@@ -224,35 +275,44 @@ if (-not $ready) { throw "PostgreSQL n'est pas pret (pg_isready timeout)." }
 Write-GestPovLog -LogFile $log -Message "PostgreSQL pret."
 
 # --- Role + DB ---
-$env:PGPASSWORD = $sec.dbAdminPassword
+$env:PGPASSWORD = Get-GestPovSecretText $sec 'dbAdminPassword'
 $psql = Join-Path $pgBin 'psql.exe'
+$dbAdminUser = Get-GestPovSecretText $sec 'dbAdminUser'
+$dbAppUser = Get-GestPovSecretText $sec 'dbAppUser'
+$dbName = Get-GestPovSecretText $sec 'dbName'
+$dbAppPassword = Get-GestPovSecretText $sec 'dbAppPassword'
+if ([string]::IsNullOrWhiteSpace($dbAppPassword)) {
+    throw "dbAppPassword introuvable dans secrets.dpapi apres reparation."
+}
+
 function Invoke-PsqlAdmin([string]$Sql) {
-    & $psql -h 127.0.0.1 -p 5432 -U $sec.dbAdminUser -d postgres -v ON_ERROR_STOP=1 -c $Sql
+    & $psql -h 127.0.0.1 -p 5432 -U $dbAdminUser -d postgres -v ON_ERROR_STOP=1 -c $Sql
     if ($LASTEXITCODE -ne 0) { throw "psql a echoue." }
 }
 # Exact match only (never -match '1': error text like 127.0.0.1 would false-positive).
-$dataDirCheck = & $psql -h 127.0.0.1 -p 5432 -U $sec.dbAdminUser -d postgres -tAc "SHOW data_directory"
+$dataDirCheck = & $psql -h 127.0.0.1 -p 5432 -U $dbAdminUser -d postgres -tAc "SHOW data_directory"
 if ($LASTEXITCODE -ne 0) { throw "psql admin login failed before role setup." }
-Write-GestPovLog -LogFile $log -Message "PostgreSQL data_directory=$([string]$dataDirCheck).Trim()"
+$dataDirText = ConvertTo-GestPovText $dataDirCheck
+Write-GestPovLog -LogFile $log -Message "PostgreSQL data_directory=$dataDirText"
 
-$appPw = $sec.dbAppPassword.Replace("'", "''")
-$roleExists = & $psql -h 127.0.0.1 -p 5432 -U $sec.dbAdminUser -d postgres -tAc "SELECT 1 FROM pg_roles WHERE rolname='$($sec.dbAppUser)'"
-if (([string]$roleExists).Trim() -ne '1') {
-    $sqlCreateRole = "CREATE ROLE {0} LOGIN PASSWORD '{1}';" -f $sec.dbAppUser, $appPw
+$appPw = (ConvertTo-GestPovText $dbAppPassword).Replace("'", "''")
+$roleExists = & $psql -h 127.0.0.1 -p 5432 -U $dbAdminUser -d postgres -tAc "SELECT 1 FROM pg_roles WHERE rolname='$dbAppUser'"
+if ((ConvertTo-GestPovText $roleExists) -ne '1') {
+    $sqlCreateRole = "CREATE ROLE {0} LOGIN PASSWORD '{1}';" -f $dbAppUser, $appPw
     Invoke-PsqlAdmin $sqlCreateRole
     Write-GestPovLog -LogFile $log -Message "Role applicatif cree."
 } else {
-    $sqlAlterRole = "ALTER ROLE {0} WITH LOGIN PASSWORD '{1}';" -f $sec.dbAppUser, $appPw
+    $sqlAlterRole = "ALTER ROLE {0} WITH LOGIN PASSWORD '{1}';" -f $dbAppUser, $appPw
     Invoke-PsqlAdmin $sqlAlterRole
     Write-GestPovLog -LogFile $log -Message "Role applicatif existant: mot de passe resynchronise avec secrets.dpapi."
 }
-$dbExists = & $psql -h 127.0.0.1 -p 5432 -U $sec.dbAdminUser -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='$($sec.dbName)'"
-if (([string]$dbExists).Trim() -ne '1') {
-    $sqlCreateDb = "CREATE DATABASE {0} OWNER {1};" -f $sec.dbName, $sec.dbAppUser
+$dbExists = & $psql -h 127.0.0.1 -p 5432 -U $dbAdminUser -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='$dbName'"
+if ((ConvertTo-GestPovText $dbExists) -ne '1') {
+    $sqlCreateDb = "CREATE DATABASE {0} OWNER {1};" -f $dbName, $dbAppUser
     Invoke-PsqlAdmin $sqlCreateDb
-    Write-GestPovLog -LogFile $log -Message "Base $($sec.dbName) creee."
+    Write-GestPovLog -LogFile $log -Message "Base $dbName creee."
 } else {
-    Invoke-PsqlAdmin ("ALTER DATABASE {0} OWNER TO {1};" -f $sec.dbName, $sec.dbAppUser)
+    Invoke-PsqlAdmin ("ALTER DATABASE {0} OWNER TO {1};" -f $dbName, $dbAppUser)
     Write-GestPovLog -LogFile $log -Message "Base existante conservee (owner aligne)."
 }
 Remove-Item Env:PGPASSWORD -ErrorAction SilentlyContinue
@@ -263,8 +323,8 @@ spring:
   profiles:
     active: prod,desktop
   datasource:
-    url: jdbc:postgresql://127.0.0.1:5432/$($sec.dbName)
-    username: $($sec.dbAppUser)
+    url: jdbc:postgresql://127.0.0.1:5432/$dbName
+    username: $dbAppUser
     password: `${GEST_POV_DB_PASSWORD}
 
 server:

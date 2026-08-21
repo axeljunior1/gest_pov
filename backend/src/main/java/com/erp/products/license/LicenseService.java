@@ -17,7 +17,6 @@ import java.nio.file.Path;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.Base64;
-import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -28,6 +27,7 @@ public class LicenseService {
     private final LicenseSignatureVerifier signatureVerifier;
     private final ObjectMapper objectMapper;
     private final UserRepository userRepository;
+    private final com.erp.products.discovery.ServerIdentityService serverIdentityService;
 
     private volatile LicenseStatusResponse cachedStatus;
 
@@ -258,7 +258,9 @@ public class LicenseService {
                 return id;
             }
         }
-        String generated = UUID.randomUUID().toString();
+        // Desktop : un seul UUID (server.id) pour découverte LAN + génération de licence
+        String generated = serverIdentityService.getServerId();
+        Files.createDirectories(path.getParent());
         Files.writeString(path, generated, StandardCharsets.UTF_8);
         return generated;
     }

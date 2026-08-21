@@ -15,7 +15,13 @@ function Protect-GestPovSecrets {
         [ValidateSet('LocalMachine','CurrentUser')]
         [string]$Scope = 'LocalMachine'
     )
-    $json = $Secrets | ConvertTo-Json -Compress
+    # PS 5.1: (hashtable | ConvertTo-Json) peut sortir un tableau Key/Value inutilisable.
+    # Forcer un objet plat pour que ConvertFrom-Json expose .dbAppPassword etc.
+    $obj = New-Object PSCustomObject
+    foreach ($key in $Secrets.Keys) {
+        Add-Member -InputObject $obj -NotePropertyName ([string]$key) -NotePropertyValue $Secrets[$key] -Force
+    }
+    $json = $obj | ConvertTo-Json -Compress -Depth 5
     $plain = [System.Text.Encoding]::UTF8.GetBytes($json)
     $dpScope = if ($Scope -eq 'LocalMachine') {
         [System.Security.Cryptography.DataProtectionScope]::LocalMachine
@@ -51,7 +57,21 @@ function Unprotect-GestPovSecrets {
     }
     $plain = [System.Security.Cryptography.ProtectedData]::Unprotect($blob, $null, $dpScope)
     $json = [System.Text.Encoding]::UTF8.GetString($plain)
-    return $json | ConvertFrom-Json
+    $parsed = $json | ConvertFrom-Json
+
+    # Ancien format (bug hashtable|ConvertTo-Json) : tableau {Key,Value}
+    if ($parsed -is [System.Array] -or ($parsed -and $parsed.PSObject.Properties['Key'] -and $parsed.PSObject.Properties['Value'] -and -not $parsed.PSObject.Properties['dbAppPassword'])) {
+        $hash = @{}
+        foreach ($row in @($parsed)) {
+            if ($null -ne $row.Key) { $hash[[string]$row.Key] = $row.Value }
+        }
+        $obj = New-Object PSCustomObject
+        foreach ($key in $hash.Keys) {
+            Add-Member -InputObject $obj -NotePropertyName $key -NotePropertyValue $hash[$key] -Force
+        }
+        return $obj
+    }
+    return $parsed
 }
 
 function Test-GestPovSecretsFile {

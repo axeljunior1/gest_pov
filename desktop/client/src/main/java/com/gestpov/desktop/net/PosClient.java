@@ -86,6 +86,29 @@ public class PosClient {
         )));
     }
 
+    /** Aperçu catalogue (20 premiers) — fallback sur /catalog si search vide. */
+    public List<PosProduct> browseCatalog(int limit) throws ApiException {
+        int max = Math.max(1, Math.min(limit, 50));
+        List<PosProduct> fromSearch = search("", max);
+        if (!fromSearch.isEmpty()) {
+            return fromSearch;
+        }
+        JsonNode node = api.get("/api/pos/catalog");
+        List<PosProduct> all = PosProduct.fromSearch(node);
+        if (all.size() <= max) {
+            return all;
+        }
+        return all.subList(0, max);
+    }
+
+    public Sale scanItem(long saleId, String code, BigDecimal quantity) throws ApiException {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("code", code == null ? "" : code.trim());
+        body.put("quantityInput", quantity == null ? BigDecimal.ONE : quantity);
+        JsonNode node = api.post("/api/pos/sales/" + saleId + "/scan", body);
+        return Sale.fromJson(node == null ? null : node.get("sale"));
+    }
+
     public List<Customer> searchCustomers(String q) throws ApiException {
         return searchCustomers(q, 20);
     }

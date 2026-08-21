@@ -191,6 +191,7 @@ public final class ProductsView extends StackPane implements Reloadable {
             return nom + "\n" + p.marque();
         }));
         table.getColumns().add(textCol("SKU", p -> p.sku() == null ? "" : p.sku()));
+        table.getColumns().add(textCol("Code-barres", p -> p.codeBarre() == null || p.codeBarre().isBlank() ? "—" : p.codeBarre()));
         table.getColumns().add(textCol("Catégorie", p -> p.categorieNom() == null ? "—" : p.categorieNom()));
         table.getColumns().add(textCol("Prix vente", p -> ProductLabels.price(p.prixVente())));
         TableColumn<Product, String> stockCol = textCol("Stock", Product::stockLabel);

@@ -69,7 +69,9 @@ export default function ActivationPage() {
         )}
 
         <div className="space-y-2">
-          <label className="text-xs font-medium text-gray-500 uppercase">Identifiant machine (installation)</label>
+          <label className="text-xs font-medium text-gray-500 uppercase">
+            Identifiant serveur (server.id) — requis pour générer la licence
+          </label>
           <div className="flex gap-2 items-stretch">
             <code
               className="flex-1 text-sm font-mono bg-gray-100 border rounded-lg px-3 py-2.5 break-all select-all"
@@ -82,7 +84,7 @@ export default function ActivationPage() {
             </Button>
           </div>
           <p className="text-xs text-gray-500">
-            Copiez cet identifiant et transmettez-le à votre éditeur pour obtenir un fichier <strong>.lic</strong> lié à cette machine.
+            Copiez cet identifiant et transmettez-le à votre éditeur pour obtenir un fichier <strong>.lic</strong> lié à ce serveur.
           </p>
         </div>
 

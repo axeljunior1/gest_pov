@@ -215,7 +215,11 @@ public final class ProductFormView extends StackPane {
             cycleVie.getItems().add(new RefOption(s, ProductLabels.lifecycle(s)));
         }
         statut.getSelectionModel().selectFirst();
-        cycleVie.getSelectionModel().selectFirst();
+        // POS / vente : cycle Actif par défaut (sinon le produit n'apparaît pas en caisse)
+        selectCode(cycleVie, "ACTIF");
+        if (cycleVie.getSelectionModel().getSelectedItem() == null) {
+            cycleVie.getSelectionModel().selectFirst();
+        }
         addField(grid, r++, 0, "Nom", nom);
         addField(grid, r - 1, 1, "SKU", sku);
         addField(grid, r++, 0, "Code-barres (produit simple)", codeBarre, 2);
@@ -480,7 +484,7 @@ public final class ProductFormView extends StackPane {
         draft.prixAchat = silentPrice(prixAchat.getText());
         draft.prixVente = silentPrice(prixVente.getText());
         draft.statut = selectedCode(statut, "ACTIF");
-        draft.cycleVie = selectedCode(cycleVie, "BROUILLON");
+        draft.cycleVie = selectedCode(cycleVie, "ACTIF");
         return draft;
     }
 

@@ -110,60 +110,60 @@ if (-not (Get-ChildItem $fxDir -Filter 'javafx-controls*.jar' -ErrorAction Silen
 }
 
 $scriptsDir = Join-Path $outRoot 'scripts'
-New-Item -ItemType Directory -Path $scriptsDir -Force | Out-Null
+$uiDir = Join-Path $scriptsDir 'ui'
+New-Item -ItemType Directory -Path $uiDir -Force | Out-Null
 Copy-Item (Join-Path $RepoRoot 'desktop\scripts\client\install-client.ps1') (Join-Path $scriptsDir 'install-client.ps1') -Force
+Copy-Item (Join-Path $RepoRoot 'desktop\scripts\client\ui\*.ps1') $uiDir -Force
 
-@"
+# Lanceurs ASCII+CRLF uniquement (meme regle que le serveur — jamais UTF-8 / chcp 65001)
+. (Join-Path $RepoRoot 'desktop\scripts\server\lib\Write-GestPovAsciiCmd.ps1')
+
+Write-GestPovAsciiCmd -Path (Join-Path $outRoot 'GestPOV-Client.cmd') -Content @'
 @echo off
 setlocal
-set DIR=%~dp0
-set JAVA=%DIR%runtime\bin\javaw.exe
-if not exist "%JAVA%" set JAVA=%DIR%runtime\bin\java.exe
-set FX=%DIR%app\javafx
-set CP=%DIR%app\gest-pov-desktop.jar
-if exist "%DIR%app\lib\*" set CP=%CP%;%DIR%app\lib\*
+set "DIR=%~dp0"
+set "JAVA=%DIR%runtime\bin\javaw.exe"
+if not exist "%JAVA%" set "JAVA=%DIR%runtime\bin\java.exe"
+set "FX=%DIR%app\javafx"
+set "CP=%DIR%app\gest-pov-desktop.jar"
+if exist "%DIR%app\lib\*" set "CP=%CP%;%DIR%app\lib\*"
 "%JAVA%" --module-path "%FX%" --add-modules javafx.controls,javafx.fxml -cp "%CP%" com.gestpov.desktop.GestPovDesktopApp
-"@ | Set-Content (Join-Path $outRoot 'GestPOV-Client.bat') -Encoding ASCII
+'@
 
-@(
-    '$here = $PSScriptRoot'
-    '& (Join-Path $here ''scripts\install-client.ps1'') -PackageRoot $here @args'
-) | Set-Content (Join-Path $outRoot 'install-client.ps1') -Encoding UTF8
-
-@"
+Write-GestPovAsciiCmd -Path (Join-Path $outRoot '01-Installer.cmd') -Content @'
 @echo off
-chcp 65001 >nul
-setlocal
 cd /d "%~dp0"
-echo.
-echo === Installation Gest POV Client ===
-powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\install-client.ps1" -PackageRoot "%~dp0" %*
-set ERR=%ERRORLEVEL%
-echo.
-if %ERR% neq 0 (echo [ECHEC] code %ERR%) else (echo [OK] Client installe.)
-pause
-exit /b %ERR%
-"@ | Set-Content (Join-Path $outRoot 'install-client.bat') -Encoding ASCII
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\ui\Start-Install.ps1"
+'@
 
-@"
+Write-GestPovAsciiCmd -Path (Join-Path $outRoot '02-Menu.cmd') -Content @'
+@echo off
+cd /d "%~dp0"
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\ui\Start-Menu.ps1"
+'@
+
+$lire = @"
 Gest POV Client - package offline
 =================================
 Poste caisse / bureau. PAS de PostgreSQL, PAS de Spring Boot.
 
-Prealable : le serveur Gest POV doit deja tourner sur le LAN
-(package GestPOV-Server-Offline).
+FICHIERS A UTILISER
+-------------------
+  01-Installer.cmd    Premiere installation
+  02-Menu.cmd         Installer / lancer
+  GestPOV-Client.cmd  Lancer directement (USB)
+  LIRE-MOI.txt
 
-1. Copier ce dossier sur le PC (cle USB).
-2. Double-clic : install-client.bat
-3. Lancer Gest POV depuis le menu Demarrer, ou :
-     GestPOV-Client.bat
-4. Premier lancement : decouverte UDP du serveur, puis login.
+1. Serveur Gest POV deja demarre sur le LAN.
+2. Double-clic 01-Installer.cmd
+3. Ou 02-Menu.cmd -> 3) Lancer
 
-Config locale : %APPDATA%\GestPOV\client.properties
-Compte : celui du serveur (INITIAL_ADMIN.txt ou utilisateur cree).
+Config : %APPDATA%\GestPOV\client.properties
 Licence : s'importe sur le SERVEUR, pas sur le client.
-"@ | Set-Content (Join-Path $outRoot 'README.txt') -Encoding UTF8
+"@
+$lire = $lire -replace '[^\x00-\x7F]', '?'
+[System.IO.File]::WriteAllText((Join-Path $outRoot 'LIRE-MOI.txt'), ($lire -replace "`n", "`r`n"), [Text.Encoding]::ASCII)
 
 Write-Host ""
 Write-Host "Package pret : $outRoot"
-Write-Host "Copiez ce dossier sur une cle USB (postes caisse)."
+Write-Host "Utilisez : 01-Installer.cmd  puis  02-Menu.cmd / GestPOV-Client.cmd"

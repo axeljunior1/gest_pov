@@ -1,8 +1,21 @@
-# Installateurs Windows (Phase H — pas encore)
+# Installateurs Windows — Gest POV
 
-Les packages livrés aujourd’hui sont des **dossiers offline** + scripts, pas un Setup.exe.
+## Aujourd’hui (recommandé)
 
-- Serveur : `desktop/scripts/build/build-offline-package.ps1`
-- Client : `desktop/scripts/build/build-client-package.ps1`
-- Roadmap jpackage / WiX + stub : [`desktop/docs/phase-h.md`](../docs/phase-h.md), `desktop/scripts/build/build-exe-stub.ps1`
-- Phase 4 (dossier) : `desktop/docs/phase-4.md`
+Packages **dossiers offline** (USB), pas de Setup.exe :
+
+1. Double-clic : [`../construire-installateurs.bat`](../construire-installateurs.bat)
+2. Récupérer les dossiers dans [`../dist/`](../dist/)
+3. Suivre le guide : [`../INSTALLATION.md`](../INSTALLATION.md)
+
+Scripts unitaires :
+
+| Script | Sortie |
+|--------|--------|
+| `../scripts/build/build-all-installers.ps1` | Serveur + client → `desktop/dist/` |
+| `../scripts/build/build-offline-package.ps1` | `GestPOV-Server-Offline` |
+| `../scripts/build/build-client-package.ps1` | `GestPOV-Client-Offline` |
+
+## Futur (Phase H)
+
+`GestPOV-*-Setup.exe` via jpackage / WiX — voir [`../docs/phase-h.md`](../docs/phase-h.md) et `../scripts/build/build-exe-stub.ps1`.
