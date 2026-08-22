@@ -30,6 +30,8 @@ import java.util.stream.Collectors;
 public class StockEntryService {
 
     private final StockEntryRepository entryRepository;
+    private final StockEntryAttachmentRepository attachmentRepository;
+    private final FileStorageService fileStorageService;
     private final WarehouseRepository warehouseRepository;
     private final LocationRepository locationRepository;
     private final SupplierRepository supplierRepository;
@@ -187,6 +189,35 @@ public class StockEntryService {
         entryRepository.delete(entry);
         auditService.log("StockEntry", id, AuditAction.SUPPRESSION,
                 "Entrée stock brouillon supprimée " + entry.getEntryNumber(), entry.getCreatedBy());
+    }
+
+    @Transactional
+    public StockEntryResponse addAttachment(Long entryId, org.springframework.web.multipart.MultipartFile file) {
+        StockEntry entry = findEntry(entryId);
+        String path = fileStorageService.store(file, "documents/stock-entries/" + entryId);
+
+        StockEntryAttachment attachment = StockEntryAttachment.builder()
+                .stockEntry(entry)
+                .fileName(file.getOriginalFilename())
+                .filePath(path)
+                .build();
+        attachmentRepository.save(attachment);
+        auditService.log("StockEntry", entryId, AuditAction.AJOUT_DOCUMENT,
+                "Pièce jointe ajoutée: " + attachment.getFileName(), entry.getCreatedBy());
+        return mapper.toEntryResponse(findEntry(entryId));
+    }
+
+    @Transactional
+    public void deleteAttachment(Long entryId, Long attachmentId) {
+        StockEntryAttachment attachment = attachmentRepository.findById(attachmentId)
+                .orElseThrow(() -> new ResourceNotFoundException("Pièce jointe non trouvée: " + attachmentId));
+        if (!attachment.getStockEntry().getId().equals(entryId)) {
+            throw new BusinessException("Pièce jointe invalide pour cette entrée");
+        }
+        fileStorageService.delete(attachment.getFilePath());
+        attachmentRepository.delete(attachment);
+        auditService.log("StockEntry", entryId, AuditAction.SUPPRESSION_DOCUMENT,
+                "Pièce jointe supprimée", attachment.getStockEntry().getCreatedBy());
     }
 
     private void recordCmpPurchase(StockEntry entry, StockEntryLine line) {

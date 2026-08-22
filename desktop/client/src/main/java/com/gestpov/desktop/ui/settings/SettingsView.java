@@ -452,6 +452,9 @@ public final class SettingsView extends StackPane implements Reloadable {
         }
         byKey = map;
         referenceValues = payload.refs() == null ? Map.of() : payload.refs();
+        if (payload.clientConfig() != null && payload.clientConfig().company() != null) {
+            com.gestpov.desktop.ui.products.ProductLabels.setCurrency(payload.clientConfig().company().currency());
+        }
         String id = payload.installId();
         installIdValue.setText(id == null || id.isBlank() ? "—" : id);
         updateLogoStatus(payload.clientConfig());

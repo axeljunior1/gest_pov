@@ -9,8 +9,10 @@ import com.gestpov.desktop.net.ApiClient;
 import com.gestpov.desktop.net.ApiException;
 import com.gestpov.desktop.net.AuthClient;
 import com.gestpov.desktop.net.AuthSession;
+import com.gestpov.desktop.net.SettingsClient;
 import com.gestpov.desktop.session.SessionContext;
 import com.gestpov.desktop.ui.license.LicenseView;
+import com.gestpov.desktop.ui.products.ProductLabels;
 import com.gestpov.desktop.util.FxAsync;
 import com.gestpov.desktop.version.CompatibilityStatus;
 import com.gestpov.desktop.version.VersionCompatibility;
@@ -320,6 +322,16 @@ public final class AppFlow {
         session.setUser(me);
         stage.setMinWidth(960);
         stage.setMinHeight(640);
+        // Charge la devise configuree (endpoint public, lisible par tout role) avant d'afficher le moindre montant.
+        FxAsync.run(() -> new SettingsClient(session.api()).getPublicCurrency(),
+                currency -> {
+                    ProductLabels.setCurrency(currency);
+                    openMainWindow(server);
+                },
+                ignored -> openMainWindow(server));
+    }
+
+    private void openMainWindow(DiscoveredServer server) {
         MainWindow main = new MainWindow(session, this::logout);
         UiTheme.apply(stage, main, 1100, 720);
         stage.setTitle("Gest POV — " + (server.serverName() == null ? "Desktop" : server.serverName()));

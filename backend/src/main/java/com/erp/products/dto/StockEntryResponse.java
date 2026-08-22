@@ -32,6 +32,7 @@ public class StockEntryResponse {
     private String cancelledBy;
     private Instant cancelledAt;
     private List<Line> lignes;
+    private List<StockEntryAttachmentResponse> attachments;
 
     @Data
     @Builder

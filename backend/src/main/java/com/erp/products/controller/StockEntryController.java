@@ -84,4 +84,19 @@ public class StockEntryController {
     public void delete(@PathVariable Long id) {
         stockEntryService.delete(id);
     }
+
+    @PostMapping(value = "/{id}/attachments", consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("@permissionChecker.has(authentication, 'stock_entry.create')")
+    public StockEntryResponse addAttachment(
+            @PathVariable Long id,
+            @RequestParam("file") org.springframework.web.multipart.MultipartFile file) {
+        return stockEntryService.addAttachment(id, file);
+    }
+
+    @DeleteMapping("/{id}/attachments/{attachmentId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @PreAuthorize("@permissionChecker.has(authentication, 'stock_entry.update')")
+    public void deleteAttachment(@PathVariable Long id, @PathVariable Long attachmentId) {
+        stockEntryService.deleteAttachment(id, attachmentId);
+    }
 }

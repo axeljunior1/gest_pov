@@ -74,7 +74,7 @@ public final class AnalyticsView extends StackPane implements Reloadable {
         kpis.add(card("Ventes jour", salesToday), 3, 0);
         kpis.add(card("Panier moyen", basket), 0, 1);
         kpis.add(card("Remboursements", refunds), 1, 1);
-        kpis.add(card("Annulations €", cancelledAmt), 2, 1);
+        kpis.add(card("Annulations (montant)", cancelledAmt), 2, 1);
 
         cancelledTable.setPlaceholder(new EmptyState("Aucune vente annulée"));
         cancelledTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);

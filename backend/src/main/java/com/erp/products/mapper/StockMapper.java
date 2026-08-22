@@ -218,6 +218,14 @@ public class StockMapper {
                         .expiryDate(l.getExpiryDate())
                         .notes(l.getNotes())
                         .build()).collect(Collectors.toList()))
+                .attachments(e.getAttachments() == null ? java.util.List.of() : e.getAttachments().stream()
+                        .map(a -> com.erp.products.dto.StockEntryAttachmentResponse.builder()
+                                .id(a.getId())
+                                .fileName(a.getFileName())
+                                .url("/uploads/" + a.getFilePath())
+                                .createdAt(a.getCreatedAt())
+                                .build())
+                        .collect(Collectors.toList()))
                 .build();
     }
 

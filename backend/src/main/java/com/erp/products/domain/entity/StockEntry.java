@@ -79,6 +79,10 @@ public class StockEntry {
     @Builder.Default
     private List<StockEntryLine> lignes = new ArrayList<>();
 
+    @OneToMany(mappedBy = "stockEntry", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    private List<StockEntryAttachment> attachments = new ArrayList<>();
+
     @PrePersist
     void onCreate() {
         if (createdAt == null) {

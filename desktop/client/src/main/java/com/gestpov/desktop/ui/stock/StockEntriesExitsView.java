@@ -7,10 +7,12 @@ import com.gestpov.desktop.model.Product;
 import com.gestpov.desktop.model.StockEntryDoc;
 import com.gestpov.desktop.model.StockExitDoc;
 import com.gestpov.desktop.model.StockLocation;
+import com.gestpov.desktop.model.Supplier;
 import com.gestpov.desktop.model.Warehouse;
 import com.gestpov.desktop.net.ApiException;
 import com.gestpov.desktop.net.ProductClient;
 import com.gestpov.desktop.net.StockClient;
+import com.gestpov.desktop.net.SupplierClient;
 import com.gestpov.desktop.session.SessionContext;
 import com.gestpov.desktop.ui.component.EmptyState;
 import com.gestpov.desktop.ui.component.ErrorBanner;
@@ -23,6 +25,7 @@ import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.ComboBox;
+import javafx.scene.control.DatePicker;
 import javafx.scene.control.Dialog;
 import javafx.scene.control.Label;
 import javafx.scene.control.TableColumn;
@@ -34,15 +37,19 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
+import javafx.stage.FileChooser;
 
 import java.math.BigDecimal;
+import java.nio.file.Files;
+import java.time.LocalDate;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
- * Bons d'entrée (lecture) et bons de sortie (lecture + création : casse, perte, avarie,
- * retour fournisseur, usage interne...). Les sorties liées aux ventes POS sont automatiques.
+ * Bons d'entrée (réception fournisseur, multi-produits, pièces jointes facture) et bons de
+ * sortie (casse, perte, avarie, retour fournisseur, usage interne...). Cycle brouillon →
+ * validé → annulé des deux côtés ; les sorties liées aux ventes POS sont automatiques.
  */
 public final class StockEntriesExitsView extends StackPane implements Reloadable {
 
@@ -52,7 +59,11 @@ public final class StockEntriesExitsView extends StackPane implements Reloadable
     private final SessionContext session;
     private final StockClient client;
     private final ProductClient products;
+    private final SupplierClient suppliers;
     private final boolean canReadEntries;
+    private final boolean canCreateEntries;
+    private final boolean canValidateEntries;
+    private final boolean canCancelEntries;
     private final boolean canReadExits;
     private final boolean canCreateExits;
     private final boolean canValidateExits;
@@ -66,6 +77,18 @@ public final class StockEntriesExitsView extends StackPane implements Reloadable
     private final TableView<StockExitDoc> exitsTable = new TableView<>();
     private final VBox entriesPane = new VBox(8);
     private final VBox exitsPane = new VBox(8);
+
+    private final Button createEntryBtn = new Button("Créer une entrée…");
+    private final Button validateEntryBtn = new Button("Valider");
+    private final Button cancelEntryBtn = new Button("Annuler");
+    private final Label linesTitle = new Label("Sélectionnez une entrée pour voir le détail");
+    private final TableView<JsonNode> entryLinesTable = new TableView<>();
+    private final VBox linesPanel = new VBox(8);
+    private final Label attachmentsTitle = new Label("Sélectionnez une entrée pour voir ses pièces jointes");
+    private final VBox attachmentsList = new VBox(6);
+    private final Button addAttachmentBtn = new Button("Ajouter une facture…");
+    private final VBox attachmentsPanel = new VBox(8);
+
     private final Button createExitBtn = new Button("Créer une sortie…");
     private final Button validateExitBtn = new Button("Valider");
     private final Button cancelExitBtn = new Button("Annuler");
@@ -74,7 +97,11 @@ public final class StockEntriesExitsView extends StackPane implements Reloadable
         this.session = session;
         this.client = new StockClient(session.api());
         this.products = new ProductClient(session.api());
+        this.suppliers = new SupplierClient(session.api());
         this.canReadEntries = session.hasPermission("stock_entry.read");
+        this.canCreateEntries = session.hasPermission("stock_entry.create");
+        this.canValidateEntries = session.hasPermission("stock_entry.validate");
+        this.canCancelEntries = session.hasPermission("stock_entry.cancel");
         this.canReadExits = session.hasPermission("stock_exit.read");
         this.canCreateExits = session.hasPermission("stock_exit.create");
         this.canValidateExits = session.hasPermission("stock_exit.validate");
@@ -87,7 +114,8 @@ public final class StockEntriesExitsView extends StackPane implements Reloadable
     private VBox build() {
         Label title = new Label("Entrées / Sorties");
         title.getStyleClass().add("page-title");
-        Label sub = new Label("Bons d'entrée (lecture) et bons de sortie (casse, perte, avarie, retour fournisseur…)");
+        Label sub = new Label("Réceptions fournisseur (multi-produits, facture jointe) et sorties "
+                + "(casse, perte, avarie, retour fournisseur…)");
         sub.getStyleClass().add("page-sub");
 
         ToggleGroup tabs = new ToggleGroup();
@@ -106,7 +134,20 @@ public final class StockEntriesExitsView extends StackPane implements Reloadable
         refresh.getStyleClass().add("button-secondary");
         refresh.setOnAction(e -> reload());
 
-        entriesTable.setPlaceholder(new EmptyState("Aucune entrée"));
+        buildEntriesPane();
+        buildExitsPane();
+
+        StackPane body = new StackPane(entriesPane, exitsPane);
+        VBox.setVgrow(body, Priority.ALWAYS);
+
+        VBox page = new VBox(12, title, sub, error, new HBox(12, tabBar, refresh), body);
+        page.getStyleClass().add("content");
+        page.setPadding(new Insets(0));
+        return page;
+    }
+
+    private void buildEntriesPane() {
+        entriesTable.setPlaceholder(new EmptyState("Aucune entrée — réceptionnez un achat fournisseur"));
         entriesTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         entriesTable.getColumns().addAll(
                 colE("N°", e -> nz(e.entryNumber())),
@@ -116,9 +157,38 @@ public final class StockEntriesExitsView extends StackPane implements Reloadable
                 colE("Statut", e -> nz(e.status())),
                 colE("Réf.", e -> nz(e.referenceDocument()))
         );
+        entriesTable.getSelectionModel().selectedItemProperty().addListener((o, a, b) -> {
+            updateEntryActions(b);
+            loadAttachments(b);
+        });
         VBox.setVgrow(entriesTable, Priority.ALWAYS);
-        entriesPane.getChildren().setAll(entriesTable);
 
+        createEntryBtn.getStyleClass().add("button-primary");
+        createEntryBtn.setOnAction(e -> openCreateEntryDialog());
+        createEntryBtn.setVisible(canCreateEntries);
+        createEntryBtn.setManaged(canCreateEntries);
+        validateEntryBtn.getStyleClass().add("button-secondary");
+        validateEntryBtn.setOnAction(e -> validateSelectedEntry());
+        cancelEntryBtn.getStyleClass().add("button-danger");
+        cancelEntryBtn.setOnAction(e -> cancelSelectedEntry());
+        HBox entryActions = new HBox(8, createEntryBtn, validateEntryBtn, cancelEntryBtn);
+        entryActions.setAlignment(Pos.CENTER_LEFT);
+        updateEntryActions(null);
+
+        attachmentsTitle.getStyleClass().add("pos-section-label");
+        attachmentsList.getChildren().setAll(new Label("—"));
+        addAttachmentBtn.getStyleClass().addAll("button-secondary", "pos-action-sm");
+        addAttachmentBtn.setOnAction(e -> pickAndUploadAttachment());
+        addAttachmentBtn.setDisable(true);
+        attachmentsPanel.getChildren().setAll(attachmentsTitle, attachmentsList, addAttachmentBtn);
+        attachmentsPanel.getStyleClass().addAll("card", "pos-panel");
+        attachmentsPanel.setPadding(new Insets(10));
+
+        entriesPane.getChildren().setAll(entryActions, entriesTable, attachmentsPanel);
+        VBox.setVgrow(entriesTable, Priority.ALWAYS);
+    }
+
+    private void buildExitsPane() {
         exitsTable.setPlaceholder(new EmptyState("Aucune sortie"));
         exitsTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         exitsTable.getColumns().addAll(
@@ -145,14 +215,18 @@ public final class StockEntriesExitsView extends StackPane implements Reloadable
 
         exitsPane.getChildren().setAll(exitActions, exitsTable);
         VBox.setVgrow(exitsTable, Priority.ALWAYS);
+    }
 
-        StackPane body = new StackPane(entriesPane, exitsPane);
-        VBox.setVgrow(body, Priority.ALWAYS);
-
-        VBox page = new VBox(12, title, sub, error, new HBox(12, tabBar, refresh), body);
-        page.getStyleClass().add("content");
-        page.setPadding(new Insets(0));
-        return page;
+    private void updateEntryActions(StockEntryDoc selected) {
+        boolean draft = selected != null && "DRAFT".equals(selected.status());
+        boolean validated = selected != null && "VALIDATED".equals(selected.status());
+        validateEntryBtn.setVisible(canValidateEntries);
+        validateEntryBtn.setManaged(canValidateEntries);
+        validateEntryBtn.setDisable(!draft);
+        cancelEntryBtn.setVisible(canCancelEntries);
+        cancelEntryBtn.setManaged(canCancelEntries);
+        cancelEntryBtn.setDisable(!(draft || validated));
+        addAttachmentBtn.setDisable(selected == null || !canCreateEntries);
     }
 
     private void updateExitActions(StockExitDoc selected) {
@@ -195,6 +269,8 @@ public final class StockEntriesExitsView extends StackPane implements Reloadable
             FxAsync.run(client::listEntries, list -> {
                 loading.setLoading(false);
                 entriesTable.getItems().setAll(list);
+                updateEntryActions(null);
+                loadAttachments(null);
             }, this::fail);
         } else if (canReadExits) {
             loading.setLoading(true);
@@ -205,6 +281,286 @@ public final class StockEntriesExitsView extends StackPane implements Reloadable
             }, this::fail);
         }
     }
+
+    // ---- Entrées ----
+
+    private void validateSelectedEntry() {
+        StockEntryDoc selected = entriesTable.getSelectionModel().getSelectedItem();
+        if (selected == null || selected.id() == null) {
+            error.show("Sélectionnez une entrée brouillon.");
+            return;
+        }
+        loading.setLoading(true);
+        FxAsync.run(() -> client.validateEntry(selected.id()), node -> {
+            loading.setLoading(false);
+            error.hide();
+            reload();
+        }, this::fail);
+    }
+
+    private void cancelSelectedEntry() {
+        StockEntryDoc selected = entriesTable.getSelectionModel().getSelectedItem();
+        if (selected == null || selected.id() == null) {
+            error.show("Sélectionnez une entrée.");
+            return;
+        }
+        loading.setLoading(true);
+        FxAsync.run(() -> client.cancelEntry(selected.id()), node -> {
+            loading.setLoading(false);
+            error.hide();
+            reload();
+        }, this::fail);
+    }
+
+    private void loadAttachments(StockEntryDoc selected) {
+        if (selected == null || selected.id() == null) {
+            attachmentsTitle.setText("Sélectionnez une entrée pour voir ses pièces jointes");
+            attachmentsList.getChildren().setAll(new Label("—"));
+            return;
+        }
+        attachmentsTitle.setText("Pièces jointes — " + nz(selected.entryNumber()));
+        FxAsync.run(() -> client.getEntry(selected.id()), node -> renderAttachments(selected.id(), node), this::fail);
+    }
+
+    private void renderAttachments(long entryId, JsonNode entry) {
+        attachmentsList.getChildren().clear();
+        JsonNode list = entry == null ? null : entry.get("attachments");
+        if (list == null || !list.isArray() || list.isEmpty()) {
+            attachmentsList.getChildren().add(new Label("Aucune facture jointe."));
+            return;
+        }
+        for (JsonNode a : list) {
+            long attachmentId = a.path("id").asLong();
+            String fileName = a.path("fileName").asText("fichier");
+            String url = a.path("url").asText(null);
+            Label nameLabel = new Label(fileName);
+            HBox.setHgrow(nameLabel, Priority.ALWAYS);
+            Button openBtn = new Button("Ouvrir");
+            openBtn.getStyleClass().addAll("button-ghost", "pos-action-sm");
+            openBtn.setOnAction(e -> openAttachment(url));
+            Button delBtn = new Button("Supprimer");
+            delBtn.getStyleClass().addAll("button-ghost", "pos-action-sm");
+            delBtn.setOnAction(e -> deleteAttachment(entryId, attachmentId));
+            HBox row = new HBox(8, nameLabel, openBtn, delBtn);
+            row.setAlignment(Pos.CENTER_LEFT);
+            attachmentsList.getChildren().add(row);
+        }
+    }
+
+    private void openAttachment(String relativeUrl) {
+        if (relativeUrl == null || relativeUrl.isBlank()) {
+            return;
+        }
+        try {
+            String full = session.api().getBaseUrl() + relativeUrl;
+            java.awt.Desktop.getDesktop().browse(java.net.URI.create(full));
+        } catch (Exception ex) {
+            error.show("Impossible d'ouvrir la pièce jointe : " + ex.getMessage());
+        }
+    }
+
+    private void deleteAttachment(long entryId, long attachmentId) {
+        loading.setLoading(true);
+        FxAsync.run(() -> {
+            client.deleteEntryAttachment(entryId, attachmentId);
+            return client.getEntry(entryId);
+        }, node -> {
+            loading.setLoading(false);
+            renderAttachments(entryId, node);
+        }, this::fail);
+    }
+
+    private void pickAndUploadAttachment() {
+        StockEntryDoc selected = entriesTable.getSelectionModel().getSelectedItem();
+        if (selected == null || selected.id() == null) {
+            error.show("Sélectionnez une entrée.");
+            return;
+        }
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Choisir la facture / le reçu");
+        var file = chooser.showOpenDialog(getScene() == null ? null : getScene().getWindow());
+        if (file == null) {
+            return;
+        }
+        long entryId = selected.id();
+        loading.setLoading(true);
+        FxAsync.run(() -> {
+            byte[] bytes = Files.readAllBytes(file.toPath());
+            client.addEntryAttachment(entryId, file.getName(), bytes);
+            return client.getEntry(entryId);
+        }, node -> {
+            loading.setLoading(false);
+            error.hide();
+            renderAttachments(entryId, node);
+        }, this::fail);
+    }
+
+    private void openCreateEntryDialog() {
+        loading.setLoading(true);
+        FxAsync.run(() -> new Refs(client.listWarehouses(),
+                        products.search(new com.gestpov.desktop.model.ProductQuery()), suppliers.findAll()),
+                refs -> {
+                    loading.setLoading(false);
+                    showCreateEntryDialog(refs);
+                }, this::fail);
+    }
+
+    private void showCreateEntryDialog(Refs refs) {
+        Dialog<Void> dialog = new Dialog<>();
+        dialog.setTitle("Créer une entrée de stock");
+        dialog.getDialogPane().getButtonTypes().add(ButtonType.CANCEL);
+        dialog.initOwner(getScene() == null ? null : getScene().getWindow());
+
+        ComboBox<Supplier> supplierCombo = new ComboBox<>();
+        supplierCombo.getItems().setAll(refs.suppliers());
+        supplierCombo.setPromptText("Fournisseur (optionnel — ex. achat bazar sans fournisseur enregistré)");
+        supplierCombo.setMaxWidth(Double.MAX_VALUE);
+
+        ComboBox<Warehouse> whCombo = new ComboBox<>();
+        whCombo.getItems().setAll(refs.warehouses());
+        whCombo.setMaxWidth(Double.MAX_VALUE);
+        ComboBox<StockLocation> locCombo = new ComboBox<>();
+        locCombo.setMaxWidth(Double.MAX_VALUE);
+        whCombo.valueProperty().addListener((o, a, b) -> {
+            locCombo.getItems().clear();
+            if (b != null && b.id() != null) {
+                FxAsync.run(() -> client.listLocations(b.id()), locs -> {
+                    locCombo.getItems().setAll(locs);
+                    if (!locs.isEmpty()) {
+                        locCombo.getSelectionModel().selectFirst();
+                    }
+                }, this::fail);
+            }
+        });
+        if (!refs.warehouses().isEmpty()) {
+            whCombo.getSelectionModel().selectFirst();
+        }
+
+        DatePicker entryDate = new DatePicker(LocalDate.now());
+        entryDate.setMaxWidth(Double.MAX_VALUE);
+        TextField referenceField = new TextField();
+        referenceField.setPromptText("N° de facture (optionnel — la photo se joint après création)");
+        TextField notesField = new TextField();
+        notesField.setPromptText("Notes (optionnel)");
+
+        VBox linesBox = new VBox(8);
+        record LineRow(ComboBox<ProductOption> product, TextField qty, TextField unitCost) {
+        }
+        List<LineRow> rows = new java.util.ArrayList<>();
+        Runnable addRow = () -> {
+            ComboBox<ProductOption> productCombo = new ComboBox<>();
+            productCombo.getItems().setAll(refs.products());
+            productCombo.setMaxWidth(220);
+            TextField qtyField = new TextField("1");
+            qtyField.setPromptText("Qté");
+            qtyField.setPrefWidth(70);
+            TextField costField = new TextField();
+            costField.setPromptText("Coût unitaire");
+            costField.setPrefWidth(100);
+            Button removeBtn = new Button("×");
+            removeBtn.getStyleClass().add("button-ghost");
+            HBox row = new HBox(8, productCombo, qtyField, costField, removeBtn);
+            row.setAlignment(Pos.CENTER_LEFT);
+            LineRow lineRow = new LineRow(productCombo, qtyField, costField);
+            removeBtn.setOnAction(ev -> {
+                rows.remove(lineRow);
+                linesBox.getChildren().remove(row);
+            });
+            rows.add(lineRow);
+            linesBox.getChildren().add(row);
+        };
+        Button addLineBtn = new Button("+ Ajouter une ligne (autre produit)");
+        addLineBtn.getStyleClass().addAll("button-secondary", "pos-action-sm");
+        addLineBtn.setOnAction(e -> addRow.run());
+        addRow.run();
+
+        Button confirm = new Button("Créer (brouillon)");
+        confirm.getStyleClass().add("button-primary");
+        confirm.setOnAction(e -> {
+            Warehouse wh = whCombo.getValue();
+            StockLocation loc = locCombo.getValue();
+            if (wh == null || wh.id() == null || loc == null || loc.id() == null) {
+                error.show("Choisissez un entrepôt et un emplacement.");
+                return;
+            }
+            List<Map<String, Object>> lines = new java.util.ArrayList<>();
+            for (LineRow r : rows) {
+                ProductOption p = r.product().getValue();
+                if (p == null) {
+                    continue;
+                }
+                BigDecimal qty;
+                try {
+                    qty = new BigDecimal(r.qty().getText().trim().replace(',', '.'));
+                } catch (Exception ex) {
+                    error.show("Quantité invalide pour « " + p.nom() + " ».");
+                    return;
+                }
+                if (qty.compareTo(BigDecimal.ZERO) <= 0) {
+                    error.show("Quantité invalide pour « " + p.nom() + " ».");
+                    return;
+                }
+                Map<String, Object> line = new LinkedHashMap<>();
+                line.put("productId", p.id());
+                line.put("quantityInput", qty);
+                String costText = r.unitCost().getText();
+                if (costText != null && !costText.isBlank()) {
+                    try {
+                        line.put("unitCost", new BigDecimal(costText.trim().replace(',', '.')));
+                    } catch (Exception ex) {
+                        error.show("Coût unitaire invalide pour « " + p.nom() + " ».");
+                        return;
+                    }
+                }
+                lines.add(line);
+            }
+            if (lines.isEmpty()) {
+                error.show("Ajoutez au moins une ligne de produit.");
+                return;
+            }
+            Long supplierId = supplierCombo.getValue() == null ? null : supplierCombo.getValue().id();
+            LocalDate date = entryDate.getValue();
+            String reference = referenceField.getText();
+            String notes = notesField.getText();
+            loading.setLoading(true);
+            FxAsync.run(() -> client.createEntry(supplierId, wh.id(), loc.id(), date, reference, notes, lines),
+                    created -> {
+                        loading.setLoading(false);
+                        error.hide();
+                        dialog.close();
+                        Alert done = new Alert(Alert.AlertType.INFORMATION,
+                                "Entrée créée en brouillon — sélectionnez-la pour joindre la facture puis "
+                                        + "cliquez « Valider » pour incrémenter le stock.");
+                        done.setHeaderText("Bon d'entrée créé");
+                        done.showAndWait();
+                        tabEntries.setSelected(true);
+                        showSelectedTab();
+                        reload();
+                    }, t -> {
+                        loading.setLoading(false);
+                        fail(t);
+                    });
+        });
+
+        VBox content = new VBox(10,
+                labeled("Fournisseur", supplierCombo),
+                labeled("Entrepôt", whCombo),
+                labeled("Emplacement", locCombo),
+                labeled("Date d'entrée", entryDate),
+                labeled("Référence facture", referenceField),
+                new Label("Lignes (une par produit)"),
+                linesBox,
+                addLineBtn,
+                labeled("Notes", notesField),
+                confirm
+        );
+        content.setPadding(new Insets(10));
+        content.setPrefWidth(420);
+        dialog.getDialogPane().setContent(content);
+        dialog.showAndWait();
+    }
+
+    // ---- Sorties ----
 
     private void validateSelectedExit() {
         StockExitDoc selected = exitsTable.getSelectionModel().getSelectedItem();
@@ -236,7 +592,8 @@ public final class StockEntriesExitsView extends StackPane implements Reloadable
 
     private void openCreateExitDialog() {
         loading.setLoading(true);
-        FxAsync.run(() -> new Refs(client.listWarehouses(), products.search(new com.gestpov.desktop.model.ProductQuery())),
+        FxAsync.run(() -> new Refs(client.listWarehouses(),
+                        products.search(new com.gestpov.desktop.model.ProductQuery()), List.of()),
                 refs -> {
                     loading.setLoading(false);
                     showCreateExitDialog(refs);
@@ -439,7 +796,7 @@ public final class StockEntriesExitsView extends StackPane implements Reloadable
         return col;
     }
 
-    private record Refs(List<Warehouse> warehouses, List<Product> productsRaw) {
+    private record Refs(List<Warehouse> warehouses, List<Product> productsRaw, List<Supplier> suppliers) {
         List<ProductOption> products() {
             return productsRaw.stream().map(p -> new ProductOption(p.id(), p.nom(), p.sku())).toList();
         }

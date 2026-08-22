@@ -129,6 +129,49 @@ public class StockClient {
         return JsonLists.mapArray(api.get("/api/stock/entries"), StockEntryDoc::fromJson);
     }
 
+    public JsonNode getEntry(long id) throws ApiException {
+        return api.get("/api/stock/entries/" + id);
+    }
+
+    public JsonNode createEntry(Long supplierId, long warehouseId, long locationId, LocalDate entryDate,
+                               String referenceDocument, String notes, List<Map<String, Object>> lines)
+            throws ApiException {
+        Map<String, Object> body = new LinkedHashMap<>();
+        if (supplierId != null) {
+            body.put("supplierId", supplierId);
+        }
+        body.put("warehouseId", warehouseId);
+        body.put("locationId", locationId);
+        if (entryDate != null) {
+            body.put("entryDate", entryDate.toString());
+        }
+        if (referenceDocument != null && !referenceDocument.isBlank()) {
+            body.put("referenceDocument", referenceDocument.trim());
+        }
+        if (notes != null && !notes.isBlank()) {
+            body.put("notes", notes.trim());
+        }
+        body.put("lignes", lines);
+        return api.post("/api/stock/entries", body);
+    }
+
+    public JsonNode validateEntry(long id) throws ApiException {
+        return api.post("/api/stock/entries/" + id + "/validate", Map.of());
+    }
+
+    public JsonNode cancelEntry(long id) throws ApiException {
+        return api.post("/api/stock/entries/" + id + "/cancel", Map.of());
+    }
+
+    public JsonNode addEntryAttachment(long entryId, String fileName, byte[] fileBytes) throws ApiException {
+        return api.postMultipart("/api/stock/entries/" + entryId + "/attachments", "file", fileName, fileBytes,
+                Map.of());
+    }
+
+    public void deleteEntryAttachment(long entryId, long attachmentId) throws ApiException {
+        api.delete("/api/stock/entries/" + entryId + "/attachments/" + attachmentId);
+    }
+
     public List<StockExitDoc> listExits() throws ApiException {
         return JsonLists.mapArray(api.get("/api/stock/exits"), StockExitDoc::fromJson);
     }

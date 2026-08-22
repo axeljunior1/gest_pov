@@ -6,6 +6,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.Locale;
 
 public final class ProductLabels {
 
@@ -17,7 +18,21 @@ public final class ProductLabels {
 
     private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
+    /** Devise affichee, alimentee une fois au demarrage depuis ClientConfiguration.company().currency(). */
+    private static volatile String currencyCode = "XAF";
+
     private ProductLabels() {
+    }
+
+    /** A appeler une seule fois (post-login) avec la devise configuree cote serveur. */
+    public static void setCurrency(String isoCode) {
+        if (isoCode != null && !isoCode.isBlank()) {
+            currencyCode = isoCode.trim().toUpperCase(Locale.ROOT);
+        }
+    }
+
+    public static String currencyCode() {
+        return currencyCode;
     }
 
     static String status(String code) {
@@ -51,7 +66,16 @@ public final class ProductLabels {
         if (value == null) {
             return "—";
         }
-        return value.setScale(2, RoundingMode.HALF_UP).toPlainString() + " €";
+        int fractionDigits = 2;
+        String symbol = currencyCode;
+        try {
+            java.util.Currency currency = java.util.Currency.getInstance(currencyCode);
+            fractionDigits = Math.max(currency.getDefaultFractionDigits(), 0);
+            symbol = currency.getSymbol(Locale.FRANCE);
+        } catch (Exception ignored) {
+            // code devise inconnu du JDK : on affiche le code brut tel quel, 2 decimales par defaut
+        }
+        return value.setScale(fractionDigits, RoundingMode.HALF_UP).toPlainString() + " " + symbol;
     }
 
     static String date(String iso) {

@@ -23,6 +23,12 @@ public class SettingsClient {
         return JsonLists.mapArray(api.get("/api/settings"), AppSetting::fromJson);
     }
 
+    /** Sans restriction de permission (contrairement a /api/settings) : lisible par tout utilisateur connecte. */
+    public String getPublicCurrency() throws ApiException {
+        JsonNode node = api.get("/api/settings/public");
+        return node != null && node.hasNonNull("currency") ? node.get("currency").asText(null) : null;
+    }
+
     public ClientConfiguration getClientConfig() throws ApiException {
         return ClientConfiguration.fromJson(api.get("/api/settings/client-config"));
     }

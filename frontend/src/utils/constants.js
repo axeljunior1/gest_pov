@@ -19,8 +19,27 @@ export const statusLabel = {
   ARCHIVE: 'Archivé',
 }
 
-export const formatPrice = (value) =>
-  value != null ? `${Number(value).toFixed(2)} €` : '—'
+// Devise affichee, alimentee une fois au demarrage depuis /api/settings/public (voir AuthContext).
+let currencyCode = 'XAF'
+
+export function setCurrency(code) {
+  if (code && typeof code === 'string' && code.trim()) {
+    currencyCode = code.trim().toUpperCase()
+  }
+}
+
+export function getCurrency() {
+  return currencyCode
+}
+
+export const formatPrice = (value) => {
+  if (value == null) return '—'
+  try {
+    return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: currencyCode }).format(Number(value))
+  } catch {
+    return `${Number(value).toFixed(2)} ${currencyCode}`
+  }
+}
 
 export const formatDate = (value) =>
   value ? new Date(value).toLocaleDateString('fr-FR') : '—'
