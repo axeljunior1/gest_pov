@@ -27,4 +27,7 @@ public class PosSessionResponse {
     private PosSessionType sessionType;
     private Instant openedAt;
     private Instant closedAt;
+
+    private Integer saleCount;
+    private BigDecimal totalRevenue;
 }

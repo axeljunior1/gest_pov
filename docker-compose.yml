@@ -8,79 +8,78 @@
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: monapp-postgres1
+    container_name: postgres
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-erp_products}
       POSTGRES_USER: ${POSTGRES_USER:-erp_user}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ErpProd2026!}
+    ports:
+      # 5433 (pas 5432) : evite le conflit avec les Postgres natifs Windows deja presents sur ce poste.
+      - "127.0.0.1:5432:5432"
     volumes:
-      - postgres_data1:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
     networks:
-      - apteco-network
+      - ges-pov-network
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-erp_user} -d ${POSTGRES_DB:-erp_products}"]
       interval: 10s
       timeout: 5s
       retries: 5
 
-  backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: monapp-backend1
-    restart: unless-stopped
-    ports:
-      - "8080:8080"
-    depends_on:
-      postgres:
-        condition: service_healthy
-    environment:
-      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-docker}
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-erp_products}
-      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-erp_user}
-      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-ErpProd2026!}
-      APP_JWT_SECRET: ${APP_JWT_SECRET:-erp-docker-change-me-min-256-bits-long-key!!}
-    volumes:
-      - backend_uploads1:/app/uploads
-      - backend_license1:/app/gest-pov-data
-    networks:
-      - apteco-network
-
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    container_name: monapp-frontend1
-    restart: unless-stopped
-    depends_on:
-      - backend
-    networks:
-      - apteco-network
-
-  proxy:
-    image: caddy:2-alpine
-    container_name: monapp-proxy1
-    restart: unless-stopped
-    depends_on:
-      - frontend
-      - backend
-    ports:
-      - "${FRONTEND_PORT:-80}:80"
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data1:/data
-      - caddy_config1:/config
-    networks:
-      - apteco-network
+#  backend:
+#    build:
+#      context: ./backend
+#      dockerfile: Dockerfile
+#    container_name: monapp-backend1
+#    restart: unless-stopped
+#    ports:
+#      - "8080:8080"
+#    depends_on:
+#      postgres:
+#        condition: service_healthy
+#    environment:
+#      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-docker}
+#      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-erp_products}
+#      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-erp_user}
+#      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-ErpProd2026!}
+#      APP_JWT_SECRET: ${APP_JWT_SECRET:-erp-docker-change-me-min-256-bits-long-key!!}
+#    volumes:
+#      - backend_uploads:/app/uploads
+#      - backend_license:/app/gest-pov-data
+#    networks:
+#      - ges-pov-network
+#
+#  frontend:
+#    build:
+#      context: ./frontend
+#      dockerfile: Dockerfile
+#    container_name: monapp-frontend1
+#    restart: unless-stopped
+#    depends_on:
+#      - backend
+#    networks:
+#      - ges-pov-network
+#
+#  proxy:
+#    image: caddy:2-alpine
+#    container_name: monapp-proxy1
+#    restart: unless-stopped
+#    depends_on:
+#      - frontend
+#      - backend
+#    ports:
+#      - "${FRONTEND_PORT:-80}:80"
+#    volumes:
+#      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+#      - caddy_data:/data
+#      - caddy_config:/config
+#    networks:
+#      - ges-pov-network
 
 volumes:
-  postgres_data1:
-  backend_uploads1:
-  backend_license1:
-  caddy_data1:
-  caddy_config1:
+  postgres_data:
 
 networks:
-  apteco-network:
+  ges-pov-network:
     driver: bridge

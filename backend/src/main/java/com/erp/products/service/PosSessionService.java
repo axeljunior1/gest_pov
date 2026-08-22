@@ -144,7 +144,7 @@ public class PosSessionService {
         boolean fullAccess = permissionChecker.has(auth, "pos.report.read");
         Long cashierId = fullAccess ? null : user.getId();
         int max = limit != null && limit > 0 ? Math.min(limit, 200) : 50;
-        return sessionRepository.findClosedSessions(
+        List<PosSessionResponse> sessions = sessionRepository.findClosedSessions(
                         PosSessionStatus.CLOSED,
                         PosSessionType.CASHIER,
                         cashierId,
@@ -152,6 +152,30 @@ public class PosSessionService {
                 .stream()
                 .map(mapper::toSessionResponse)
                 .toList();
+        enrichWithTotals(sessions);
+        return sessions;
+    }
+
+    /** Enrichit la liste avec nb de ventes + total par session (une seule requete groupee). */
+    private void enrichWithTotals(List<PosSessionResponse> sessions) {
+        if (sessions.isEmpty()) {
+            return;
+        }
+        List<Long> ids = sessions.stream().map(PosSessionResponse::getId).toList();
+        java.util.Map<Long, Object[]> bySession = saleRepository
+                .sumTotalsBySessionIds(ids, SaleStatuses.COUNTED_FOR_REVENUE)
+                .stream()
+                .collect(java.util.stream.Collectors.toMap(row -> (Long) row[0], row -> row));
+        for (PosSessionResponse s : sessions) {
+            Object[] row = bySession.get(s.getId());
+            if (row != null) {
+                s.setSaleCount(((Number) row[1]).intValue());
+                s.setTotalRevenue(row[2] == null ? BigDecimal.ZERO : new BigDecimal(row[2].toString()));
+            } else {
+                s.setSaleCount(0);
+                s.setTotalRevenue(BigDecimal.ZERO);
+            }
+        }
     }
 
     @Transactional(readOnly = true)

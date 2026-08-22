@@ -83,7 +83,7 @@ public final class PosView extends StackPane implements Reloadable {
     private final TextField search = new TextField();
     private final ListView<PosProduct> results = new ListView<>();
     private final TableView<SaleLine> cart = new TableView<>();
-    private final Label total = new Label("0,00 €");
+    private final Label total = new Label(ProductLabels.price(BigDecimal.ZERO));
     private final Label changeLabel = new Label("");
     private final Label customerLabel = new Label("Aucun client");
     private final TextField customerSearch = new TextField();

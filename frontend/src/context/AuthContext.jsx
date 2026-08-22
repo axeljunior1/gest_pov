@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import api from '../api/client'
 import { isSuperAdmin } from '../utils/auth'
+import { setCurrency } from '../utils/constants'
 
 const TOKEN_KEY = 'erp_auth_token'
 const USER_KEY = 'erp_auth_user'
@@ -76,6 +77,15 @@ export function AuthProvider({ children }) {
       })
     return () => { cancelled = true }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!token) return
+    // Endpoint public (aucune permission requise) : la devise doit s'afficher correctement
+    // pour tous les roles, pas seulement ceux ayant settings.read.
+    api.get('/settings/public')
+      .then(({ data }) => setCurrency(data?.currency))
+      .catch(() => {})
+  }, [token])
 
   useEffect(() => {
     if (!token) return undefined

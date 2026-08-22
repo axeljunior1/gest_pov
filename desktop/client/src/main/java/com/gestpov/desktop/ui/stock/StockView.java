@@ -255,10 +255,11 @@ public final class StockView extends StackPane implements Reloadable {
     private void buildMovePane() {
         Label h = new Label("Enregistrer un mouvement");
         h.getStyleClass().add("settings-group-title");
-        Label hint = new Label("Réception = entrée, Sortie = sortie, Ajustement = corriger (quantité en unité de base).");
+        Label hint = new Label("Réception = entrée, Ajustement = corriger (quantité en unité de base). "
+                + "Pour une casse, perte, avarie ou retour fournisseur, utilisez l'onglet Entrées/Sorties.");
         hint.getStyleClass().add("page-sub");
 
-        moveType.getItems().setAll("Réception", "Sortie", "Ajustement");
+        moveType.getItems().setAll("Réception", "Ajustement");
         moveType.getSelectionModel().selectFirst();
         productCombo.setPromptText("Produit");
         productCombo.setMaxWidth(Double.MAX_VALUE);
@@ -394,14 +395,13 @@ public final class StockView extends StackPane implements Reloadable {
         }
         String type = moveType.getValue() == null ? "Réception" : moveType.getValue();
         if (!"Ajustement".equals(type) && qty.compareTo(BigDecimal.ZERO) < 0) {
-            error.show("Pour une réception ou une sortie, saisissez une quantité positive.");
+            error.show("Pour une réception, saisissez une quantité positive.");
             return;
         }
         String ref = referenceField.getText();
         loading.setLoading(true);
         FxAsync.runVoid(() -> {
             switch (type) {
-                case "Sortie" -> client.issue(product.id(), warehouse.id(), location.id(), qty, ref);
                 case "Ajustement" -> client.adjust(product.id(), warehouse.id(), location.id(), qty, ref);
                 default -> client.receipt(product.id(), warehouse.id(), location.id(), qty, ref);
             }

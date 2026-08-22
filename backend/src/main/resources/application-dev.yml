@@ -4,7 +4,7 @@ spring:
     activate:
       on-profile: dev
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://127.0.0.1:5432/erp_products}
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://127.0.0.1:5433/erp_products}
     username: ${SPRING_DATASOURCE_USERNAME:erp_user}
     password: ${SPRING_DATASOURCE_PASSWORD:ErpProd2026!}
 

@@ -183,4 +183,16 @@ public interface SaleRepository extends JpaRepository<Sale, Long> {
             @Param("dateTo") Instant dateTo,
             @Param("filterUserId") boolean filterUserId,
             @Param("userId") Long userId);
+
+    /** Nb de ventes + total par session, en une seule requete (evite le N+1 sur la liste des sessions fermees). */
+    @Query("""
+            SELECT s.posSession.id, COUNT(s), COALESCE(SUM(s.total), 0)
+            FROM Sale s
+            WHERE s.posSession.id IN :sessionIds
+            AND s.status IN :statuses
+            GROUP BY s.posSession.id
+            """)
+    List<Object[]> sumTotalsBySessionIds(
+            @Param("sessionIds") Collection<Long> sessionIds,
+            @Param("statuses") Collection<SaleStatus> statuses);
 }

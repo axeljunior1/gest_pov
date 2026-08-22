@@ -114,6 +114,13 @@
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <!-- Charge backend/.env pour les lancements locaux (mvn spring-boot:run) : Docker Compose lit
+                 son propre .env nativement, mais un run local hors conteneur n'a pas cet automatisme. -->
+            <groupId>io.github.cdimascio</groupId>
+            <artifactId>dotenv-java</artifactId>
+            <version>3.0.0</version>
+        </dependency>
     </dependencies>
 
     <build>

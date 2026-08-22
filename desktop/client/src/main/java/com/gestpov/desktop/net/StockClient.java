@@ -187,6 +187,27 @@ public class StockClient {
         return PurchaseOrder.fromJson(api.post("/api/purchase-orders", body));
     }
 
+    public JsonNode createExit(long warehouseId, long locationId, String reason, String notes,
+                               List<Map<String, Object>> lines) throws ApiException {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("warehouseId", warehouseId);
+        body.put("locationId", locationId);
+        body.put("reason", reason);
+        if (notes != null && !notes.isBlank()) {
+            body.put("notes", notes.trim());
+        }
+        body.put("lignes", lines);
+        return api.post("/api/stock/exits", body);
+    }
+
+    public JsonNode validateExit(long id) throws ApiException {
+        return api.post("/api/stock/exits/" + id + "/validate", Map.of());
+    }
+
+    public JsonNode cancelExit(long id) throws ApiException {
+        return api.post("/api/stock/exits/" + id + "/cancel", Map.of());
+    }
+
     public void receipt(long productId, long warehouseId, long locationId, BigDecimal quantityBase, String reference)
             throws ApiException {
         api.post("/api/stock/receipt", operation(productId, warehouseId, locationId, quantityBase, reference));
