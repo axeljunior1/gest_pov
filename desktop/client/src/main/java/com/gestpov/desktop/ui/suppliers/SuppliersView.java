@@ -2,8 +2,10 @@ package com.gestpov.desktop.ui.suppliers;
 
 import com.gestpov.desktop.ui.Reloadable;
 
+import com.gestpov.desktop.model.PurchaseOrder;
 import com.gestpov.desktop.model.Supplier;
 import com.gestpov.desktop.net.ApiException;
+import com.gestpov.desktop.net.StockClient;
 import com.gestpov.desktop.net.SupplierClient;
 import com.gestpov.desktop.session.SessionContext;
 import com.gestpov.desktop.ui.component.ConfirmationDialog;
@@ -28,10 +30,15 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 
+import java.util.List;
+
 public final class SuppliersView extends StackPane implements Reloadable {
+
+    private static final List<String> PENDING_STATUSES = List.of("PENDING", "PARTIALLY_RECEIVED");
 
     private final SessionContext session;
     private final SupplierClient client;
+    private final StockClient stockClient;
     private final ErrorBanner error = new ErrorBanner();
     private final LoadingOverlay loading = new LoadingOverlay();
     private final TableView<Supplier> table = new TableView<>();
@@ -43,11 +50,15 @@ public final class SuppliersView extends StackPane implements Reloadable {
     private final TextField search = new TextField();
     private final Button save = new Button("Créer");
     private final Label countLabel = new Label();
+    private final Label ordersTitle = new Label("Sélectionnez un fournisseur");
+    private final TableView<PurchaseOrder> ordersTable = new TableView<>();
+    private final VBox ordersPanel = new VBox(10);
     private Long editingId;
 
     public SuppliersView(SessionContext session) {
         this.session = session;
         this.client = new SupplierClient(session.api());
+        this.stockClient = new StockClient(session.api());
         getChildren().addAll(build(), loading);
         reload();
     }
@@ -145,12 +156,58 @@ public final class SuppliersView extends StackPane implements Reloadable {
             });
             table.getColumns().add(actionsCol);
         }
+        boolean canSeeOrders = session.hasPermission("stock_entry.read");
+        table.getSelectionModel().selectedItemProperty().addListener((obs, old, sel) -> {
+            if (canSeeOrders) {
+                loadOrders(sel);
+            }
+        });
 
-        VBox page = new VBox(16, title, sub, countLabel, error, card, table, pager.bar());
-        VBox.setVgrow(table, Priority.ALWAYS);
+        buildOrdersPanel();
+        ordersPanel.setVisible(canSeeOrders);
+        ordersPanel.setManaged(canSeeOrders);
+
+        HBox split = new HBox(16, table, ordersPanel);
+        HBox.setHgrow(table, Priority.ALWAYS);
+        ordersPanel.setPrefWidth(340);
+        ordersPanel.setMinWidth(280);
+        VBox.setVgrow(split, Priority.ALWAYS);
+
+        VBox page = new VBox(16, title, sub, countLabel, error, card, split, pager.bar());
+        VBox.setVgrow(split, Priority.ALWAYS);
         page.getStyleClass().add("content");
         page.setPadding(new Insets(0));
         return page;
+    }
+
+    private void buildOrdersPanel() {
+        ordersTitle.getStyleClass().add("settings-group-title");
+        ordersTable.setPlaceholder(new EmptyState("Aucune commande en cours"));
+        ordersTable.setPrefHeight(240);
+        ordersTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
+        ordersTable.getColumns().addAll(
+                poCol("Référence", p -> nz(p.reference())),
+                poCol("Statut", p -> nz(p.status())),
+                poCol("Livraison prévue", p -> nz(p.expectedDeliveryDate()))
+        );
+        ordersPanel.getChildren().setAll(ordersTitle, new Label("Commandes en cours"), ordersTable);
+        ordersPanel.getStyleClass().add("card");
+        ordersPanel.setPadding(new Insets(12));
+    }
+
+    private void loadOrders(Supplier supplier) {
+        ordersTable.getItems().clear();
+        if (supplier == null || supplier.id() == null) {
+            ordersTitle.setText("Sélectionnez un fournisseur");
+            return;
+        }
+        ordersTitle.setText(supplier.nom());
+        FxAsync.run(() -> stockClient.listPurchaseOrders(null, supplier.id()), list -> {
+            List<PurchaseOrder> pending = list.stream()
+                    .filter(p -> p.status() != null && PENDING_STATUSES.contains(p.status()))
+                    .toList();
+            ordersTable.getItems().setAll(pending);
+        }, this::fail);
     }
 
     private void beginEdit(Supplier s) {
@@ -241,6 +298,17 @@ public final class SuppliersView extends StackPane implements Reloadable {
 
     private static TableColumn<Supplier, String> col(String title, java.util.function.Function<Supplier, String> fn) {
         TableColumn<Supplier, String> col = new TableColumn<>(title);
+        col.setCellValueFactory(d -> new ReadOnlyStringWrapper(d.getValue() == null ? "" : fn.apply(d.getValue())));
+        return col;
+    }
+
+    private static String nz(String s) {
+        return s == null || s.isBlank() ? "—" : s;
+    }
+
+    private static TableColumn<PurchaseOrder, String> poCol(String title,
+                                                            java.util.function.Function<PurchaseOrder, String> fn) {
+        TableColumn<PurchaseOrder, String> col = new TableColumn<>(title);
         col.setCellValueFactory(d -> new ReadOnlyStringWrapper(d.getValue() == null ? "" : fn.apply(d.getValue())));
         return col;
     }

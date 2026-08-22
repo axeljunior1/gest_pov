@@ -33,6 +33,10 @@ import java.util.stream.Collectors;
 @Slf4j
 public class PosSaleService {
 
+    /** Valeurs sentinelle pour PostgreSQL (typage des paramètres JPQL inactifs). */
+    private static final Instant UNUSED_DATE_FROM = Instant.EPOCH;
+    private static final Instant UNUSED_DATE_TO = Instant.parse("9999-12-31T23:59:59Z");
+
     private final SaleRepository saleRepository;
     private final ProductRepository productRepository;
     private final ProductVariantRepository variantRepository;
@@ -187,6 +191,12 @@ public class PosSaleService {
 
     @Transactional(readOnly = true)
     public List<SaleResponse> listCompletedSales(Boolean sessionOnly, Integer limit) {
+        return listCompletedSales(sessionOnly, limit, null, null);
+    }
+
+    @Transactional(readOnly = true)
+    public List<SaleResponse> listCompletedSales(Boolean sessionOnly, Integer limit,
+                                                  java.time.Instant dateFrom, java.time.Instant dateTo) {
         User user = currentUserService.requireCurrentUser();
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         boolean fullAccess = permissionChecker.has(auth, "pos.report.read");
@@ -225,6 +235,10 @@ public class PosSaleService {
                         userId,
                         sellerId,
                         cashierId,
+                        dateFrom != null,
+                        dateFrom != null ? dateFrom : UNUSED_DATE_FROM,
+                        dateTo != null,
+                        dateTo != null ? dateTo : UNUSED_DATE_TO,
                         PageRequest.of(0, max))
                 .stream()
                 .map(mapper::toSaleResponse)

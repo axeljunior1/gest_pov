@@ -12,6 +12,7 @@ import com.erp.products.mapper.AlertMapper;
 import com.erp.products.mapper.ProductMapper;
 import com.erp.products.repository.BrandRepository;
 import com.erp.products.repository.CategoryRepository;
+import com.erp.products.repository.CustomerRepository;
 import com.erp.products.repository.ProductRepository;
 import com.erp.products.repository.SupplierRepository;
 import com.erp.products.repository.UnitOfMeasureRepository;
@@ -46,6 +47,7 @@ public class ExportService {
     private final SupplierRepository supplierRepository;
     private final UnitOfMeasureRepository unitRepository;
     private final WarehouseRepository warehouseRepository;
+    private final CustomerRepository customerRepository;
 
     @Transactional(readOnly = true)
     public byte[] exportProducts(ExportFormat format, ProductSearchCriteria criteria) {
@@ -211,6 +213,22 @@ public class ExportService {
                 .map(c -> List.of(
                         str(c.getNom()),
                         c.getParent() != null ? str(c.getParent().getNom()) : ""))
+                .toList();
+        return TabularFileHelper.write(format, headers, rows);
+    }
+
+    @Transactional(readOnly = true)
+    public byte[] exportCustomers(ExportFormat format) {
+        List<String> headers = List.of(
+                "customerNumber", "nom", "prenom", "societe", "telephone", "email", "ville", "actif");
+        List<List<String>> rows = customerRepository.findAll().stream()
+                .sorted(Comparator.comparing(
+                        (com.erp.products.domain.entity.Customer c) -> c.getLastName() == null ? "" : c.getLastName(),
+                        String.CASE_INSENSITIVE_ORDER))
+                .map(c -> List.of(
+                        str(c.getCustomerNumber()), str(c.getLastName()), str(c.getFirstName()),
+                        str(c.getCompanyName()), str(c.getPhone()), str(c.getEmail()), str(c.getCity()),
+                        Boolean.TRUE.equals(c.getIsActive()) ? "oui" : "non"))
                 .toList();
         return TabularFileHelper.write(format, headers, rows);
     }

@@ -2,6 +2,7 @@ package com.erp.products.service;
 
 import com.erp.products.domain.entity.Customer;
 import com.erp.products.domain.enums.SaleStatus;
+import com.erp.products.domain.enums.SaleStatuses;
 import com.erp.products.dto.*;
 import com.erp.products.exception.BusinessException;
 import com.erp.products.exception.ResourceNotFoundException;
@@ -53,6 +54,14 @@ public class CustomerService {
     @Transactional(readOnly = true)
     public List<CustomerResponse> listAll() {
         return customerRepository.findAll().stream().map(this::toResponse).toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<CustomerResponse> listInactiveSince(int days) {
+        Instant cutoff = Instant.now().minus(java.time.Duration.ofDays(Math.max(days, 0)));
+        return customerRepository.findInactiveSince(cutoff, SaleStatuses.PAID_OR_VALIDATED).stream()
+                .map(this::toResponse)
+                .toList();
     }
 
     @Transactional(readOnly = true)

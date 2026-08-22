@@ -11,7 +11,8 @@ public record Customer(
         String companyName,
         String address,
         String city,
-        Integer loyaltyPoints
+        Integer loyaltyPoints,
+        Boolean isActive
 ) {
 
     public static Customer fromJson(JsonNode node) {
@@ -27,7 +28,8 @@ public record Customer(
                 node.path("companyName").asText(""),
                 node.path("address").asText(""),
                 node.path("city").asText(""),
-                node.hasNonNull("loyaltyPoints") ? node.get("loyaltyPoints").asInt() : 0
+                node.hasNonNull("loyaltyPoints") ? node.get("loyaltyPoints").asInt() : 0,
+                node.hasNonNull("isActive") ? node.get("isActive").asBoolean() : true
         );
     }
 

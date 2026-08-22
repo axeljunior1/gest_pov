@@ -6,6 +6,7 @@ import com.gestpov.desktop.model.PosProduct;
 import com.gestpov.desktop.model.Sale;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -129,10 +130,21 @@ public class PosClient {
     }
 
     public List<Sale> listCompletedSales(boolean sessionOnly, int limit) throws ApiException {
-        return JsonLists.mapArray(api.get("/api/pos/sales/completed", Map.of(
-                "sessionOnly", String.valueOf(sessionOnly),
-                "limit", String.valueOf(limit)
-        )), Sale::fromJson);
+        return listCompletedSales(sessionOnly, limit, null, null);
+    }
+
+    public List<Sale> listCompletedSales(boolean sessionOnly, int limit, Instant dateFrom, Instant dateTo)
+            throws ApiException {
+        Map<String, String> params = new LinkedHashMap<>();
+        params.put("sessionOnly", String.valueOf(sessionOnly));
+        params.put("limit", String.valueOf(limit));
+        if (dateFrom != null) {
+            params.put("dateFrom", dateFrom.toString());
+        }
+        if (dateTo != null) {
+            params.put("dateTo", dateTo.toString());
+        }
+        return JsonLists.mapArray(api.get("/api/pos/sales/completed", params), Sale::fromJson);
     }
 
     public List<Sale> listPendingPayments() throws ApiException {
@@ -244,6 +256,16 @@ public class PosClient {
             body.put("reason", reason.trim());
         }
         body.put("returnToStock", returnToStock);
+        return api.post("/api/pos/sales/" + saleId + "/returns", body);
+    }
+
+    /** Retour partiel : une entree par ligne {saleLineId, quantity, restock}. */
+    public JsonNode createReturn(long saleId, String reason, List<Map<String, Object>> lines) throws ApiException {
+        Map<String, Object> body = new LinkedHashMap<>();
+        if (reason != null && !reason.isBlank()) {
+            body.put("reason", reason.trim());
+        }
+        body.put("lines", lines == null ? List.of() : lines);
         return api.post("/api/pos/sales/" + saleId + "/returns", body);
     }
 

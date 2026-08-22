@@ -48,9 +48,6 @@ public class PosRefundService {
     public List<SaleResponse> searchRefundableSales(String query, Integer limit) {
         int max = limit != null && limit > 0 ? Math.min(limit, 50) : 20;
         String q = query != null ? query.trim() : "";
-        if (q.isEmpty()) {
-            return List.of();
-        }
         return saleRepository.searchRefundableSales(
                         SaleStatuses.COUNTED_FOR_REVENUE,
                         q.toLowerCase(),

@@ -99,6 +99,8 @@ public interface SaleRepository extends JpaRepository<Sale, Long> {
             AND (:userId IS NULL OR s.seller.id = :userId OR s.cashier.id = :userId)
             AND (:sellerId IS NULL OR s.seller.id = :sellerId)
             AND (:cashierId IS NULL OR s.cashier.id = :cashierId)
+            AND (:filterDateFrom = false OR COALESCE(s.paidAt, s.validatedAt) >= :dateFrom)
+            AND (:filterDateTo = false OR COALESCE(s.paidAt, s.validatedAt) <= :dateTo)
             ORDER BY COALESCE(s.paidAt, s.validatedAt) DESC, s.id DESC
             """)
     List<Sale> findCompletedSales(
@@ -107,6 +109,10 @@ public interface SaleRepository extends JpaRepository<Sale, Long> {
             @Param("userId") Long userId,
             @Param("sellerId") Long sellerId,
             @Param("cashierId") Long cashierId,
+            @Param("filterDateFrom") boolean filterDateFrom,
+            @Param("dateFrom") Instant dateFrom,
+            @Param("filterDateTo") boolean filterDateTo,
+            @Param("dateTo") Instant dateTo,
             org.springframework.data.domain.Pageable pageable);
 
     @Query("""

@@ -189,8 +189,10 @@ public class PosController {
     @PreAuthorize("@permissionChecker.hasAny(authentication, 'pos.ticket.print', 'pos.ticket.reprint', 'pos.report.read')")
     public List<SaleResponse> listCompletedSales(
             @RequestParam(required = false, defaultValue = "false") boolean sessionOnly,
-            @RequestParam(required = false) Integer limit) {
-        return saleService.listCompletedSales(sessionOnly, limit);
+            @RequestParam(required = false) Integer limit,
+            @RequestParam(required = false) java.time.Instant dateFrom,
+            @RequestParam(required = false) java.time.Instant dateTo) {
+        return saleService.listCompletedSales(sessionOnly, limit, dateFrom, dateTo);
     }
 
     @GetMapping("/sales/pending-payment")

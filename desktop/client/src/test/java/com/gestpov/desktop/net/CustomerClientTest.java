@@ -21,13 +21,13 @@ class CustomerClientTest {
             assertEquals("Marie", all.get(0).firstName());
 
             Customer created = client.create(new Customer(null, "Jean", "Martin", "0700000000",
-                    "jean@test.local", "", "", "", 0));
+                    "jean@test.local", "", "", "", 0, true));
             assertEquals("Jean Martin", created.displayName());
             assertEquals(2, client.list().size());
             assertEquals(1, client.search("marie").size());
 
             Customer updated = client.update(created.id(), new Customer(created.id(), "Jean", "Martin",
-                    "0700000001", "jean@test.local", "", "", "", 0));
+                    "0700000001", "jean@test.local", "", "", "", 0, true));
             assertEquals("0700000001", updated.phone());
 
             client.delete(created.id());

@@ -18,6 +18,7 @@ import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.Button;
+import javafx.scene.control.CheckBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
@@ -28,6 +29,9 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
+import javafx.stage.FileChooser;
+
+import java.nio.file.Files;
 
 public final class CustomersView extends StackPane implements Reloadable {
 
@@ -45,6 +49,8 @@ public final class CustomersView extends StackPane implements Reloadable {
     private final TextField address = new TextField();
     private final TextField city = new TextField();
     private final TextField search = new TextField();
+    private final CheckBox inactiveOnly = new CheckBox("Inactifs depuis (j.)");
+    private final TextField inactiveDays = new TextField("90");
     private final Button save = new Button("Créer");
     private final Label countLabel = new Label();
     private final Label detailTitle = new Label("Sélectionnez un client");
@@ -119,7 +125,23 @@ public final class CustomersView extends StackPane implements Reloadable {
         Button refresh = new Button("Actualiser");
         refresh.getStyleClass().add("button-secondary");
         refresh.setOnAction(e -> reload());
-        HBox searchBar = new HBox(8, search, searchBtn, refresh);
+
+        inactiveDays.setPrefWidth(60);
+        inactiveOnly.setOnAction(e -> reloadInactiveAware());
+        inactiveDays.setOnAction(e -> {
+            if (inactiveOnly.isSelected()) {
+                reloadInactiveAware();
+            }
+        });
+
+        Button export = new Button("Export CSV");
+        export.getStyleClass().add("button-secondary");
+        boolean canExport = session.hasPermission("export.read");
+        export.setDisable(!canExport);
+        export.setOnAction(e -> exportCsv());
+
+        HBox searchBar = new HBox(8, search, searchBtn, refresh, inactiveOnly, inactiveDays, export);
+        searchBar.setAlignment(Pos.CENTER_LEFT);
         HBox.setHgrow(search, Priority.ALWAYS);
 
         VBox card = new VBox(12, formGrid, searchBar);
@@ -133,7 +155,8 @@ public final class CustomersView extends StackPane implements Reloadable {
                 col("Téléphone", Customer::phone),
                 col("Email", Customer::email),
                 col("Ville", c -> blankToDash(c.city())),
-                col("Points", c -> String.valueOf(c.loyaltyPoints() == null ? 0 : c.loyaltyPoints()))
+                col("Points", c -> String.valueOf(c.loyaltyPoints() == null ? 0 : c.loyaltyPoints())),
+                col("Actif", c -> Boolean.FALSE.equals(c.isActive()) ? "Non" : "Oui")
         );
         TableColumn<Customer, Void> actionsCol = new TableColumn<>();
         actionsCol.setCellFactory(c -> new javafx.scene.control.TableCell<>() {
@@ -307,7 +330,8 @@ public final class CustomersView extends StackPane implements Reloadable {
                 trimOrEmpty(companyName),
                 trimOrEmpty(address),
                 trimOrEmpty(city),
-                0
+                0,
+                true
         );
         loading.setLoading(true);
         if (editingId == null) {
@@ -354,6 +378,44 @@ public final class CustomersView extends StackPane implements Reloadable {
             loading.setLoading(false);
             pager.setItems(list);
             countLabel.setText(list.size() + " client(s)");
+        }, this::fail);
+    }
+
+    private void reloadInactiveAware() {
+        if (!inactiveOnly.isSelected()) {
+            reload();
+            return;
+        }
+        int days;
+        try {
+            days = Integer.parseInt(inactiveDays.getText().trim());
+        } catch (Exception e) {
+            days = 90;
+        }
+        int finalDays = Math.max(days, 0);
+        loading.setLoading(true);
+        FxAsync.run(() -> client.listInactive(finalDays), list -> {
+            loading.setLoading(false);
+            pager.setItems(list);
+            countLabel.setText(list.size() + " client(s) inactif(s) depuis " + finalDays + " jour(s)");
+        }, this::fail);
+    }
+
+    private void exportCsv() {
+        FileChooser chooser = new FileChooser();
+        chooser.setInitialFileName("clients.csv");
+        var file = chooser.showSaveDialog(getScene() == null ? null : getScene().getWindow());
+        if (file == null) {
+            return;
+        }
+        loading.setLoading(true);
+        FxAsync.run(() -> client.exportCsv("CSV"), bytes -> {
+            try {
+                Files.write(file.toPath(), bytes);
+                loading.setLoading(false);
+            } catch (Exception ex) {
+                fail(ex);
+            }
         }, this::fail);
     }
 

@@ -15,6 +15,7 @@ import javafx.beans.property.ReadOnlyStringWrapper;
 import javafx.geometry.Insets;
 import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
+import javafx.scene.control.DatePicker;
 import javafx.scene.control.Label;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
@@ -25,6 +26,9 @@ import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 
 import java.math.BigDecimal;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Locale;
 
@@ -37,6 +41,9 @@ public final class PosHistoryView extends StackPane implements Reloadable {
     private final TableView<Sale> table = new TableView<>();
     private final TextField search = new TextField();
     private final CheckBox sessionOnly = new CheckBox("Session courante uniquement");
+    private final DatePicker dateFrom = new DatePicker();
+    private final DatePicker dateTo = new DatePicker();
+    private final Button clearDates = new Button("×");
     private final Label count = new Label();
     private List<Sale> all = List.of();
 
@@ -57,6 +64,18 @@ public final class PosHistoryView extends StackPane implements Reloadable {
         search.setPromptText("Filtrer n°, client…");
         search.textProperty().addListener((o, a, b) -> filterTable());
         sessionOnly.setOnAction(e -> reload());
+
+        dateFrom.setPromptText("Du");
+        dateTo.setPromptText("Au");
+        dateFrom.setOnAction(e -> reload());
+        dateTo.setOnAction(e -> reload());
+        clearDates.getStyleClass().add("button-ghost");
+        clearDates.setTooltip(new javafx.scene.control.Tooltip("Effacer la plage de dates"));
+        clearDates.setOnAction(e -> {
+            dateFrom.setValue(null);
+            dateTo.setValue(null);
+            reload();
+        });
 
         Button refresh = new Button("Actualiser");
         refresh.getStyleClass().add("button-secondary");
@@ -82,7 +101,7 @@ public final class PosHistoryView extends StackPane implements Reloadable {
             }
         });
 
-        HBox bar = new HBox(10, search, sessionOnly, refresh, ticket);
+        HBox bar = new HBox(10, search, sessionOnly, dateFrom, dateTo, clearDates, refresh, ticket);
         HBox.setHgrow(search, Priority.ALWAYS);
         VBox page = new VBox(12, title, sub, error, bar, count, table);
         page.getStyleClass().add("content");
@@ -95,11 +114,21 @@ public final class PosHistoryView extends StackPane implements Reloadable {
     public void reload() {
         loading.setLoading(true);
         boolean only = sessionOnly.isSelected();
-        FxAsync.run(() -> pos.listCompletedSales(only, 100), list -> {
+        Instant from = startOfDay(dateFrom.getValue());
+        Instant to = endOfDay(dateTo.getValue());
+        FxAsync.run(() -> pos.listCompletedSales(only, 100, from, to), list -> {
             loading.setLoading(false);
             all = list;
             filterTable();
         }, this::fail);
+    }
+
+    private static Instant startOfDay(LocalDate date) {
+        return date == null ? null : date.atStartOfDay(ZoneId.systemDefault()).toInstant();
+    }
+
+    private static Instant endOfDay(LocalDate date) {
+        return date == null ? null : date.plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant().minusMillis(1);
     }
 
     private void filterTable() {

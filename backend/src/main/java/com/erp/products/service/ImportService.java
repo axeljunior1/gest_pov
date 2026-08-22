@@ -43,6 +43,8 @@ public class ImportService {
     private final SupplierRepository supplierRepository;
     private final UnitOfMeasureRepository unitRepository;
     private final ProductPackagingRepository packagingRepository;
+    private final BarcodeService barcodeService;
+    private final BarcodeRegistryService barcodeRegistryService;
     private final WarehouseRepository warehouseRepository;
     private final LocationRepository locationRepository;
     private final LotRepository lotRepository;
@@ -725,12 +727,16 @@ public class ImportService {
         boolean defaultAchat = "true".equalsIgnoreCase(TabularFileHelper.cell(row, 5))
                 || "1".equals(TabularFileHelper.cell(row, 5))
                 || "oui".equalsIgnoreCase(TabularFileHelper.cell(row, 5));
+        String codeBarre = emptyToNull(TabularFileHelper.cell(row, 4));
+        if (codeBarre == null) {
+            codeBarre = barcodeService.allocateEan13(barcodeRegistryService::isTaken);
+        }
         packagingRepository.save(ProductPackaging.builder()
                 .product(product)
                 .nom(nom)
                 .symbole(emptyToNull(TabularFileHelper.cell(row, 2)))
                 .quantiteBase(parseDecimal(TabularFileHelper.cell(row, 3)))
-                .codeBarre(emptyToNull(TabularFileHelper.cell(row, 4)))
+                .codeBarre(codeBarre)
                 .prixVente(PackagingService.resolvePrixVente(
                         product,
                         parseDecimal(TabularFileHelper.cell(row, 3)),

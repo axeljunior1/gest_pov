@@ -33,6 +33,12 @@ public class CustomerController {
         return customerService.search(q, limit);
     }
 
+    @GetMapping("/inactive")
+    @PreAuthorize("@permissionChecker.has(authentication, 'customer.read')")
+    public List<CustomerResponse> inactive(@RequestParam(defaultValue = "90") int days) {
+        return customerService.listInactiveSince(days);
+    }
+
     @GetMapping("/{id}")
     @PreAuthorize("@permissionChecker.has(authentication, 'customer.read')")
     public CustomerResponse get(@PathVariable Long id) {

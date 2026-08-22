@@ -13,6 +13,7 @@ import com.gestpov.desktop.model.StockValuationOverview;
 import com.gestpov.desktop.model.Warehouse;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -66,6 +67,25 @@ public class StockClient {
 
     public List<StockMovement> listMovements() throws ApiException {
         return JsonLists.mapArray(api.get("/api/stock/movements", Map.of("limit", "100")), StockMovement::fromJson);
+    }
+
+    public List<StockMovement> listMovements(Long productId, Long warehouseId, LocalDate dateFrom, LocalDate dateTo)
+            throws ApiException {
+        Map<String, String> params = new LinkedHashMap<>();
+        params.put("limit", "200");
+        if (productId != null) {
+            params.put("productId", String.valueOf(productId));
+        }
+        if (warehouseId != null) {
+            params.put("warehouseId", String.valueOf(warehouseId));
+        }
+        if (dateFrom != null) {
+            params.put("dateFrom", dateFrom.toString());
+        }
+        if (dateTo != null) {
+            params.put("dateTo", dateTo.toString());
+        }
+        return JsonLists.mapArray(api.get("/api/stock/movements", params), StockMovement::fromJson);
     }
 
     public List<StockTransfer> listTransfers() throws ApiException {
@@ -135,6 +155,36 @@ public class StockClient {
 
     public List<PurchaseOrder> listPurchaseOrders() throws ApiException {
         return JsonLists.mapArray(api.get("/api/purchase-orders"), PurchaseOrder::fromJson);
+    }
+
+    public List<PurchaseOrder> listPurchaseOrders(String status, Long supplierId) throws ApiException {
+        Map<String, String> params = new LinkedHashMap<>();
+        if (status != null && !status.isBlank()) {
+            params.put("status", status);
+        }
+        if (supplierId != null) {
+            params.put("supplierId", String.valueOf(supplierId));
+        }
+        return JsonLists.mapArray(api.get("/api/purchase-orders", params), PurchaseOrder::fromJson);
+    }
+
+    public PurchaseOrder createPurchaseOrder(long supplierId, Long warehouseId, LocalDate expectedDeliveryDate,
+                                             String notes, long productId, BigDecimal quantity) throws ApiException {
+        Map<String, Object> line = new LinkedHashMap<>();
+        line.put("productId", productId);
+        line.put("quantity", quantity);
+
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("supplierId", supplierId);
+        if (warehouseId != null) {
+            body.put("warehouseId", warehouseId);
+        }
+        body.put("expectedDeliveryDate", expectedDeliveryDate == null ? LocalDate.now().plusDays(7) : expectedDeliveryDate);
+        if (notes != null && !notes.isBlank()) {
+            body.put("notes", notes.trim());
+        }
+        body.put("lines", List.of(line));
+        return PurchaseOrder.fromJson(api.post("/api/purchase-orders", body));
     }
 
     public void receipt(long productId, long warehouseId, long locationId, BigDecimal quantityBase, String reference)

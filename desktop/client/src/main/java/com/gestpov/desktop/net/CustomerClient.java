@@ -24,6 +24,15 @@ public class CustomerClient {
                 Customer::fromJson);
     }
 
+    public List<Customer> listInactive(int days) throws ApiException {
+        return JsonLists.mapArray(api.get("/api/customers/inactive", Map.of("days", String.valueOf(days))),
+                Customer::fromJson);
+    }
+
+    public byte[] exportCsv(String format) throws ApiException {
+        return api.getBytes("/api/export/customers", Map.of("format", format == null ? "CSV" : format));
+    }
+
     public Customer getById(long id) throws ApiException {
         return Customer.fromJson(api.get("/api/customers/" + id));
     }

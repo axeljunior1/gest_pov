@@ -1,13 +1,17 @@
 package com.gestpov.desktop.ui.stock;
 
+import com.gestpov.desktop.model.AppSetting;
 import com.gestpov.desktop.model.Product;
 import com.gestpov.desktop.model.StockItem;
 import com.gestpov.desktop.model.StockLocation;
 import com.gestpov.desktop.model.StockMovement;
+import com.gestpov.desktop.model.Supplier;
 import com.gestpov.desktop.model.Warehouse;
 import com.gestpov.desktop.net.ApiException;
 import com.gestpov.desktop.net.ProductClient;
+import com.gestpov.desktop.net.SettingsClient;
 import com.gestpov.desktop.net.StockClient;
+import com.gestpov.desktop.net.SupplierClient;
 import com.gestpov.desktop.session.SessionContext;
 import com.gestpov.desktop.ui.Reloadable;
 import com.gestpov.desktop.ui.component.EmptyState;
@@ -19,9 +23,13 @@ import javafx.beans.property.ReadOnlyStringWrapper;
 import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
+import javafx.scene.control.ButtonType;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.ComboBox;
+import javafx.scene.control.DatePicker;
+import javafx.scene.control.Dialog;
 import javafx.scene.control.Label;
 import javafx.scene.control.TableCell;
 import javafx.scene.control.TableColumn;
@@ -36,6 +44,7 @@ import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -53,9 +62,12 @@ public final class StockView extends StackPane implements Reloadable {
     private final SessionContext session;
     private final StockClient client;
     private final ProductClient products;
+    private final SupplierClient suppliers;
+    private final SettingsClient settings;
     private final boolean canAdjust;
     private final ErrorBanner error = new ErrorBanner();
     private final LoadingOverlay loading = new LoadingOverlay();
+    private BigDecimal lowThreshold = BigDecimal.TEN;
 
     private final ToggleButton tabStock = new ToggleButton("Stock");
     private final ToggleButton tabMove = new ToggleButton("Mouvement");
@@ -81,14 +93,39 @@ public final class StockView extends StackPane implements Reloadable {
     private final TextField referenceField = new TextField();
 
     private final TableView<StockMovement> movementsTable = new TableView<>();
+    private final ComboBox<ProductOption> historyProductFilter = new ComboBox<>();
+    private final ComboBox<Warehouse> historyWarehouseFilter = new ComboBox<>();
+    private final DatePicker historyDateFrom = new DatePicker();
+    private final DatePicker historyDateTo = new DatePicker();
 
     public StockView(SessionContext session) {
         this.session = session;
         this.client = new StockClient(session.api());
         this.products = new ProductClient(session.api());
+        this.suppliers = new SupplierClient(session.api());
+        this.settings = new SettingsClient(session.api());
         this.canAdjust = session.hasPermission("stock.adjust");
         getChildren().addAll(build(), loading);
+        loadLowThreshold();
         reloadAll();
+    }
+
+    private void loadLowThreshold() {
+        FxAsync.run(settings::getAll, list -> {
+            for (AppSetting s : list) {
+                if ("stock.low_threshold_default".equals(s.key())) {
+                    try {
+                        lowThreshold = new BigDecimal(s.value().trim());
+                    } catch (Exception ignored) {
+                        // valeur invalide en base : seuil par defaut conserve
+                    }
+                    break;
+                }
+            }
+            applyFilter();
+        }, ignored -> {
+            // seuil par defaut (10) conserve si le chargement echoue
+        });
     }
 
     private VBox build() {
@@ -158,7 +195,12 @@ public final class StockView extends StackPane implements Reloadable {
         Button refresh = new Button("Actualiser");
         refresh.getStyleClass().add("button-secondary");
         refresh.setOnAction(e -> reloadItems());
-        HBox bar = new HBox(8, search, warehouseFilter, onlyLow, refresh);
+        Button orderBtn = new Button("Commander (sélection)");
+        orderBtn.getStyleClass().add("button-secondary");
+        orderBtn.setOnAction(e -> openCreatePurchaseOrderDialog());
+        orderBtn.setVisible(session.hasPermission("stock_entry.create"));
+        orderBtn.setManaged(orderBtn.isVisible());
+        HBox bar = new HBox(8, search, warehouseFilter, onlyLow, refresh, orderBtn);
         bar.setAlignment(Pos.CENTER_LEFT);
         HBox.setHgrow(search, Priority.ALWAYS);
         VBox card = new VBox(10, bar, summary);
@@ -177,7 +219,7 @@ public final class StockView extends StackPane implements Reloadable {
                 BigDecimal avail = avail(item);
                 if (avail.compareTo(BigDecimal.ZERO) <= 0) {
                     setStyle("-fx-background-color: #fee2e2;");
-                } else if (avail.compareTo(BigDecimal.TEN) <= 0) {
+                } else if (avail.compareTo(lowThreshold) <= 0) {
                     setStyle("-fx-background-color: #fef3c7;");
                 } else {
                     setStyle("");
@@ -252,7 +294,31 @@ public final class StockView extends StackPane implements Reloadable {
         Button refresh = new Button("Actualiser l'historique");
         refresh.getStyleClass().add("button-secondary");
         refresh.setOnAction(e -> reloadMovements());
-        HBox bar = new HBox(refresh);
+
+        historyProductFilter.setPromptText("Tous produits");
+        historyProductFilter.setMaxWidth(220);
+        historyProductFilter.valueProperty().addListener((o, a, b) -> reloadMovements());
+        historyWarehouseFilter.setPromptText("Tous entrepôts");
+        historyWarehouseFilter.setMaxWidth(180);
+        historyWarehouseFilter.valueProperty().addListener((o, a, b) -> reloadMovements());
+        historyDateFrom.setPromptText("Du");
+        historyDateFrom.setOnAction(e -> reloadMovements());
+        historyDateTo.setPromptText("Au");
+        historyDateTo.setOnAction(e -> reloadMovements());
+        Button clearFilters = new Button("×");
+        clearFilters.getStyleClass().add("button-ghost");
+        clearFilters.setTooltip(new javafx.scene.control.Tooltip("Effacer les filtres"));
+        clearFilters.setOnAction(e -> {
+            historyProductFilter.getSelectionModel().clearSelection();
+            historyWarehouseFilter.getSelectionModel().clearSelection();
+            historyDateFrom.setValue(null);
+            historyDateTo.setValue(null);
+            reloadMovements();
+        });
+
+        HBox bar = new HBox(8, refresh, historyProductFilter, historyWarehouseFilter,
+                historyDateFrom, historyDateTo, clearFilters);
+        bar.setAlignment(Pos.CENTER_LEFT);
         bar.getStyleClass().add("card");
         movementsTable.setPlaceholder(new EmptyState("Aucun mouvement"));
         movementsTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
@@ -348,6 +414,113 @@ public final class StockView extends StackPane implements Reloadable {
         }, this::fail);
     }
 
+    private void openCreatePurchaseOrderDialog() {
+        StockItem item = table.getSelectionModel().getSelectedItem();
+        if (item == null) {
+            error.show("Sélectionnez une ligne de stock.");
+            return;
+        }
+        if (item.productId() == null) {
+            error.show("Produit non identifié pour cette ligne.");
+            return;
+        }
+        loading.setLoading(true);
+        FxAsync.run(suppliers::findAll, list -> {
+            loading.setLoading(false);
+            if (list.isEmpty()) {
+                error.show("Créez d'abord un fournisseur (onglet Fournisseurs).");
+                return;
+            }
+            showCreatePurchaseOrderDialog(item, list);
+        }, this::fail);
+    }
+
+    private void showCreatePurchaseOrderDialog(StockItem item, List<Supplier> supplierList) {
+        Dialog<Void> dialog = new Dialog<>();
+        dialog.setTitle("Commander « " + (item.productNom() == null ? "produit" : item.productNom()) + " »");
+        dialog.getDialogPane().getButtonTypes().add(ButtonType.CANCEL);
+        dialog.initOwner(getScene() == null ? null : getScene().getWindow());
+
+        ComboBox<Supplier> supplierCombo = new ComboBox<>();
+        supplierCombo.getItems().setAll(supplierList);
+        supplierCombo.setMaxWidth(Double.MAX_VALUE);
+        supplierCombo.getSelectionModel().selectFirst();
+
+        ComboBox<Warehouse> whCombo = new ComboBox<>();
+        whCombo.getItems().setAll(warehouseCombo.getItems());
+        whCombo.setMaxWidth(Double.MAX_VALUE);
+        if (item.warehouseId() != null) {
+            whCombo.getItems().stream().filter(w -> item.warehouseId().equals(w.id())).findFirst()
+                    .ifPresent(w -> whCombo.getSelectionModel().select(w));
+        }
+        if (whCombo.getValue() == null && !whCombo.getItems().isEmpty()) {
+            whCombo.getSelectionModel().selectFirst();
+        }
+
+        BigDecimal suggested = lowThreshold.subtract(avail(item));
+        if (suggested.compareTo(BigDecimal.ONE) < 0) {
+            suggested = BigDecimal.ONE;
+        }
+        TextField qtyField = new TextField(suggested.stripTrailingZeros().toPlainString());
+        DatePicker deliveryDate = new DatePicker(LocalDate.now().plusDays(7));
+        deliveryDate.setMaxWidth(Double.MAX_VALUE);
+        TextField notesField = new TextField();
+        notesField.setPromptText("Notes (optionnel)");
+
+        Button confirm = new Button("Créer la commande");
+        confirm.getStyleClass().add("button-primary");
+        confirm.setOnAction(e -> {
+            Supplier supplier = supplierCombo.getValue();
+            if (supplier == null || supplier.id() == null) {
+                error.show("Choisissez un fournisseur.");
+                return;
+            }
+            BigDecimal qty;
+            try {
+                qty = new BigDecimal(qtyField.getText().trim().replace(',', '.'));
+            } catch (Exception ex) {
+                error.show("Quantité invalide.");
+                return;
+            }
+            if (qty.compareTo(BigDecimal.ZERO) <= 0) {
+                error.show("La quantité doit être positive.");
+                return;
+            }
+            Long whId = whCombo.getValue() == null ? null : whCombo.getValue().id();
+            LocalDate date = deliveryDate.getValue();
+            String notes = notesField.getText();
+            long productId = item.productId();
+            BigDecimal finalQty = qty;
+            loading.setLoading(true);
+            FxAsync.run(() -> client.createPurchaseOrder(supplier.id(), whId, date, notes, productId, finalQty),
+                    po -> {
+                        loading.setLoading(false);
+                        error.hide();
+                        dialog.close();
+                        Alert done = new Alert(Alert.AlertType.INFORMATION,
+                                "Commande " + (po.reference() == null ? "" : po.reference()) + " créée.");
+                        done.setHeaderText("Bon de commande");
+                        done.showAndWait();
+                    }, t -> {
+                        loading.setLoading(false);
+                        fail(t);
+                    });
+        });
+
+        VBox content = new VBox(10,
+                labeled("Fournisseur", supplierCombo),
+                labeled("Entrepôt", whCombo),
+                labeled("Quantité à commander", qtyField),
+                labeled("Livraison prévue", deliveryDate),
+                labeled("Notes", notesField),
+                confirm
+        );
+        content.setPadding(new Insets(10));
+        content.setPrefWidth(320);
+        dialog.getDialogPane().setContent(content);
+        dialog.showAndWait();
+    }
+
     @Override
     public void reload() {
         reloadAll();
@@ -424,6 +597,8 @@ public final class StockView extends StackPane implements Reloadable {
             productCombo.getItems().setAll(refs.products().stream()
                     .map(p -> new ProductOption(p.id(), p.nom(), p.sku()))
                     .toList());
+            historyWarehouseFilter.getItems().setAll(refs.warehouses());
+            historyProductFilter.getItems().setAll(productCombo.getItems());
         }, ignored -> {
             // listes optionnelles au démarrage
         });
@@ -444,7 +619,13 @@ public final class StockView extends StackPane implements Reloadable {
 
     private void reloadMovements() {
         loading.setLoading(true);
-        FxAsync.run(client::listMovements, list -> {
+        ProductOption product = historyProductFilter.getValue();
+        Warehouse warehouse = historyWarehouseFilter.getValue();
+        Long productId = product == null ? null : product.id();
+        Long warehouseId = warehouse == null ? null : warehouse.id();
+        LocalDate from = historyDateFrom.getValue();
+        LocalDate to = historyDateTo.getValue();
+        FxAsync.run(() -> client.listMovements(productId, warehouseId, from, to), list -> {
             loading.setLoading(false);
             movementsTable.getItems().setAll(list);
         }, this::fail);
@@ -478,7 +659,7 @@ public final class StockView extends StackPane implements Reloadable {
                     && (s.warehouseCode() == null || !wh.equalsIgnoreCase(s.warehouseCode()))) {
                 return false;
             }
-            if (lowOnly && avail(s).compareTo(BigDecimal.TEN) > 0) {
+            if (lowOnly && avail(s).compareTo(lowThreshold) > 0) {
                 return false;
             }
             if (q.isEmpty()) {
@@ -492,9 +673,10 @@ public final class StockView extends StackPane implements Reloadable {
         long rupture = filtered.stream().filter(s -> avail(s).compareTo(BigDecimal.ZERO) <= 0).count();
         long faible = filtered.stream().filter(s -> {
             BigDecimal a = avail(s);
-            return a.compareTo(BigDecimal.ZERO) > 0 && a.compareTo(BigDecimal.TEN) <= 0;
+            return a.compareTo(BigDecimal.ZERO) > 0 && a.compareTo(lowThreshold) <= 0;
         }).count();
-        summary.setText(filtered.size() + " ligne(s) · " + rupture + " rupture · " + faible + " stock faible (≤ 10)"
+        summary.setText(filtered.size() + " ligne(s) · " + rupture + " rupture · " + faible + " stock faible (≤ "
+                + lowThreshold.stripTrailingZeros().toPlainString() + ")"
                 + (canAdjust ? " · Double-clic = mouvement" : ""));
     }
 
@@ -517,12 +699,12 @@ public final class StockView extends StackPane implements Reloadable {
         return s.quantityAvailable() == null ? BigDecimal.ZERO : s.quantityAvailable();
     }
 
-    private static String statusOf(StockItem s) {
+    private String statusOf(StockItem s) {
         BigDecimal a = avail(s);
         if (a.compareTo(BigDecimal.ZERO) <= 0) {
             return "Rupture";
         }
-        if (a.compareTo(BigDecimal.TEN) <= 0) {
+        if (a.compareTo(lowThreshold) <= 0) {
             return "Faible";
         }
         return "OK";
@@ -541,8 +723,8 @@ public final class StockView extends StackPane implements Reloadable {
         });
     }
 
-    private static TableColumn<StockItem, String> statusCol() {
-        TableColumn<StockItem, String> col = col("Statut", StockView::statusOf);
+    private TableColumn<StockItem, String> statusCol() {
+        TableColumn<StockItem, String> col = col("Statut", this::statusOf);
         col.setCellFactory(c -> new TableCell<>() {
             @Override
             protected void updateItem(String item, boolean empty) {

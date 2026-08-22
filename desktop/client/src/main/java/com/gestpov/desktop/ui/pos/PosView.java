@@ -24,6 +24,7 @@ import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListCell;
 import javafx.scene.control.ListView;
+import javafx.scene.control.TableCell;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
 import javafx.scene.control.TextField;
@@ -39,6 +40,7 @@ import javafx.scene.layout.VBox;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.List;
+import java.util.Map;
 
 /**
  * POS Desktop aligné web : mode vendeur encaisse OU caisse centrale (préparation + encaissement).
@@ -65,6 +67,7 @@ public final class PosView extends StackPane implements Reloadable {
     private final HBox stationBar = new HBox(8);
 
     private final Label modeBadge = new Label();
+    private final Label stationBadge = new Label();
     private final TextField openingCash = new TextField("0");
     private final Button openSessionBtn = new Button("Ouvrir la session");
     private final Button closeSessionBtn = new Button("Fermer la session");
@@ -92,6 +95,7 @@ public final class PosView extends StackPane implements Reloadable {
     private final ComboBox<String> payMethod = new ComboBox<>();
     private final TextField cashReceived = new TextField();
     private final Button payBtn = new Button("Encaisser");
+    private final Button splitPayBtn = new Button("Paiement fractionné…");
     private final Button sendBtn = new Button("Envoyer à la caisse");
     private final Button holdBtn = new Button("Mettre en attente");
     private final Button resumeBtn = new Button("Reprendre attente");
@@ -100,9 +104,13 @@ public final class PosView extends StackPane implements Reloadable {
 
     private final ComboBox<String> pendingPayMethod = new ComboBox<>();
     private final TextField pendingCashReceived = new TextField();
+    private final Button pendingSplitPayBtn = new Button("Paiement fractionné…");
     private final Label pendingChangeLabel = new Label("");
     private final TableView<Sale> pendingTable = new TableView<>();
     private final Label pendingHint = new Label();
+
+    private final VBox recentSalesPanel = new VBox(8);
+    private final TableView<Sale> recentSalesTable = new TableView<>();
 
     private Sale sale;
     private String salesFlowMode = MODE_SELLER;
@@ -132,7 +140,8 @@ public final class PosView extends StackPane implements Reloadable {
     private VBox build() {
         Label title = new Label("Caisse POS");
         title.getStyleClass().addAll("page-title", "pos-title");
-        Label sub = new Label("F2 recherche · Entrée ajouter · Double-clic résultat");
+        Label sub = new Label("F2 recherche · Entrée ajouter · Double-clic résultat · "
+                + "F5/F6/F7 moyen de paiement · +/- quantité (ligne panier sélectionnée)");
         sub.getStyleClass().add("page-sub");
 
         modeBadge.getStyleClass().add("page-sub");
@@ -196,10 +205,11 @@ public final class PosView extends StackPane implements Reloadable {
 
         buildSalesWorkspace();
         buildCashierWorkspace();
+        buildRecentSalesPanel();
         body.getChildren().addAll(salesWorkspace, cashierWorkspace);
 
-        VBox page = new VBox(14, title, sub, modeBadge, stationBar, error,
-                sessionOpenBar, sessionActiveBar, wrongSessionBar, body);
+        VBox page = new VBox(14, title, sub, modeBadge, stationBadge, stationBar, error,
+                sessionOpenBar, sessionActiveBar, wrongSessionBar, body, recentSalesPanel);
         page.getStyleClass().addAll("content", "pos-page");
         VBox.setVgrow(body, Priority.ALWAYS);
         page.setPadding(new Insets(0));
@@ -207,6 +217,17 @@ public final class PosView extends StackPane implements Reloadable {
         setOnKeyPressed(e -> {
             if (e.getCode() == KeyCode.F2 && salesWorkspace.isVisible()) {
                 search.requestFocus();
+                return;
+            }
+            String payKeyMethod = methodForKey(e.getCode());
+            if (payKeyMethod != null) {
+                if (salesWorkspace.isVisible() && payBtn.isVisible()) {
+                    payMethod.getSelectionModel().select(payKeyMethod);
+                    e.consume();
+                } else if (cashierWorkspace.isVisible()) {
+                    pendingPayMethod.getSelectionModel().select(payKeyMethod);
+                    e.consume();
+                }
             }
         });
 
@@ -286,6 +307,15 @@ public final class PosView extends StackPane implements Reloadable {
         );
         cart.setPlaceholder(new EmptyState("Panier vide"));
         cart.setItems(FXCollections.observableArrayList());
+        cart.setOnKeyPressed(e -> {
+            if (e.getCode() == KeyCode.PLUS || e.getCode() == KeyCode.ADD) {
+                bumpSelectedQty(BigDecimal.ONE);
+                e.consume();
+            } else if (e.getCode() == KeyCode.MINUS || e.getCode() == KeyCode.SUBTRACT) {
+                bumpSelectedQty(BigDecimal.ONE.negate());
+                e.consume();
+            }
+        });
 
         customerSearch.setPromptText("Client…");
         customerSearch.setOnAction(e -> searchCustomers());
@@ -358,6 +388,8 @@ public final class PosView extends StackPane implements Reloadable {
 
         payBtn.getStyleClass().addAll("button-pay", "pos-pay-btn");
         payBtn.setOnAction(e -> pay());
+        splitPayBtn.getStyleClass().addAll("button-secondary", "pos-action");
+        splitPayBtn.setOnAction(e -> openSplitPaymentDialog(false));
         sendBtn.getStyleClass().addAll("button-primary", "pos-pay-btn");
         sendBtn.setOnAction(e -> sendToCash());
         holdBtn.getStyleClass().addAll("button-secondary", "pos-action");
@@ -377,7 +409,7 @@ public final class PosView extends StackPane implements Reloadable {
         paySectionLabel.getStyleClass().add("pos-section-label");
         payRow.setAlignment(Pos.CENTER_LEFT);
         payRow.setSpacing(10);
-        payRow.getChildren().addAll(payMethod, cashReceived, payBtn, sendBtn, holdBtn, resumeBtn, ticket);
+        payRow.getChildren().addAll(payMethod, cashReceived, payBtn, splitPayBtn, sendBtn, holdBtn, resumeBtn, ticket);
         HBox.setHgrow(cashReceived, Priority.ALWAYS);
 
         HBox lineActions = new HBox(10, qty, setQty, removeLine, discount, applyDisc);
@@ -426,6 +458,9 @@ public final class PosView extends StackPane implements Reloadable {
         recall.getStyleClass().addAll("button-ghost", "pos-action");
         recall.setOnAction(e -> recallPendingSelected());
 
+        pendingSplitPayBtn.getStyleClass().addAll("button-secondary", "pos-action");
+        pendingSplitPayBtn.setOnAction(e -> openPendingSplitPayment());
+
         pendingPayMethod.getItems().addAll("CASH", "CARD", "MOBILE_MONEY");
         pendingPayMethod.setConverter(methodConverter());
         pendingPayMethod.getSelectionModel().select("CASH");
@@ -434,7 +469,7 @@ public final class PosView extends StackPane implements Reloadable {
         pendingCashReceived.textProperty().addListener((o, a, b) -> updatePendingChange());
         pendingChangeLabel.getStyleClass().add("pos-change");
 
-        HBox actions = new HBox(10, refresh, encaisse, recall);
+        HBox actions = new HBox(10, refresh, encaisse, pendingSplitPayBtn, recall);
         actions.setAlignment(Pos.CENTER_LEFT);
         HBox payPendingRow = new HBox(10, pendingPayMethod, pendingCashReceived);
         payPendingRow.setAlignment(Pos.CENTER_LEFT);
@@ -446,6 +481,68 @@ public final class PosView extends StackPane implements Reloadable {
         VBox.setVgrow(pendingTable, Priority.ALWAYS);
         cashierWorkspace.getStyleClass().addAll("card", "pos-panel");
         cashierWorkspace.setPadding(new Insets(12));
+    }
+
+    private void buildRecentSalesPanel() {
+        Label recentTitle = new Label("Ventes récentes (tous postes) — réimpression ticket");
+        recentTitle.getStyleClass().add("pos-section-label");
+
+        recentSalesTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
+        recentSalesTable.getColumns().addAll(
+                saleCol("N°", Sale::saleNumber),
+                saleCol("Client", s -> s.customerName() == null ? "—" : s.customerName()),
+                saleCol("Total", s -> ProductLabels.price(s.total() == null ? BigDecimal.ZERO : s.total()))
+        );
+        TableColumn<Sale, Void> ticketCol = new TableColumn<>("Ticket");
+        ticketCol.setCellFactory(c -> new TableCell<>() {
+            private final Button reprintBtn = new Button("Réimprimer");
+
+            {
+                reprintBtn.getStyleClass().addAll("button-ghost", "pos-action-sm");
+                reprintBtn.setOnAction(e -> {
+                    Sale s = getTableRow() == null ? null : getTableRow().getItem();
+                    if (s != null && s.id() != null) {
+                        offerTicketPrint(s.id());
+                    }
+                });
+            }
+
+            @Override
+            protected void updateItem(Void item, boolean empty) {
+                super.updateItem(item, empty);
+                setGraphic(empty ? null : reprintBtn);
+            }
+        });
+        recentSalesTable.getColumns().add(ticketCol);
+        recentSalesTable.setPlaceholder(new EmptyState("Aucune vente récente"));
+        recentSalesTable.setPrefHeight(180);
+
+        Button refreshRecent = new Button("Actualiser");
+        refreshRecent.getStyleClass().add("button-secondary");
+        refreshRecent.setOnAction(e -> reloadRecentSales());
+
+        recentSalesPanel.getChildren().setAll(new HBox(10, recentTitle, refreshRecent), recentSalesTable);
+        recentSalesPanel.getStyleClass().addAll("card", "pos-panel");
+        recentSalesPanel.setPadding(new Insets(12));
+    }
+
+    private void reloadRecentSales() {
+        if (!canCollect) {
+            return;
+        }
+        // sessionOnly=false : on veut les encaissements de tous les postes/utilisateurs, pas que ceux de ce PC
+        FxAsync.run(() -> pos.listCompletedSales(false, 20), list -> recentSalesTable.getItems().setAll(list),
+                ignored -> {
+                    // panneau optionnel : on ignore les echecs silencieusement
+                });
+    }
+
+    private void offerTicketPrint(long saleId) {
+        FxAsync.run(() -> pos.ticket(saleId),
+                node -> PosTicketHelper.showAndOfferPrint(getScene() == null ? null : getScene().getWindow(), node),
+                t -> {
+                    // impression optionnelle : on ne bloque pas le flux de vente si le ticket ne charge pas
+                });
     }
 
     @Override
@@ -588,9 +685,32 @@ public final class PosView extends StackPane implements Reloadable {
         payMethod.setManaged(showPay);
         cashReceived.setVisible(showPay);
         cashReceived.setManaged(showPay);
+        splitPayBtn.setVisible(showPay);
+        splitPayBtn.setManaged(showPay);
         paySectionLabel.setText(showSend ? "Envoi caisse / attente" : "Paiement / attente");
         paySectionLabel.setVisible(showPay || showSend || showHold);
         paySectionLabel.setManaged(showPay || showSend || showHold);
+
+        String badgeBase = "-fx-font-weight: 800; -fx-font-size: 14px; -fx-padding: 6 14; -fx-background-radius: 6;";
+        if (central) {
+            boolean onSalesStation = TYPE_SALES.equals(required);
+            stationBadge.setText(onSalesStation ? "🛒 PRÉPARATION DES VENTES" : "🧾 ENCAISSEMENT");
+            stationBadge.setStyle(badgeBase + (onSalesStation
+                    ? "-fx-background-color: #dbeafe; -fx-text-fill: #1e40af;"
+                    : "-fx-background-color: #dcfce7; -fx-text-fill: #166534;"));
+        } else {
+            stationBadge.setText("🧾 VENTE & ENCAISSEMENT");
+            stationBadge.setStyle(badgeBase + "-fx-background-color: #e0e7ff; -fx-text-fill: #3730a3;");
+        }
+        stationBadge.setVisible(open && match && !wrong);
+        stationBadge.setManaged(open && match && !wrong);
+
+        boolean showRecent = canCollect && open && match && !wrong;
+        recentSalesPanel.setVisible(showRecent);
+        recentSalesPanel.setManaged(showRecent);
+        if (showRecent) {
+            reloadRecentSales();
+        }
     }
 
     private String requiredType() {
@@ -998,6 +1118,22 @@ public final class PosView extends StackPane implements Reloadable {
         FxAsync.run(() -> pos.updateQty(sale.id(), line.id(), quantity), this::showSale, this::fail);
     }
 
+    private void bumpSelectedQty(BigDecimal delta) {
+        SaleLine line = cart.getSelectionModel().getSelectedItem();
+        if (line == null || sale == null) {
+            error.show("Sélectionnez une ligne du panier.");
+            return;
+        }
+        BigDecimal current = line.quantityInput() == null ? BigDecimal.ZERO : line.quantityInput();
+        BigDecimal next = current.add(delta);
+        if (next.compareTo(BigDecimal.ONE) < 0) {
+            next = BigDecimal.ONE;
+        }
+        loading.setLoading(true);
+        BigDecimal quantity = next;
+        FxAsync.run(() -> pos.updateQty(sale.id(), line.id(), quantity), this::showSale, this::fail);
+    }
+
     private void removeSelectedLine() {
         SaleLine line = cart.getSelectionModel().getSelectedItem();
         if (line == null || sale == null) {
@@ -1127,6 +1263,10 @@ public final class PosView extends StackPane implements Reloadable {
                             + ProductLabels.price(paid.total()) + changeInfo);
             done.setHeaderText("Encaissement");
             done.showAndWait();
+            if (paid.id() != null) {
+                offerTicketPrint(paid.id());
+            }
+            reloadRecentSales();
             if (fromPending) {
                 sale = null;
                 reloadPending();
@@ -1134,6 +1274,153 @@ public final class PosView extends StackPane implements Reloadable {
                 ensureSale();
             }
         }, this::fail);
+    }
+
+    private void openPendingSplitPayment() {
+        Sale selected = pendingTable.getSelectionModel().getSelectedItem();
+        if (selected == null) {
+            error.show("Sélectionnez une vente à encaisser.");
+            return;
+        }
+        loading.setLoading(true);
+        FxAsync.run(() -> pos.getSale(selected.id()), full -> {
+            loading.setLoading(false);
+            sale = full;
+            openSplitPaymentDialog(true);
+        }, this::fail);
+    }
+
+    /** Encaissement fractionné : plusieurs lignes {méthode, montant} devant sommer au total de la vente. */
+    private void openSplitPaymentDialog(boolean fromPending) {
+        if (sale == null || sale.total() == null) {
+            error.show("Aucune vente à encaisser.");
+            return;
+        }
+        if (sale.lignes() == null || sale.lignes().isEmpty()) {
+            error.show("Le panier est vide.");
+            return;
+        }
+        BigDecimal saleTotal = sale.total();
+
+        javafx.scene.control.Dialog<Void> dialog = new javafx.scene.control.Dialog<>();
+        dialog.setTitle("Paiement fractionné");
+        dialog.setHeaderText("Total à encaisser : " + ProductLabels.price(saleTotal));
+        dialog.getDialogPane().getButtonTypes().add(javafx.scene.control.ButtonType.CANCEL);
+        dialog.initOwner(getScene() == null ? null : getScene().getWindow());
+
+        VBox linesBox = new VBox(8);
+        Label remainingLabel = new Label();
+        remainingLabel.getStyleClass().add("pos-change");
+        Button addLineBtn = new Button("+ Ajouter un moyen de paiement");
+        addLineBtn.getStyleClass().addAll("button-secondary", "pos-action-sm");
+        Button confirmBtn = new Button("Valider le paiement");
+        confirmBtn.getStyleClass().addAll("button-pay", "pos-pay-btn");
+
+        record SplitRow(ComboBox<String> method, TextField amount) {
+        }
+        List<SplitRow> rows = new java.util.ArrayList<>();
+        Runnable[] recompute = new Runnable[1];
+
+        Runnable addRow = () -> {
+            ComboBox<String> methodBox = new ComboBox<>();
+            methodBox.getItems().addAll("CASH", "CARD", "MOBILE_MONEY");
+            methodBox.setConverter(methodConverter());
+            methodBox.getSelectionModel().select("CASH");
+            TextField amountField = new TextField();
+            amountField.setPromptText("Montant");
+            amountField.setPrefWidth(120);
+            Button removeBtn = new Button("×");
+            removeBtn.getStyleClass().addAll("button-ghost", "pos-action-sm");
+            HBox row = new HBox(8, methodBox, amountField, removeBtn);
+            row.setAlignment(Pos.CENTER_LEFT);
+            SplitRow splitRow = new SplitRow(methodBox, amountField);
+            removeBtn.setOnAction(ev -> {
+                rows.remove(splitRow);
+                linesBox.getChildren().remove(row);
+                recompute[0].run();
+            });
+            methodBox.valueProperty().addListener((o, a, b) -> recompute[0].run());
+            amountField.textProperty().addListener((o, a, b) -> recompute[0].run());
+            rows.add(splitRow);
+            linesBox.getChildren().add(row);
+            recompute[0].run();
+        };
+
+        recompute[0] = () -> {
+            BigDecimal sum = BigDecimal.ZERO;
+            for (SplitRow r : rows) {
+                try {
+                    sum = sum.add(parseDecimal(r.amount().getText(), BigDecimal.ZERO));
+                } catch (Exception ignored) {
+                    // montant partiellement saisi : ignoré dans le calcul en cours
+                }
+            }
+            BigDecimal remaining = saleTotal.subtract(sum).setScale(2, RoundingMode.HALF_UP);
+            if (remaining.compareTo(BigDecimal.ZERO) > 0) {
+                remainingLabel.setText("Restant à payer : " + ProductLabels.price(remaining));
+            } else if (remaining.compareTo(BigDecimal.ZERO) < 0) {
+                remainingLabel.setText("Excédent : " + ProductLabels.price(remaining.abs()));
+            } else {
+                remainingLabel.setText("Montant complet.");
+            }
+            confirmBtn.setDisable(rows.isEmpty() || remaining.compareTo(BigDecimal.ZERO) != 0);
+        };
+
+        addLineBtn.setOnAction(ev -> addRow.run());
+        addRow.run();
+        rows.get(0).amount().setText(saleTotal.toPlainString());
+
+        confirmBtn.setOnAction(ev -> {
+            List<Map<String, Object>> payments = new java.util.ArrayList<>();
+            BigDecimal cashAmount = null;
+            for (SplitRow r : rows) {
+                String method = r.method().getValue() == null ? "CASH" : r.method().getValue();
+                BigDecimal amount;
+                try {
+                    amount = parseDecimal(r.amount().getText(), null);
+                } catch (Exception ex) {
+                    error.show("Montant invalide sur une ligne de paiement.");
+                    return;
+                }
+                payments.add(java.util.Map.of("method", method, "amount", amount));
+                if ("CASH".equals(method)) {
+                    cashAmount = cashAmount == null ? amount : cashAmount.add(amount);
+                }
+            }
+            BigDecimal received = cashAmount;
+            loading.setLoading(true);
+            FxAsync.run(() -> pos.validate(sale.id(), payments, received), paid -> {
+                error.hide();
+                dialog.close();
+                if (!fromPending) {
+                    showSale(paid);
+                }
+                javafx.scene.control.Alert done = new javafx.scene.control.Alert(
+                        javafx.scene.control.Alert.AlertType.INFORMATION,
+                        "Vente " + (paid.saleNumber() == null ? "" : paid.saleNumber()) + " validée — "
+                                + ProductLabels.price(paid.total()));
+                done.setHeaderText("Encaissement fractionné");
+                done.showAndWait();
+                if (paid.id() != null) {
+                    offerTicketPrint(paid.id());
+                }
+                reloadRecentSales();
+                if (fromPending) {
+                    sale = null;
+                    reloadPending();
+                } else {
+                    ensureSale();
+                }
+            }, t -> {
+                loading.setLoading(false);
+                fail(t);
+            });
+        });
+
+        VBox content = new VBox(10, linesBox, addLineBtn, remainingLabel, confirmBtn);
+        content.setPadding(new Insets(10));
+        dialog.getDialogPane().setContent(content);
+        dialog.showAndWait();
     }
 
     private void showTicket() {
@@ -1276,6 +1563,15 @@ public final class PosView extends StackPane implements Reloadable {
         TableColumn<Sale, String> col = new TableColumn<>(title);
         col.setCellValueFactory(d -> new ReadOnlyStringWrapper(d.getValue() == null ? "" : fn.apply(d.getValue())));
         return col;
+    }
+
+    private static String methodForKey(KeyCode code) {
+        return switch (code) {
+            case F5 -> "CASH";
+            case F6 -> "CARD";
+            case F7 -> "MOBILE_MONEY";
+            default -> null;
+        };
     }
 
     private static javafx.util.StringConverter<String> methodConverter() {

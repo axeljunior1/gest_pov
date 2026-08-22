@@ -132,6 +132,12 @@ public class ExportController {
         return fileResponse("suppliers", format, exportService.exportSuppliers(format));
     }
 
+    @GetMapping("/customers")
+    @PreAuthorize("@permissionChecker.has(authentication, 'export.read')")
+    public ResponseEntity<byte[]> exportCustomers(@RequestParam(defaultValue = "CSV") ExportFormat format) {
+        return fileResponse("customers", format, exportService.exportCustomers(format));
+    }
+
     @GetMapping("/units")
     @PreAuthorize("@permissionChecker.has(authentication, 'export.read')")
     public ResponseEntity<byte[]> exportUnits(@RequestParam(defaultValue = "CSV") ExportFormat format) {
