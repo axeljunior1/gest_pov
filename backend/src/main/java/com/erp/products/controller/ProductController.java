@@ -7,6 +7,8 @@ import com.erp.products.domain.enums.ProductStatus;
 import com.erp.products.dto.*;
 import com.erp.products.service.PackagingService;
 import com.erp.products.service.ProductService;
+import com.erp.products.service.SettingsService;
+import com.erp.products.settings.SettingKeys;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -27,6 +29,7 @@ public class ProductController {
 
     private final ProductService productService;
     private final PackagingService packagingService;
+    private final SettingsService settingsService;
 
     @PreAuthorize("@permissionChecker.has(authentication, 'products.read')")
     @GetMapping
@@ -66,7 +69,17 @@ public class ProductController {
         criteria.setCreatedTo(createdTo);
         criteria.setUpdatedFrom(updatedFrom);
         criteria.setUpdatedTo(updatedTo);
-        criteria.setStockSeuil(stockSeuil);
+        // Seuil "stock faible" : si l'appelant ne précise pas de valeur explicite, on retombe
+        // sur le seuil configuré dans Paramètres (pas un 10 codé en dur) pour que ce réglage
+        // soit vraiment pris en compte par le filtre.
+        Integer seuil = stockSeuil;
+        if (seuil == null && Boolean.TRUE.equals(stockFaible)) {
+            BigDecimal configured = settingsService.getDecimal(SettingKeys.STOCK_LOW_THRESHOLD);
+            if (configured != null) {
+                seuil = configured.intValue();
+            }
+        }
+        criteria.setStockSeuil(seuil);
 
         return productService.search(criteria);
     }

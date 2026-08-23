@@ -224,14 +224,20 @@ public final class PosReturnsView extends StackPane {
         String motif = reason.getText();
         String method = payMethod.getValue() == null ? "CASH" : payMethod.getValue();
         loading.setLoading(true);
-        FxAsync.run(() -> {
-            JsonNode created = pos.createReturn(saleId, motif, selectedLines);
+        FxAsync.run(() -> pos.createReturn(saleId, motif, selectedLines), created -> {
+            loading.setLoading(false);
             long returnId = created.get("id").asLong();
             BigDecimal total = created.hasNonNull("totalAmount")
                     ? new BigDecimal(created.get("totalAmount").asText())
                     : BigDecimal.ZERO;
-            return pos.validateReturn(returnId, method, total);
-        }, validated -> {
+            validateReturn(returnId, method, total, null, null);
+        }, this::fail);
+    }
+
+    private void validateReturn(long returnId, String method, BigDecimal total,
+                                 String managerEmail, String managerPassword) {
+        loading.setLoading(true);
+        FxAsync.run(() -> pos.validateReturn(returnId, method, total, managerEmail, managerPassword), validated -> {
             loading.setLoading(false);
             error.hide();
             javafx.scene.control.Alert done = new javafx.scene.control.Alert(
@@ -244,7 +250,63 @@ public final class PosReturnsView extends StackPane {
             lines.getItems().clear();
             selectAll.setSelected(false);
             searchSales();
-        }, this::fail);
+        }, t -> {
+            loading.setLoading(false);
+            if (t instanceof ApiException api && !api.isUnauthorized()
+                    && ApiException.userMessage(api).contains("Validation manager obligatoire")) {
+                promptManagerApproval(returnId, method, total);
+            } else {
+                fail(t);
+            }
+        });
+    }
+
+    private void promptManagerApproval(long returnId, String method, BigDecimal total) {
+        javafx.scene.control.Dialog<Void> dialog = new javafx.scene.control.Dialog<>();
+        dialog.setTitle("Validation manager requise");
+        dialog.getDialogPane().getButtonTypes().add(javafx.scene.control.ButtonType.CANCEL);
+        dialog.initOwner(getScene() == null ? null : getScene().getWindow());
+
+        Label info = new Label("Ce remboursement (" + ProductLabels.price(total)
+                + ") dépasse le seuil autorisé — validation d'un manager obligatoire.");
+        info.setWrapText(true);
+        info.getStyleClass().add("page-sub");
+        TextField managerEmail = new TextField();
+        managerEmail.setPromptText("Email manager");
+        javafx.scene.control.PasswordField managerPassword = new javafx.scene.control.PasswordField();
+        managerPassword.setPromptText("Mot de passe manager");
+        Label dialogError = new Label();
+        dialogError.getStyleClass().add("error-banner-text");
+        dialogError.setWrapText(true);
+        dialogError.setVisible(false);
+        dialogError.setManaged(false);
+
+        Button confirm = new Button("Valider le retour");
+        confirm.getStyleClass().add("button-primary");
+        confirm.setOnAction(e -> {
+            if (managerEmail.getText() == null || managerEmail.getText().isBlank()
+                    || managerPassword.getText() == null || managerPassword.getText().isBlank()) {
+                dialogError.setText("Email et mot de passe manager obligatoires.");
+                dialogError.setVisible(true);
+                dialogError.setManaged(true);
+                return;
+            }
+            dialog.close();
+            validateReturn(returnId, method, total, managerEmail.getText().trim(), managerPassword.getText());
+        });
+
+        VBox content = new VBox(10, info, dialogError,
+                labeled("Email", managerEmail), labeled("Mot de passe", managerPassword), confirm);
+        content.setPadding(new Insets(12));
+        content.setPrefWidth(360);
+        dialog.getDialogPane().setContent(content);
+        dialog.showAndWait();
+    }
+
+    private static VBox labeled(String title, javafx.scene.Node node) {
+        Label l = new Label(title);
+        l.getStyleClass().add("form-label");
+        return new VBox(4, l, node);
     }
 
     private void fail(Throwable t) {

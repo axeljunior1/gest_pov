@@ -167,6 +167,8 @@ public final class SalesListView extends StackPane implements Reloadable {
                 + "\nClient : " + nullSafe(sale.customerName())
                 + "\nVendeur : " + nullSafe(sale.sellerName())
                 + "\nTotal : " + ProductLabels.price(sale.total())
+                + "\nReçu : " + ProductLabels.price(sale.paidAmount())
+                + "\nMonnaie rendue : " + ProductLabels.price(sale.changeAmount())
                 + "\nRemboursé : " + ProductLabels.price(detail.totalRefunded()));
         lines.setItems(FXCollections.observableArrayList(
                 sale.lignes() == null ? java.util.List.of()

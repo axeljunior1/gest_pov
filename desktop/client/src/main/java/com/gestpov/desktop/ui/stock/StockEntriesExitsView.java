@@ -151,7 +151,7 @@ public final class StockEntriesExitsView extends StackPane implements Reloadable
         entriesTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         entriesTable.getColumns().addAll(
                 colE("N°", e -> nz(e.entryNumber())),
-                colE("Date", e -> nz(e.entryDate())),
+                colE("Date", e -> dateTime(e.createdAt(), e.entryDate())),
                 colE("Fournisseur", e -> nz(e.supplierNom())),
                 colE("Entrepôt", e -> nz(e.warehouseCode())),
                 colE("Statut", e -> nz(e.status())),
@@ -197,7 +197,7 @@ public final class StockEntriesExitsView extends StackPane implements Reloadable
         exitsTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         exitsTable.getColumns().addAll(
                 colX("N°", x -> nz(x.exitNumber())),
-                colX("Date", x -> nz(x.exitDate())),
+                colX("Date", x -> dateTime(x.createdAt(), x.exitDate())),
                 colX("Motif", x -> reasonLabel(x.reason())),
                 colX("Entrepôt", x -> nz(x.warehouseCode())),
                 colX("Statut", x -> nz(x.status()))
@@ -939,6 +939,24 @@ public final class StockEntriesExitsView extends StackPane implements Reloadable
 
     private static String nz(String s) {
         return s == null || s.isBlank() ? "—" : s;
+    }
+
+    // yyyy-MM-dd (pas dd/MM/yyyy) : le tri de la colonne compare le texte affiché, un format
+    // ISO reste trie-able correctement même à cheval sur un changement de mois/année.
+    private static final java.time.format.DateTimeFormatter DATE_TIME_FORMAT =
+            java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
+
+    /** Date + heure de création (triable chronologiquement) ; repli sur la date métier seule si absente. */
+    private static String dateTime(String createdAtIso, String fallbackDate) {
+        if (createdAtIso != null && !createdAtIso.isBlank()) {
+            try {
+                java.time.Instant instant = java.time.Instant.parse(createdAtIso);
+                return DATE_TIME_FORMAT.format(instant.atZone(java.time.ZoneId.systemDefault()));
+            } catch (Exception ignored) {
+                // repli ci-dessous
+            }
+        }
+        return nz(fallbackDate);
     }
 
     private static String statusLabel(String status) {

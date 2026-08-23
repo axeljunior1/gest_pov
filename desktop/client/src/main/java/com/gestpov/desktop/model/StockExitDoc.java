@@ -9,7 +9,8 @@ public record StockExitDoc(
         String locationCode,
         String exitDate,
         String reason,
-        String status
+        String status,
+        String createdAt
 ) {
 
     public static StockExitDoc fromJson(JsonNode node) {
@@ -23,7 +24,8 @@ public record StockExitDoc(
                 Product.textOrNull(node, "locationCode"),
                 Product.textOrNull(node, "exitDate"),
                 Product.textOrNull(node, "reason"),
-                Product.textOrNull(node, "status")
+                Product.textOrNull(node, "status"),
+                Product.textOrNull(node, "createdAt")
         );
     }
 }

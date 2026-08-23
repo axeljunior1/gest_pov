@@ -10,11 +10,15 @@ import com.erp.products.dto.StockOperationRequest;
 import com.erp.products.exception.BusinessException;
 import com.erp.products.exception.ResourceNotFoundException;
 import com.erp.products.mapper.StockMapper;
+import com.erp.products.domain.entity.User;
 import com.erp.products.repository.ProductPackagingRepository;
 import com.erp.products.repository.ProductRepository;
 import com.erp.products.repository.StockItemRepository;
+import com.erp.products.repository.UserRepository;
 import com.erp.products.security.CurrentUserService;
+import com.erp.products.settings.SettingKeys;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -36,6 +40,8 @@ public class StockService {
     private final AuditService auditService;
     private final CurrentUserService currentUserService;
     private final SettingsService settingsService;
+    private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
     private final com.erp.products.service.stockvaluation.StockCmpValuationService cmpValuationService;
 
     @Transactional
@@ -99,10 +105,14 @@ public class StockService {
         if (request.getQuantityBase() == null) {
             throw new BusinessException("Un ajustement requiert quantityBase (positif ou négatif)");
         }
+        if (request.getReason() == null || request.getReason().isBlank()) {
+            throw new BusinessException("Un motif est obligatoire pour tout ajustement de stock");
+        }
         BigDecimal delta = request.getQuantityBase();
         if (delta.compareTo(BigDecimal.ZERO) < 0) {
             ensureAvailable(request, delta.abs());
         }
+        validateManagerIfRequired(delta.abs(), request);
         String actor = currentUserService.resolveActor(request.getUtilisateur());
         StockMovement movement = ledger.applyOnHandChange(
                 request.getProductId(),
@@ -113,7 +123,8 @@ public class StockService {
                 delta,
                 meta(StockMovementType.ADJUSTMENT, request, null, null, null, null, null, actor));
         auditService.log("Stock", request.getProductId(), com.erp.products.domain.enums.AuditAction.MODIFICATION,
-                "Ajustement stock: " + delta.stripTrailingZeros().toPlainString(), actor);
+                "Ajustement stock: " + delta.stripTrailingZeros().toPlainString()
+                        + " — motif: " + request.getReason().trim(), actor);
         cmpValuationService.recordInventoryAdjustment(
                 request.getProductId(),
                 request.getVariantId(),
@@ -122,6 +133,29 @@ public class StockService {
                 movement.getId(),
                 "STOCK_ADJUSTMENT");
         return mapper.toMovementResponse(movement);
+    }
+
+    /** Contrôle à deux : au-delà du seuil configuré, un second utilisateur (avec droit stock.adjust) doit se ré-authentifier. */
+    private void validateManagerIfRequired(BigDecimal quantityDelta, StockOperationRequest request) {
+        BigDecimal threshold = settingsService.getDecimal(SettingKeys.STOCK_REQUIRE_MANAGER_APPROVAL_ABOVE_ADJUSTMENT_AMOUNT);
+        if (threshold == null || quantityDelta.compareTo(threshold) <= 0) {
+            return;
+        }
+        if (request.getManagerEmail() == null || request.getManagerEmail().isBlank()
+                || request.getManagerPassword() == null || request.getManagerPassword().isBlank()) {
+            throw new BusinessException("Validation manager obligatoire pour cet ajustement de stock");
+        }
+        User manager = userRepository.findByEmailIgnoreCase(request.getManagerEmail().trim())
+                .orElseThrow(() -> new BusinessException("Manager introuvable"));
+        if (!passwordEncoder.matches(request.getManagerPassword(), manager.getPasswordHash())) {
+            throw new BusinessException("Identifiants manager invalides");
+        }
+        boolean authorized = manager.getRoles().stream()
+                .flatMap(role -> role.getPermissions().stream())
+                .anyMatch(p -> "stock.adjust".equals(p.getCode()));
+        if (!authorized) {
+            throw new BusinessException("Cet utilisateur ne peut pas valider cet ajustement");
+        }
     }
 
     @Transactional

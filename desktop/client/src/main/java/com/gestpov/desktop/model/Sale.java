@@ -17,6 +17,8 @@ public record Sale(
         String customerPhone,
         Integer customerLoyaltyPoints,
         String sellerName,
+        BigDecimal paidAmount,
+        BigDecimal changeAmount,
         List<SaleLine> lignes
 ) {
     public static Sale fromJson(JsonNode node) {
@@ -39,6 +41,8 @@ public record Sale(
                 Product.textOrNull(node, "customerPhone"),
                 node.hasNonNull("customerLoyaltyPoints") ? node.get("customerLoyaltyPoints").asInt() : null,
                 seller,
+                Product.decimalOrNull(node, "paidAmount"),
+                Product.decimalOrNull(node, "changeAmount"),
                 com.gestpov.desktop.net.JsonLists.mapArray(node.get("lignes"), SaleLine::fromJson)
         );
     }

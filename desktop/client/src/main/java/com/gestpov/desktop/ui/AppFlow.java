@@ -195,7 +195,13 @@ public final class AppFlow {
         String remembered = config.lastLoginEmail() == null ? "" : config.lastLoginEmail().trim();
         TextField email = new TextField(remembered);
         email.setPromptText("email@exemple.local");
+        // Confort dev uniquement : jamais persisté par l'appli (voir ClientConfig — pas de mot
+        // de passe utilisateur en config). À définir dans l'environnement de lancement si besoin.
+        String devPassword = System.getenv("GESTPOV_DEV_PASSWORD");
         PasswordField password = new PasswordField();
+        if (devPassword != null && !devPassword.isBlank()) {
+            password.setText(devPassword);
+        }
         Button login = new Button("Connexion");
         login.getStyleClass().add("button-primary");
         login.setOnAction(e -> doLogin(server, email.getText().trim(), password.getText(), status, login));

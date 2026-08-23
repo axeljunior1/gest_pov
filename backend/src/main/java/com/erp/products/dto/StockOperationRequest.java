@@ -35,5 +35,9 @@ public class StockOperationRequest {
     private String reference;
     private String reason;
 
+    /** Validation manager (ajustements dépassant le seuil configuré) — jamais persistés. */
+    private String managerEmail;
+    private String managerPassword;
+
     private String utilisateur = "system";
 }

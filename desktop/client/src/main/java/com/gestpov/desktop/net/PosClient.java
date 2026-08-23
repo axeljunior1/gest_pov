@@ -283,10 +283,23 @@ public class PosClient {
     }
 
     public JsonNode validateReturn(long returnId, String method, BigDecimal amount) throws ApiException {
+        return validateReturn(returnId, method, amount, null, null);
+    }
+
+    public JsonNode validateReturn(long returnId, String method, BigDecimal amount,
+                                   String managerEmail, String managerPassword) throws ApiException {
         Map<String, Object> payment = new LinkedHashMap<>();
         payment.put("method", method);
         payment.put("amount", amount);
-        return api.post("/api/pos/returns/" + returnId + "/validate", Map.of("payments", List.of(payment)));
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("payments", List.of(payment));
+        if (managerEmail != null && !managerEmail.isBlank()) {
+            body.put("managerEmail", managerEmail.trim());
+        }
+        if (managerPassword != null && !managerPassword.isBlank()) {
+            body.put("managerPassword", managerPassword);
+        }
+        return api.post("/api/pos/returns/" + returnId + "/validate", body);
     }
 
     public JsonNode returnReceipt(long returnId) throws ApiException {

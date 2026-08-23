@@ -379,6 +379,8 @@ public class SettingsService {
                 "Methode de valorisation du stock (PURCHASE_COST, WEIGHTED_AVERAGE ou SALE_PRICE)", false));
         map.put(SettingKeys.STOCK_LOW_ALERTS_ENABLED, def("true", AppSettingType.BOOLEAN, "Activer alertes stock faible", false));
         map.put(SettingKeys.STOCK_MULTI_WAREHOUSE_ENABLED, def("true", AppSettingType.BOOLEAN, "Gestion multi-entrepot", false));
+        map.put(SettingKeys.STOCK_REQUIRE_MANAGER_APPROVAL_ABOVE_ADJUSTMENT_AMOUNT, def("50", AppSettingType.NUMBER,
+                "Seuil (quantite) d'ajustement de stock necessitant validation manager", false));
         map.put(SettingKeys.ALERT_EXPIRY_DAYS, def("30", AppSettingType.NUMBER, "Delai alerte peremption (jours)", false));
         map.put(SettingKeys.NUMBERING_ENTRY_PREFIX, def("SE", AppSettingType.STRING, "Prefixe numerotation entrees", false));
         map.put(SettingKeys.NUMBERING_EXIT_PREFIX, def("SX", AppSettingType.STRING, "Prefixe numerotation sorties", false));

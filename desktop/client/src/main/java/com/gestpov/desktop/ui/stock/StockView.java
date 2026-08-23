@@ -91,6 +91,7 @@ public final class StockView extends StackPane implements Reloadable {
     private final ComboBox<StockLocation> locationCombo = new ComboBox<>();
     private final TextField qtyField = new TextField();
     private final TextField referenceField = new TextField();
+    private final TextField reasonField = new TextField();
 
     private final TableView<StockMovement> movementsTable = new TableView<>();
     private final ComboBox<ProductOption> historyProductFilter = new ComboBox<>();
@@ -270,6 +271,7 @@ public final class StockView extends StackPane implements Reloadable {
         locationCombo.setMaxWidth(Double.MAX_VALUE);
         qtyField.setPromptText("Quantité (unité de base)");
         referenceField.setPromptText("Référence (bon, facture…)");
+        reasonField.setPromptText("Motif (obligatoire pour un ajustement)");
 
         Button submit = new Button("Enregistrer");
         submit.getStyleClass().add("button-primary");
@@ -285,6 +287,7 @@ public final class StockView extends StackPane implements Reloadable {
                 labeled("Emplacement", locationCombo),
                 labeled("Quantité", qtyField),
                 labeled("Référence", referenceField),
+                labeled("Motif", reasonField),
                 new HBox(10, submit, reloadRefs)
         );
         form.getStyleClass().add("card");
@@ -342,6 +345,7 @@ public final class StockView extends StackPane implements Reloadable {
         moveType.getSelectionModel().select("Réception");
         qtyField.clear();
         referenceField.clear();
+        reasonField.clear();
         if (item.productId() != null) {
             productCombo.getItems().stream()
                     .filter(p -> item.productId().equals(p.id()))
@@ -398,20 +402,89 @@ public final class StockView extends StackPane implements Reloadable {
             error.show("Pour une réception, saisissez une quantité positive.");
             return;
         }
+        if ("Ajustement".equals(type) && (reasonField.getText() == null || reasonField.getText().isBlank())) {
+            error.show("Un motif est obligatoire pour un ajustement de stock.");
+            return;
+        }
         String ref = referenceField.getText();
+        if ("Ajustement".equals(type)) {
+            submitAdjustment(product, warehouse, location, qty, ref, null, null);
+            return;
+        }
         loading.setLoading(true);
-        FxAsync.runVoid(() -> {
-            switch (type) {
-                case "Ajustement" -> client.adjust(product.id(), warehouse.id(), location.id(), qty, ref);
-                default -> client.receipt(product.id(), warehouse.id(), location.id(), qty, ref);
-            }
-        }, () -> {
+        FxAsync.runVoid(() -> client.receipt(product.id(), warehouse.id(), location.id(), qty, ref), () -> {
             loading.setLoading(false);
             qtyField.clear();
             reloadItems();
             tabStock.setSelected(true);
             showSelectedTab();
         }, this::fail);
+    }
+
+    private void submitAdjustment(ProductOption product, Warehouse warehouse, StockLocation location,
+                                  BigDecimal qty, String ref, String managerEmail, String managerPassword) {
+        String reason = reasonField.getText();
+        loading.setLoading(true);
+        FxAsync.runVoid(() -> client.adjust(product.id(), warehouse.id(), location.id(), qty, ref,
+                reason, managerEmail, managerPassword), () -> {
+            loading.setLoading(false);
+            qtyField.clear();
+            reasonField.clear();
+            reloadItems();
+            tabStock.setSelected(true);
+            showSelectedTab();
+        }, t -> {
+            loading.setLoading(false);
+            if (t instanceof ApiException api && !api.isUnauthorized()
+                    && ApiException.userMessage(api).contains("Validation manager obligatoire")) {
+                promptManagerApproval(product, warehouse, location, qty, ref);
+            } else {
+                fail(t);
+            }
+        });
+    }
+
+    private void promptManagerApproval(ProductOption product, Warehouse warehouse, StockLocation location,
+                                       BigDecimal qty, String ref) {
+        Dialog<Void> dialog = new Dialog<>();
+        dialog.setTitle("Validation manager requise");
+        dialog.getDialogPane().getButtonTypes().add(ButtonType.CANCEL);
+        dialog.initOwner(getScene() == null ? null : getScene().getWindow());
+
+        Label info = new Label("Cet ajustement (" + qty.stripTrailingZeros().toPlainString()
+                + ") dépasse le seuil autorisé — validation d'un manager obligatoire.");
+        info.setWrapText(true);
+        info.getStyleClass().add("page-sub");
+        TextField managerEmail = new TextField();
+        managerEmail.setPromptText("Email manager");
+        javafx.scene.control.PasswordField managerPassword = new javafx.scene.control.PasswordField();
+        managerPassword.setPromptText("Mot de passe manager");
+        Label dialogError = new Label();
+        dialogError.getStyleClass().add("error-banner-text");
+        dialogError.setVisible(false);
+        dialogError.setManaged(false);
+
+        Button confirm = new Button("Valider l'ajustement");
+        confirm.getStyleClass().add("button-primary");
+        confirm.setOnAction(e -> {
+            if (managerEmail.getText() == null || managerEmail.getText().isBlank()
+                    || managerPassword.getText() == null || managerPassword.getText().isBlank()) {
+                dialogError.setText("Email et mot de passe manager obligatoires.");
+                dialogError.setVisible(true);
+                dialogError.setManaged(true);
+                return;
+            }
+            dialog.close();
+            submitAdjustment(product, warehouse, location, qty, ref,
+                    managerEmail.getText().trim(), managerPassword.getText());
+        });
+
+        VBox content = new VBox(10, info, dialogError,
+                labeled("Email", managerEmail), labeled("Mot de passe", managerPassword), confirm);
+        content.setPadding(new Insets(12));
+        content.setPrefWidth(360);
+        dialog.getDialogPane().setContent(content);
+        dialog.showAndWait();
     }
 
     private void openCreatePurchaseOrderDialog() {

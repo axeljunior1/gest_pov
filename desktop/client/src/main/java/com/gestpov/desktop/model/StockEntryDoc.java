@@ -10,7 +10,8 @@ public record StockEntryDoc(
         String locationCode,
         String entryDate,
         String referenceDocument,
-        String status
+        String status,
+        String createdAt
 ) {
 
     public static StockEntryDoc fromJson(JsonNode node) {
@@ -25,7 +26,8 @@ public record StockEntryDoc(
                 Product.textOrNull(node, "locationCode"),
                 Product.textOrNull(node, "entryDate"),
                 Product.textOrNull(node, "referenceDocument"),
-                Product.textOrNull(node, "status")
+                Product.textOrNull(node, "status"),
+                Product.textOrNull(node, "createdAt")
         );
     }
 }

@@ -20,6 +20,8 @@ public final class SettingKeys {
     public static final String STOCK_LOW_ALERTS_ENABLED = "stock.low_alerts_enabled";
     public static final String STOCK_MULTI_WAREHOUSE_ENABLED = "stock.multi_warehouse_enabled";
     public static final String STOCK_VALUATION_METHOD = "stock.valuation_method";
+    public static final String STOCK_REQUIRE_MANAGER_APPROVAL_ABOVE_ADJUSTMENT_AMOUNT =
+            "stock.require_manager_approval_above_adjustment_amount";
     public static final String ALERT_EXPIRY_DAYS = "alert.expiry_days_default";
     public static final String NUMBERING_ENTRY_PREFIX = "numbering.entry_prefix";
     public static final String NUMBERING_EXIT_PREFIX = "numbering.exit_prefix";

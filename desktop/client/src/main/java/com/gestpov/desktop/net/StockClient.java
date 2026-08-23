@@ -265,9 +265,19 @@ public class StockClient {
         api.post("/api/stock/issue", operation(productId, warehouseId, locationId, quantityBase, reference));
     }
 
-    public void adjust(long productId, long warehouseId, long locationId, BigDecimal quantityBase, String reference)
-            throws ApiException {
-        api.post("/api/stock/adjust", operation(productId, warehouseId, locationId, quantityBase, reference));
+    public void adjust(long productId, long warehouseId, long locationId, BigDecimal quantityBase, String reference,
+                       String reason, String managerEmail, String managerPassword) throws ApiException {
+        Map<String, Object> body = operation(productId, warehouseId, locationId, quantityBase, reference);
+        if (reason != null && !reason.isBlank()) {
+            body.put("reason", reason.trim());
+        }
+        if (managerEmail != null && !managerEmail.isBlank()) {
+            body.put("managerEmail", managerEmail.trim());
+        }
+        if (managerPassword != null && !managerPassword.isBlank()) {
+            body.put("managerPassword", managerPassword);
+        }
+        api.post("/api/stock/adjust", body);
     }
 
     private static Map<String, Object> operation(long productId, long warehouseId, long locationId,
