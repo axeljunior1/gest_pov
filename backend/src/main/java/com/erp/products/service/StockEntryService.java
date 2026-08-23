@@ -129,6 +129,9 @@ public class StockEntryService {
         if (entry.getLignes().isEmpty()) {
             throw new BusinessException("L'entrée doit contenir au moins une ligne");
         }
+        for (StockEntryLine line : entry.getLignes()) {
+            ensureResolvableCost(line);
+        }
 
         for (StockEntryLine line : entry.getLignes()) {
             postMovement(entry, line, user, StockMovementType.IN, line.getQuantityInBaseUnit());
@@ -218,6 +221,20 @@ public class StockEntryService {
         attachmentRepository.delete(attachment);
         auditService.log("StockEntry", entryId, AuditAction.SUPPRESSION_DOCUMENT,
                 "Pièce jointe supprimée", attachment.getStockEntry().getCreatedBy());
+    }
+
+    private void ensureResolvableCost(StockEntryLine line) {
+        BigDecimal cost = line.getUnitCost();
+        if (cost != null && cost.compareTo(BigDecimal.ZERO) > 0) {
+            return;
+        }
+        Long variantId = line.getVariant() != null ? line.getVariant().getId() : null;
+        BigDecimal fallback = cmpValuationService.resolveFallbackCost(line.getProduct().getId(), variantId);
+        if (fallback == null || fallback.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new BusinessException("Prix d'achat manquant pour « " + line.getProduct().getNom()
+                    + " » — renseignez un coût unitaire sur la ligne ou un prix d'achat sur la fiche produit "
+                    + "avant de valider l'entrée.");
+        }
     }
 
     private void recordCmpPurchase(StockEntry entry, StockEntryLine line) {

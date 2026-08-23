@@ -264,7 +264,8 @@ class InventoryControllerTest extends com.erp.products.AbstractIntegrationTest {
                                 "lignes", List.of(Map.of(
                                         "productId", productId,
                                         "variantId", variantId,
-                                        "quantityInput", 25
+                                        "quantityInput", 25,
+                                        "unitCost", 5
                                 ))
                         ))))
                 .andExpect(status().isCreated())

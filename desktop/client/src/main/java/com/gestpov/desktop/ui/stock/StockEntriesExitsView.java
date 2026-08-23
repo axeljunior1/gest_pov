@@ -28,11 +28,15 @@ import javafx.scene.control.ComboBox;
 import javafx.scene.control.DatePicker;
 import javafx.scene.control.Dialog;
 import javafx.scene.control.Label;
+import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TableColumn;
+import javafx.scene.control.TableRow;
 import javafx.scene.control.TableView;
 import javafx.scene.control.TextField;
 import javafx.scene.control.ToggleButton;
 import javafx.scene.control.ToggleGroup;
+import javafx.scene.layout.ColumnConstraints;
+import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.StackPane;
@@ -50,6 +54,7 @@ import java.util.Map;
  * Bons d'entrée (réception fournisseur, multi-produits, pièces jointes facture) et bons de
  * sortie (casse, perte, avarie, retour fournisseur, usage interne...). Cycle brouillon →
  * validé → annulé des deux côtés ; les sorties liées aux ventes POS sont automatiques.
+ * Double-clic (ou bouton « Détails ») sur une ligne ouvre le détail complet en popup.
  */
 public final class StockEntriesExitsView extends StackPane implements Reloadable {
 
@@ -79,17 +84,12 @@ public final class StockEntriesExitsView extends StackPane implements Reloadable
     private final VBox exitsPane = new VBox(8);
 
     private final Button createEntryBtn = new Button("Créer une entrée…");
+    private final Button entryDetailsBtn = new Button("Détails…");
     private final Button validateEntryBtn = new Button("Valider");
     private final Button cancelEntryBtn = new Button("Annuler");
-    private final Label linesTitle = new Label("Sélectionnez une entrée pour voir le détail");
-    private final TableView<JsonNode> entryLinesTable = new TableView<>();
-    private final VBox linesPanel = new VBox(8);
-    private final Label attachmentsTitle = new Label("Sélectionnez une entrée pour voir ses pièces jointes");
-    private final VBox attachmentsList = new VBox(6);
-    private final Button addAttachmentBtn = new Button("Ajouter une facture…");
-    private final VBox attachmentsPanel = new VBox(8);
 
     private final Button createExitBtn = new Button("Créer une sortie…");
+    private final Button exitDetailsBtn = new Button("Détails…");
     private final Button validateExitBtn = new Button("Valider");
     private final Button cancelExitBtn = new Button("Annuler");
 
@@ -115,7 +115,7 @@ public final class StockEntriesExitsView extends StackPane implements Reloadable
         Label title = new Label("Entrées / Sorties");
         title.getStyleClass().add("page-title");
         Label sub = new Label("Réceptions fournisseur (multi-produits, facture jointe) et sorties "
-                + "(casse, perte, avarie, retour fournisseur…)");
+                + "(casse, perte, avarie, retour fournisseur…) — double-clic sur une ligne pour le détail");
         sub.getStyleClass().add("page-sub");
 
         ToggleGroup tabs = new ToggleGroup();
@@ -157,9 +157,15 @@ public final class StockEntriesExitsView extends StackPane implements Reloadable
                 colE("Statut", e -> nz(e.status())),
                 colE("Réf.", e -> nz(e.referenceDocument()))
         );
-        entriesTable.getSelectionModel().selectedItemProperty().addListener((o, a, b) -> {
-            updateEntryActions(b);
-            loadAttachments(b);
+        entriesTable.getSelectionModel().selectedItemProperty().addListener((o, a, b) -> updateEntryActions(b));
+        entriesTable.setRowFactory(tv -> {
+            TableRow<StockEntryDoc> row = new TableRow<>();
+            row.setOnMouseClicked(ev -> {
+                if (ev.getClickCount() == 2 && !row.isEmpty() && row.getItem().id() != null) {
+                    showEntryDetail(row.getItem().id());
+                }
+            });
+            return row;
         });
         VBox.setVgrow(entriesTable, Priority.ALWAYS);
 
@@ -167,24 +173,22 @@ public final class StockEntriesExitsView extends StackPane implements Reloadable
         createEntryBtn.setOnAction(e -> openCreateEntryDialog());
         createEntryBtn.setVisible(canCreateEntries);
         createEntryBtn.setManaged(canCreateEntries);
+        entryDetailsBtn.getStyleClass().add("button-secondary");
+        entryDetailsBtn.setOnAction(e -> {
+            StockEntryDoc selected = entriesTable.getSelectionModel().getSelectedItem();
+            if (selected != null && selected.id() != null) {
+                showEntryDetail(selected.id());
+            }
+        });
         validateEntryBtn.getStyleClass().add("button-secondary");
         validateEntryBtn.setOnAction(e -> validateSelectedEntry());
         cancelEntryBtn.getStyleClass().add("button-danger");
         cancelEntryBtn.setOnAction(e -> cancelSelectedEntry());
-        HBox entryActions = new HBox(8, createEntryBtn, validateEntryBtn, cancelEntryBtn);
+        HBox entryActions = new HBox(8, createEntryBtn, entryDetailsBtn, validateEntryBtn, cancelEntryBtn);
         entryActions.setAlignment(Pos.CENTER_LEFT);
         updateEntryActions(null);
 
-        attachmentsTitle.getStyleClass().add("pos-section-label");
-        attachmentsList.getChildren().setAll(new Label("—"));
-        addAttachmentBtn.getStyleClass().addAll("button-secondary", "pos-action-sm");
-        addAttachmentBtn.setOnAction(e -> pickAndUploadAttachment());
-        addAttachmentBtn.setDisable(true);
-        attachmentsPanel.getChildren().setAll(attachmentsTitle, attachmentsList, addAttachmentBtn);
-        attachmentsPanel.getStyleClass().addAll("card", "pos-panel");
-        attachmentsPanel.setPadding(new Insets(10));
-
-        entriesPane.getChildren().setAll(entryActions, entriesTable, attachmentsPanel);
+        entriesPane.getChildren().setAll(entryActions, entriesTable);
         VBox.setVgrow(entriesTable, Priority.ALWAYS);
     }
 
@@ -199,17 +203,33 @@ public final class StockEntriesExitsView extends StackPane implements Reloadable
                 colX("Statut", x -> nz(x.status()))
         );
         exitsTable.getSelectionModel().selectedItemProperty().addListener((o, a, b) -> updateExitActions(b));
+        exitsTable.setRowFactory(tv -> {
+            TableRow<StockExitDoc> row = new TableRow<>();
+            row.setOnMouseClicked(ev -> {
+                if (ev.getClickCount() == 2 && !row.isEmpty() && row.getItem().id() != null) {
+                    showExitDetail(row.getItem().id());
+                }
+            });
+            return row;
+        });
         VBox.setVgrow(exitsTable, Priority.ALWAYS);
 
         createExitBtn.getStyleClass().addAll("button-primary");
         createExitBtn.setOnAction(e -> openCreateExitDialog());
         createExitBtn.setVisible(canCreateExits);
         createExitBtn.setManaged(canCreateExits);
+        exitDetailsBtn.getStyleClass().add("button-secondary");
+        exitDetailsBtn.setOnAction(e -> {
+            StockExitDoc selected = exitsTable.getSelectionModel().getSelectedItem();
+            if (selected != null && selected.id() != null) {
+                showExitDetail(selected.id());
+            }
+        });
         validateExitBtn.getStyleClass().add("button-secondary");
         validateExitBtn.setOnAction(e -> validateSelectedExit());
         cancelExitBtn.getStyleClass().add("button-danger");
         cancelExitBtn.setOnAction(e -> cancelSelectedExit());
-        HBox exitActions = new HBox(8, createExitBtn, validateExitBtn, cancelExitBtn);
+        HBox exitActions = new HBox(8, createExitBtn, exitDetailsBtn, validateExitBtn, cancelExitBtn);
         exitActions.setAlignment(Pos.CENTER_LEFT);
         updateExitActions(null);
 
@@ -220,18 +240,19 @@ public final class StockEntriesExitsView extends StackPane implements Reloadable
     private void updateEntryActions(StockEntryDoc selected) {
         boolean draft = selected != null && "DRAFT".equals(selected.status());
         boolean validated = selected != null && "VALIDATED".equals(selected.status());
+        entryDetailsBtn.setDisable(selected == null);
         validateEntryBtn.setVisible(canValidateEntries);
         validateEntryBtn.setManaged(canValidateEntries);
         validateEntryBtn.setDisable(!draft);
         cancelEntryBtn.setVisible(canCancelEntries);
         cancelEntryBtn.setManaged(canCancelEntries);
         cancelEntryBtn.setDisable(!(draft || validated));
-        addAttachmentBtn.setDisable(selected == null || !canCreateEntries);
     }
 
     private void updateExitActions(StockExitDoc selected) {
         boolean draft = selected != null && "DRAFT".equals(selected.status());
         boolean validated = selected != null && "VALIDATED".equals(selected.status());
+        exitDetailsBtn.setDisable(selected == null);
         validateExitBtn.setVisible(canValidateExits);
         validateExitBtn.setManaged(canValidateExits);
         validateExitBtn.setDisable(!draft);
@@ -270,7 +291,6 @@ public final class StockEntriesExitsView extends StackPane implements Reloadable
                 loading.setLoading(false);
                 entriesTable.getItems().setAll(list);
                 updateEntryActions(null);
-                loadAttachments(null);
             }, this::fail);
         } else if (canReadExits) {
             loading.setLoading(true);
@@ -312,17 +332,87 @@ public final class StockEntriesExitsView extends StackPane implements Reloadable
         }, this::fail);
     }
 
-    private void loadAttachments(StockEntryDoc selected) {
-        if (selected == null || selected.id() == null) {
-            attachmentsTitle.setText("Sélectionnez une entrée pour voir ses pièces jointes");
-            attachmentsList.getChildren().setAll(new Label("—"));
-            return;
-        }
-        attachmentsTitle.setText("Pièces jointes — " + nz(selected.entryNumber()));
-        FxAsync.run(() -> client.getEntry(selected.id()), node -> renderAttachments(selected.id(), node), this::fail);
+    private void showEntryDetail(long id) {
+        loading.setLoading(true);
+        FxAsync.run(() -> client.getEntry(id), node -> {
+            loading.setLoading(false);
+            openEntryDetailDialog(node);
+        }, this::fail);
     }
 
-    private void renderAttachments(long entryId, JsonNode entry) {
+    private void openEntryDetailDialog(JsonNode entry) {
+        long entryId = entry.path("id").asLong();
+        Dialog<Void> dialog = new Dialog<>();
+        dialog.setTitle("Entrée " + entry.path("entryNumber").asText("—"));
+        dialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
+        dialog.initOwner(getScene() == null ? null : getScene().getWindow());
+
+        GridPane header = detailGrid();
+        int row = 0;
+        row = addDetailRow(header, row, "N°", entry.path("entryNumber").asText("—"));
+        row = addDetailRow(header, row, "Date", entry.path("entryDate").asText("—"));
+        row = addDetailRow(header, row, "Fournisseur", textOr(entry, "supplierNom", "—"));
+        row = addDetailRow(header, row, "Entrepôt", textOr(entry, "warehouseCode", "—")
+                + " / " + textOr(entry, "locationCode", "—"));
+        row = addDetailRow(header, row, "Référence facture", textOr(entry, "referenceDocument", "—"));
+        row = addDetailRow(header, row, "Statut", statusLabel(entry.path("status").asText(null)));
+        row = addDetailRow(header, row, "Créé par", textOr(entry, "createdBy", "—"));
+        if (entry.hasNonNull("validatedBy")) {
+            row = addDetailRow(header, row, "Validé par", entry.path("validatedBy").asText("—"));
+        }
+        if (entry.hasNonNull("cancelledBy")) {
+            row = addDetailRow(header, row, "Annulé par", entry.path("cancelledBy").asText("—"));
+        }
+        if (entry.hasNonNull("notes") && !entry.path("notes").asText("").isBlank()) {
+            addDetailRow(header, row, "Notes", entry.path("notes").asText());
+        }
+
+        TableView<JsonNode> linesTable = new TableView<>();
+        linesTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
+        linesTable.setPlaceholder(new EmptyState("Aucune ligne"));
+        linesTable.getColumns().addAll(
+                lineCol("Produit", l -> textOr(l, "productNom", "—")),
+                lineCol("Quantité", l -> textOr(l, "quantityInput", "—") + " " + textOr(l, "unitSymbole", "")),
+                lineCol("Coût unitaire", l -> textOr(l, "unitCost", "—")),
+                lineCol("Lot", l -> textOr(l, "lotNumber", "—")),
+                lineCol("Péremption", l -> textOr(l, "expiryDate", "—")),
+                lineCol("Notes", l -> textOr(l, "notes", ""))
+        );
+        JsonNode lignes = entry.get("lignes");
+        if (lignes != null && lignes.isArray()) {
+            lignes.forEach(linesTable.getItems()::add);
+        }
+        linesTable.setPrefHeight(Math.min(260, 40 + linesTable.getItems().size() * 28));
+
+        Label attachmentsTitle = new Label("Pièces jointes");
+        attachmentsTitle.getStyleClass().add("pos-section-label");
+        VBox attachmentsList = new VBox(6);
+        Button addAttachmentBtn = new Button("Ajouter une facture…");
+        addAttachmentBtn.getStyleClass().addAll("button-secondary", "pos-action-sm");
+        addAttachmentBtn.setVisible(canCreateEntries);
+        addAttachmentBtn.setManaged(canCreateEntries);
+        renderAttachments(entry, attachmentsList, entryId);
+        addAttachmentBtn.setOnAction(e -> pickAndUploadAttachment(entryId, attachmentsList));
+        VBox attachmentsBox = new VBox(8, attachmentsTitle, attachmentsList, addAttachmentBtn);
+        attachmentsBox.getStyleClass().addAll("card", "pos-panel");
+        attachmentsBox.setPadding(new Insets(10));
+
+        VBox content = new VBox(14,
+                header,
+                new Label("Lignes"),
+                linesTable,
+                attachmentsBox
+        );
+        content.setPadding(new Insets(10));
+        content.setPrefWidth(560);
+        ScrollPane scroll = new ScrollPane(content);
+        scroll.setFitToWidth(true);
+        scroll.setPrefViewportHeight(560);
+        dialog.getDialogPane().setContent(scroll);
+        dialog.showAndWait();
+    }
+
+    private void renderAttachments(JsonNode entry, VBox attachmentsList, long entryId) {
         attachmentsList.getChildren().clear();
         JsonNode list = entry == null ? null : entry.get("attachments");
         if (list == null || !list.isArray() || list.isEmpty()) {
@@ -340,10 +430,12 @@ public final class StockEntriesExitsView extends StackPane implements Reloadable
             openBtn.setOnAction(e -> openAttachment(url));
             Button delBtn = new Button("Supprimer");
             delBtn.getStyleClass().addAll("button-ghost", "pos-action-sm");
-            delBtn.setOnAction(e -> deleteAttachment(entryId, attachmentId));
-            HBox row = new HBox(8, nameLabel, openBtn, delBtn);
-            row.setAlignment(Pos.CENTER_LEFT);
-            attachmentsList.getChildren().add(row);
+            delBtn.setVisible(canCreateEntries);
+            delBtn.setManaged(canCreateEntries);
+            delBtn.setOnAction(e -> deleteAttachment(entryId, attachmentId, attachmentsList));
+            HBox lineRow = new HBox(8, nameLabel, openBtn, delBtn);
+            lineRow.setAlignment(Pos.CENTER_LEFT);
+            attachmentsList.getChildren().add(lineRow);
         }
     }
 
@@ -359,30 +451,25 @@ public final class StockEntriesExitsView extends StackPane implements Reloadable
         }
     }
 
-    private void deleteAttachment(long entryId, long attachmentId) {
+    private void deleteAttachment(long entryId, long attachmentId, VBox attachmentsList) {
         loading.setLoading(true);
         FxAsync.run(() -> {
             client.deleteEntryAttachment(entryId, attachmentId);
             return client.getEntry(entryId);
         }, node -> {
             loading.setLoading(false);
-            renderAttachments(entryId, node);
+            renderAttachments(node, attachmentsList, entryId);
+            reload();
         }, this::fail);
     }
 
-    private void pickAndUploadAttachment() {
-        StockEntryDoc selected = entriesTable.getSelectionModel().getSelectedItem();
-        if (selected == null || selected.id() == null) {
-            error.show("Sélectionnez une entrée.");
-            return;
-        }
+    private void pickAndUploadAttachment(long entryId, VBox attachmentsList) {
         FileChooser chooser = new FileChooser();
         chooser.setTitle("Choisir la facture / le reçu");
         var file = chooser.showOpenDialog(getScene() == null ? null : getScene().getWindow());
         if (file == null) {
             return;
         }
-        long entryId = selected.id();
         loading.setLoading(true);
         FxAsync.run(() -> {
             byte[] bytes = Files.readAllBytes(file.toPath());
@@ -391,7 +478,7 @@ public final class StockEntriesExitsView extends StackPane implements Reloadable
         }, node -> {
             loading.setLoading(false);
             error.hide();
-            renderAttachments(entryId, node);
+            renderAttachments(node, attachmentsList, entryId);
         }, this::fail);
     }
 
@@ -455,19 +542,25 @@ public final class StockEntriesExitsView extends StackPane implements Reloadable
             qtyField.setPromptText("Qté");
             qtyField.setPrefWidth(70);
             TextField costField = new TextField();
-            costField.setPromptText("Coût unitaire");
+            costField.setPromptText("Coût unitaire (défaut : prix d'achat produit)");
             costField.setPrefWidth(100);
+            productCombo.valueProperty().addListener((o, a, b) -> {
+                if (b != null && b.prixAchat() != null && b.prixAchat().compareTo(BigDecimal.ZERO) > 0
+                        && costField.getText().isBlank()) {
+                    costField.setText(b.prixAchat().toPlainString());
+                }
+            });
             Button removeBtn = new Button("×");
             removeBtn.getStyleClass().add("button-ghost");
-            HBox row = new HBox(8, productCombo, qtyField, costField, removeBtn);
-            row.setAlignment(Pos.CENTER_LEFT);
-            LineRow lineRow = new LineRow(productCombo, qtyField, costField);
+            HBox lineRow = new HBox(8, productCombo, qtyField, costField, removeBtn);
+            lineRow.setAlignment(Pos.CENTER_LEFT);
+            LineRow row = new LineRow(productCombo, qtyField, costField);
             removeBtn.setOnAction(ev -> {
-                rows.remove(lineRow);
-                linesBox.getChildren().remove(row);
+                rows.remove(row);
+                linesBox.getChildren().remove(lineRow);
             });
-            rows.add(lineRow);
-            linesBox.getChildren().add(row);
+            rows.add(row);
+            linesBox.getChildren().add(lineRow);
         };
         Button addLineBtn = new Button("+ Ajouter une ligne (autre produit)");
         addLineBtn.getStyleClass().addAll("button-secondary", "pos-action-sm");
@@ -529,8 +622,8 @@ public final class StockEntriesExitsView extends StackPane implements Reloadable
                         error.hide();
                         dialog.close();
                         Alert done = new Alert(Alert.AlertType.INFORMATION,
-                                "Entrée créée en brouillon — sélectionnez-la pour joindre la facture puis "
-                                        + "cliquez « Valider » pour incrémenter le stock.");
+                                "Entrée créée en brouillon — sélectionnez-la (double-clic) pour joindre la "
+                                        + "facture puis cliquez « Valider » pour incrémenter le stock.");
                         done.setHeaderText("Bon d'entrée créé");
                         done.showAndWait();
                         tabEntries.setSelected(true);
@@ -590,6 +683,66 @@ public final class StockEntriesExitsView extends StackPane implements Reloadable
         }, this::fail);
     }
 
+    private void showExitDetail(long id) {
+        loading.setLoading(true);
+        FxAsync.run(() -> client.getExit(id), node -> {
+            loading.setLoading(false);
+            openExitDetailDialog(node);
+        }, this::fail);
+    }
+
+    private void openExitDetailDialog(JsonNode exit) {
+        Dialog<Void> dialog = new Dialog<>();
+        dialog.setTitle("Sortie " + exit.path("exitNumber").asText("—"));
+        dialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
+        dialog.initOwner(getScene() == null ? null : getScene().getWindow());
+
+        GridPane header = detailGrid();
+        int row = 0;
+        row = addDetailRow(header, row, "N°", exit.path("exitNumber").asText("—"));
+        row = addDetailRow(header, row, "Date", exit.path("exitDate").asText("—"));
+        row = addDetailRow(header, row, "Motif", reasonLabel(exit.path("reason").asText(null)));
+        row = addDetailRow(header, row, "Entrepôt", textOr(exit, "warehouseCode", "—")
+                + " / " + textOr(exit, "locationCode", "—"));
+        row = addDetailRow(header, row, "Statut", statusLabel(exit.path("status").asText(null)));
+        if (exit.path("posOrigin").asBoolean(false)) {
+            row = addDetailRow(header, row, "Vente d'origine", textOr(exit, "saleNumber", "—"));
+        }
+        row = addDetailRow(header, row, "Créé par", textOr(exit, "createdBy", "—"));
+        if (exit.hasNonNull("validatedBy")) {
+            row = addDetailRow(header, row, "Validé par", exit.path("validatedBy").asText("—"));
+        }
+        if (exit.hasNonNull("cancelledBy")) {
+            row = addDetailRow(header, row, "Annulé par", exit.path("cancelledBy").asText("—"));
+        }
+        if (exit.hasNonNull("notes") && !exit.path("notes").asText("").isBlank()) {
+            addDetailRow(header, row, "Notes", exit.path("notes").asText());
+        }
+
+        TableView<JsonNode> linesTable = new TableView<>();
+        linesTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
+        linesTable.setPlaceholder(new EmptyState("Aucune ligne"));
+        linesTable.getColumns().addAll(
+                lineCol("Produit", l -> textOr(l, "productNom", "—")),
+                lineCol("Quantité", l -> textOr(l, "quantityInput", "—") + " " + textOr(l, "unitSymbole", "")),
+                lineCol("Notes", l -> textOr(l, "notes", ""))
+        );
+        JsonNode lignes = exit.get("lignes");
+        if (lignes != null && lignes.isArray()) {
+            lignes.forEach(linesTable.getItems()::add);
+        }
+        linesTable.setPrefHeight(Math.min(260, 40 + linesTable.getItems().size() * 28));
+
+        VBox content = new VBox(14, header, new Label("Lignes"), linesTable);
+        content.setPadding(new Insets(10));
+        content.setPrefWidth(520);
+        ScrollPane scroll = new ScrollPane(content);
+        scroll.setFitToWidth(true);
+        scroll.setPrefViewportHeight(480);
+        dialog.getDialogPane().setContent(scroll);
+        dialog.showAndWait();
+    }
+
     private void openCreateExitDialog() {
         loading.setLoading(true);
         FxAsync.run(() -> new Refs(client.listWarehouses(),
@@ -647,15 +800,15 @@ public final class StockEntriesExitsView extends StackPane implements Reloadable
             qtyField.setPrefWidth(80);
             Button removeBtn = new Button("×");
             removeBtn.getStyleClass().add("button-ghost");
-            HBox row = new HBox(8, productCombo, qtyField, removeBtn);
-            row.setAlignment(Pos.CENTER_LEFT);
-            LineRow lineRow = new LineRow(productCombo, qtyField);
+            HBox lineRow = new HBox(8, productCombo, qtyField, removeBtn);
+            lineRow.setAlignment(Pos.CENTER_LEFT);
+            LineRow row = new LineRow(productCombo, qtyField);
             removeBtn.setOnAction(ev -> {
-                rows.remove(lineRow);
-                linesBox.getChildren().remove(row);
+                rows.remove(row);
+                linesBox.getChildren().remove(lineRow);
             });
-            rows.add(lineRow);
-            linesBox.getChildren().add(row);
+            rows.add(row);
+            linesBox.getChildren().add(lineRow);
         };
         Button addLineBtn = new Button("+ Ajouter une ligne");
         addLineBtn.getStyleClass().addAll("button-secondary", "pos-action-sm");
@@ -748,8 +901,56 @@ public final class StockEntriesExitsView extends StackPane implements Reloadable
         return new VBox(4, l, node);
     }
 
+    private static GridPane detailGrid() {
+        GridPane grid = new GridPane();
+        grid.setHgap(12);
+        grid.setVgap(6);
+        ColumnConstraints labelCol = new ColumnConstraints();
+        labelCol.setMinWidth(130);
+        ColumnConstraints valueCol = new ColumnConstraints();
+        valueCol.setHgrow(Priority.ALWAYS);
+        grid.getColumnConstraints().addAll(labelCol, valueCol);
+        return grid;
+    }
+
+    private static int addDetailRow(GridPane grid, int row, String label, String value) {
+        Label l = new Label(label);
+        l.getStyleClass().add("form-label");
+        Label v = new Label(value == null || value.isBlank() ? "—" : value);
+        v.setWrapText(true);
+        grid.addRow(row, l, v);
+        return row + 1;
+    }
+
+    private static TableColumn<JsonNode, String> lineCol(String title,
+                                                        java.util.function.Function<JsonNode, String> fn) {
+        TableColumn<JsonNode, String> col = new TableColumn<>(title);
+        col.setCellValueFactory(d -> new ReadOnlyStringWrapper(d.getValue() == null ? "" : fn.apply(d.getValue())));
+        return col;
+    }
+
+    private static String textOr(JsonNode node, String field, String fallback) {
+        if (node == null || !node.hasNonNull(field)) {
+            return fallback;
+        }
+        String text = node.get(field).asText();
+        return text == null || text.isBlank() ? fallback : text;
+    }
+
     private static String nz(String s) {
         return s == null || s.isBlank() ? "—" : s;
+    }
+
+    private static String statusLabel(String status) {
+        if (status == null) {
+            return "—";
+        }
+        return switch (status) {
+            case "DRAFT" -> "Brouillon";
+            case "VALIDATED" -> "Validée";
+            case "CANCELLED" -> "Annulée";
+            default -> status;
+        };
     }
 
     private static String reasonLabel(String reason) {
@@ -798,11 +999,11 @@ public final class StockEntriesExitsView extends StackPane implements Reloadable
 
     private record Refs(List<Warehouse> warehouses, List<Product> productsRaw, List<Supplier> suppliers) {
         List<ProductOption> products() {
-            return productsRaw.stream().map(p -> new ProductOption(p.id(), p.nom(), p.sku())).toList();
+            return productsRaw.stream().map(p -> new ProductOption(p.id(), p.nom(), p.sku(), p.prixAchat())).toList();
         }
     }
 
-    private record ProductOption(Long id, String nom, String sku) {
+    private record ProductOption(Long id, String nom, String sku, BigDecimal prixAchat) {
         @Override
         public String toString() {
             return sku == null || sku.isBlank() ? nom : nom + " (" + sku + ")";

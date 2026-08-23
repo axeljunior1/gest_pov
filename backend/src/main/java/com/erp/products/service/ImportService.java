@@ -329,6 +329,7 @@ public class ImportService {
                     .prixVente(parseDecimal(TabularFileHelper.cell(row, 7)))
                     .statut(statut)
                     .cycleVie(cycleVie)
+                    .codeBarre(barcodeService.allocateEan13(barcodeRegistryService::isTaken))
                     .build();
             productRepository.save(product);
         }

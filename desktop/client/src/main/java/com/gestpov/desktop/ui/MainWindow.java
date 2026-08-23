@@ -17,6 +17,7 @@ import com.gestpov.desktop.ui.pos.PosHistoryView;
 import com.gestpov.desktop.ui.pos.PosReportsView;
 import com.gestpov.desktop.ui.pos.PosReturnsView;
 import com.gestpov.desktop.ui.pos.PosView;
+import com.gestpov.desktop.ui.products.ProductBarcodePrintView;
 import com.gestpov.desktop.ui.products.ProductWorkspace;
 import com.gestpov.desktop.ui.sales.SalesListView;
 import com.gestpov.desktop.ui.settings.SettingsView;
@@ -66,6 +67,7 @@ public final class MainWindow extends BorderPane {
     private final Button suppliersNav = nav("Fournisseurs");
     private final Button unitsNav = nav("Unités");
     private final Button attributesNav = nav("Attributs");
+    private final Button barcodePrintNav = nav("Étiquettes codes-barres");
     private final Button stockNav = nav("Stock");
     private final Button warehousesNav = nav("Entrepôts");
     private final Button entriesExitsNav = nav("Entrées / Sorties");
@@ -94,6 +96,7 @@ public final class MainWindow extends BorderPane {
     private SuppliersView suppliersView;
     private UnitsView unitsView;
     private AttributesView attributesView;
+    private ProductBarcodePrintView barcodePrintView;
     private StockView stockView;
     private WarehousesView warehousesView;
     private StockEntriesExitsView entriesExitsView;
@@ -132,6 +135,7 @@ public final class MainWindow extends BorderPane {
         suppliersNav.setOnAction(e -> showSuppliers());
         unitsNav.setOnAction(e -> showUnits());
         attributesNav.setOnAction(e -> showAttributes());
+        barcodePrintNav.setOnAction(e -> showBarcodePrint());
         stockNav.setOnAction(e -> showStock());
         warehousesNav.setOnAction(e -> showWarehouses());
         entriesExitsNav.setOnAction(e -> showEntriesExits());
@@ -162,6 +166,9 @@ public final class MainWindow extends BorderPane {
         if (session.hasPermission("products.read")) {
             navItems.getChildren().addAll(section("CATALOGUE"), productsNav, categoriesNav, brandsNav,
                     suppliersNav, unitsNav, attributesNav);
+            if (session.hasPermission("products.update")) {
+                navItems.getChildren().add(barcodePrintNav);
+            }
             any = true;
         }
         boolean stockSection = session.hasPermission("stock.read")
@@ -506,6 +513,14 @@ public final class MainWindow extends BorderPane {
             attributesView = new AttributesView(session);
         }
         present(attributesView, attributesNav, created);
+    }
+
+    private void showBarcodePrint() {
+        boolean created = barcodePrintView == null;
+        if (created) {
+            barcodePrintView = new ProductBarcodePrintView(session);
+        }
+        present(barcodePrintView, barcodePrintNav, created);
     }
 
     private void showStock() {

@@ -93,7 +93,8 @@ class StockExitControllerTest extends com.erp.products.AbstractIntegrationTest {
                                 "lignes", List.of(Map.of(
                                         "productId", productId,
                                         "variantId", variantId,
-                                        "quantityInput", quantity
+                                        "quantityInput", quantity,
+                                        "unitCost", 5
                                 ))
                         ))))
                 .andExpect(status().isCreated())

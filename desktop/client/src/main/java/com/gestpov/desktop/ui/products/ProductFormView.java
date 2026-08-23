@@ -39,9 +39,9 @@ import javafx.scene.control.TextField;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.FlowPane;
-import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
+import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
@@ -78,8 +78,9 @@ public final class ProductFormView extends StackPane {
     private final ComboBox<RefOption> cycleVie = new ComboBox<>();
     private final TextArea description = new TextArea();
     private final Label stockBadge = new Label();
+    private final Label lifecycleBadge = new Label();
     private final Button saveButton = new Button("Enregistrer");
-    private final HBox workflowBar = new HBox(8);
+    private final VBox workflowBar = new VBox(8);
     private final ComboBox<String> priceType = new ComboBox<>();
     private final TextField newPrice = new TextField();
     private final TableView<PriceHistory> historyTable = new TableView<>();
@@ -124,20 +125,34 @@ public final class ProductFormView extends StackPane {
         boolean isNew = productId == null;
         Label title = new Label(isNew ? "Nouveau produit" : "Fiche produit");
         title.getStyleClass().add("page-title");
-        Button back = new Button("Retour à la liste");
+        Button back = new Button("← Retour à la liste");
         back.getStyleClass().add("button-ghost");
         back.setOnAction(e -> onBack.run());
         stockBadge.getStyleClass().add("badge");
-        HBox header = new HBox(12, back, title, stockBadge);
-        header.setAlignment(Pos.CENTER_LEFT);
+        lifecycleBadge.getStyleClass().addAll("badge", "badge-neutral");
+        lifecycleBadge.setVisible(false);
+        lifecycleBadge.setManaged(false);
+        stockBadge.setVisible(false);
+        stockBadge.setManaged(false);
 
-        saveButton.getStyleClass().add("button-primary");
+        HBox titleRow = new HBox(10, title, lifecycleBadge, stockBadge);
+        titleRow.setAlignment(Pos.CENTER_LEFT);
+
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+
+        saveButton.getStyleClass().addAll("button-primary", "button-lg");
         saveButton.setOnAction(e -> save());
         boolean canWrite = isNew ? session.hasPermission("products.create") : session.hasPermission("products.update");
         saveButton.setVisible(canWrite);
         saveButton.setManaged(canWrite);
 
-        workflowBar.setAlignment(Pos.CENTER_LEFT);
+        HBox header = new HBox(14, back, titleRow, spacer, saveButton);
+        header.setAlignment(Pos.CENTER_LEFT);
+
+        workflowBar.getStyleClass().addAll("status-banner", "status-banner-draft");
+        workflowBar.setVisible(false);
+        workflowBar.setManaged(false);
         if (!isNew) {
             buildWorkflowButtons();
         }
@@ -159,8 +174,9 @@ public final class ProductFormView extends StackPane {
             tabs.getTabs().addAll(pricesTab, imagesTab, variantsTab, packagingTab, auditTab);
         }
         tabs.getStyleClass().add("product-tabs");
+        tabs.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
 
-        VBox page = new VBox(16, header, errorBanner, workflowBar, tabs, saveButton);
+        VBox page = new VBox(18, header, errorBanner, workflowBar, tabs);
         VBox.setVgrow(tabs, Priority.ALWAYS);
         page.getStyleClass().add("content");
         page.setPadding(new Insets(0));
@@ -172,23 +188,37 @@ public final class ProductFormView extends StackPane {
 
     private void buildWorkflowButtons() {
         workflowBar.getChildren().clear();
-        if (session.hasPermission("products.update")) {
-            Button submit = new Button("Soumettre validation");
-            submit.getStyleClass().add("button-secondary");
-            submit.setOnAction(e -> workflow(() -> products.submitLifecycle(productId)));
-            workflowBar.getChildren().add(submit);
-        }
-        if (session.hasPermission("products.validate")) {
-            Button approve = new Button("Approuver");
+        String cycle = current == null ? null : current.cycleVie();
+        boolean pending = "EN_ATTENTE_VALIDATION".equals(cycle);
+        workflowBar.getStyleClass().removeAll("status-banner-draft", "status-banner-pending");
+        workflowBar.getStyleClass().add(pending ? "status-banner-pending" : "status-banner-draft");
+
+        Label status = new Label();
+        status.getStyleClass().add("status-banner-text");
+        HBox actions = new HBox(8);
+        actions.setAlignment(Pos.CENTER_LEFT);
+
+        if (pending && session.hasPermission("products.validate")) {
+            status.setText("⏳ En attente de validation — ce produit n'est pas encore actif au catalogue.");
+            Button approve = new Button("✓ Approuver");
             approve.getStyleClass().add("button-primary");
             approve.setOnAction(e -> workflow(() -> products.approveLifecycle(productId)));
             Button reject = new Button("Rejeter");
             reject.getStyleClass().add("button-danger");
             reject.setOnAction(e -> workflow(() -> products.rejectLifecycle(productId, "Rejeté depuis Desktop")));
-            workflowBar.getChildren().addAll(approve, reject);
+            actions.getChildren().addAll(approve, reject);
+            workflowBar.getChildren().addAll(status, actions);
+        } else if ("BROUILLON".equals(cycle) && session.hasPermission("products.update")) {
+            status.setText("Ce produit est en brouillon — soumettez-le pour validation avant activation.");
+            Button submit = new Button("Soumettre validation");
+            submit.getStyleClass().add("button-secondary");
+            submit.setOnAction(e -> workflow(() -> products.submitLifecycle(productId)));
+            actions.getChildren().add(submit);
+            workflowBar.getChildren().addAll(status, actions);
         }
-        workflowBar.setVisible(!workflowBar.getChildren().isEmpty());
-        workflowBar.setManaged(!workflowBar.getChildren().isEmpty());
+        boolean show = !workflowBar.getChildren().isEmpty();
+        workflowBar.setVisible(show);
+        workflowBar.setManaged(show);
     }
 
     private void workflow(java.util.concurrent.Callable<Product> action) {
@@ -197,12 +227,7 @@ public final class ProductFormView extends StackPane {
         FxAsync.run(action, updated -> load(), this::showError);
     }
 
-    private GridPane generalForm() {
-        GridPane grid = new GridPane();
-        grid.setHgap(12);
-        grid.setVgap(10);
-        grid.getStyleClass().add("card");
-        int r = 0;
+    private VBox generalForm() {
         nom.setPromptText("Nom");
         sku.setPromptText("Auto depuis le nom si vide");
         codeBarre.setPromptText("EAN-13 ou génération auto");
@@ -220,23 +245,46 @@ public final class ProductFormView extends StackPane {
         if (cycleVie.getSelectionModel().getSelectedItem() == null) {
             cycleVie.getSelectionModel().selectFirst();
         }
-        addField(grid, r++, 0, "Nom", nom);
-        addField(grid, r - 1, 1, "SKU", sku);
-        addField(grid, r++, 0, "Code-barres (produit simple)", codeBarre, 2);
-        grid.add(generateBarcode, 0, r++, 2, 1);
-        addField(grid, r, 0, "Marque", marque);
-        addField(grid, r++, 1, "Catégorie", categorie);
-        addField(grid, r, 0, "Fournisseur principal", fournisseur);
-        addField(grid, r++, 1, "Unité de base (stock)", unite);
-        addField(grid, r, 0, "Prix achat", prixAchat);
-        addField(grid, r++, 1, "Prix vente", prixVente);
-        addField(grid, r, 0, "Statut", statut);
-        addField(grid, r++, 1, "Cycle de vie", cycleVie);
-        addField(grid, r, 0, "Description", description, 2);
+
+        VBox codeBarreBox = labeled("Code-barres (produit simple)", codeBarre);
+        VBox identification = section("IDENTIFICATION",
+                row(labeled("Nom", nom), labeled("SKU", sku)),
+                codeBarreBox,
+                generateBarcode,
+                labeled("Description", description));
+
+        VBox uniteBox = labeled("Unité de base (stock)", unite);
         Label unitHint = new Label("Le stock est toujours exprimé dans cette unité.");
-        unitHint.getStyleClass().add("page-sub");
-        grid.add(unitHint, 1, r - 3);
-        return grid;
+        unitHint.getStyleClass().add("section-hint");
+        uniteBox.getChildren().add(unitHint);
+        VBox classification = section("CLASSIFICATION & APPROVISIONNEMENT",
+                row(labeled("Marque", marque), labeled("Catégorie", categorie)),
+                row(labeled("Fournisseur principal", fournisseur), uniteBox));
+
+        VBox pricing = section("TARIFICATION",
+                row(labeled("Prix achat", prixAchat), labeled("Prix vente", prixVente)));
+
+        VBox lifecycleSection = section("STATUT & CYCLE DE VIE",
+                row(labeled("Statut", statut), labeled("Cycle de vie", cycleVie)));
+
+        VBox form = new VBox(16, identification, classification, pricing, lifecycleSection);
+        return form;
+    }
+
+    private static VBox section(String titleText, javafx.scene.Node... rows) {
+        Label label = new Label(titleText);
+        label.getStyleClass().add("section-title");
+        VBox box = new VBox(14, label);
+        box.getChildren().addAll(rows);
+        box.getStyleClass().add("card");
+        return box;
+    }
+
+    private static HBox row(javafx.scene.Node a, javafx.scene.Node b) {
+        HBox box = new HBox(16, a, b);
+        HBox.setHgrow(a, Priority.ALWAYS);
+        HBox.setHgrow(b, Priority.ALWAYS);
+        return box;
     }
 
     private VBox pricesPane() {
@@ -405,9 +453,19 @@ public final class ProductFormView extends StackPane {
                 .map(s -> new RefOption(String.valueOf(s.id()), s.nom())).toList());
         fillRefs(unite, data.units.stream()
                 .map(u -> new RefOption(String.valueOf(u.id()), u.toString())).toList());
+        if (productId == null) {
+            // Nouveau produit : "Pièce (pcs)" par défaut, cas le plus courant.
+            data.units.stream()
+                    .filter(u -> "pcs".equalsIgnoreCase(u.symbole()))
+                    .findFirst()
+                    .ifPresent(u -> select(unite, u.id()));
+        }
         current = data.product;
         if (current == null) {
-            stockBadge.setText("");
+            stockBadge.setVisible(false);
+            stockBadge.setManaged(false);
+            lifecycleBadge.setVisible(false);
+            lifecycleBadge.setManaged(false);
             return;
         }
         nom.setText(nullToEmpty(current.nom()));
@@ -423,8 +481,14 @@ public final class ProductFormView extends StackPane {
         select(unite, current.unitId());
         selectCode(statut, current.statut());
         selectCode(cycleVie, current.cycleVie());
-        stockBadge.setText("Stock: " + current.stockLabel()
-                + (current.cycleVie() == null ? "" : " · " + ProductLabels.lifecycle(current.cycleVie())));
+        stockBadge.setText("Stock : " + current.stockLabel());
+        stockBadge.setVisible(true);
+        stockBadge.setManaged(true);
+        lifecycleBadge.setText(ProductLabels.lifecycle(current.cycleVie()));
+        lifecycleBadge.getStyleClass().removeAll("badge-neutral", "badge-warning", "badge-success", "badge-danger");
+        lifecycleBadge.getStyleClass().add(lifecycleBadgeClass(current.cycleVie()));
+        lifecycleBadge.setVisible(true);
+        lifecycleBadge.setManaged(true);
         if (current.hasVariants()) {
             codeBarre.setDisable(true);
             generateBarcode.setDisable(true);
@@ -689,20 +753,15 @@ public final class ProductFormView extends StackPane {
         saveButton.setDisable(busy);
     }
 
-    private static void addField(GridPane grid, int row, int col, String label, javafx.scene.Node node) {
-        addField(grid, row, col, label, node, 1);
-    }
-
-    private static void addField(GridPane grid, int row, int col, String label, javafx.scene.Node node, int span) {
-        VBox box = labeled(label, node);
-        grid.add(box, col, row, span, 1);
-        GridPane.setHgrow(box, Priority.ALWAYS);
-    }
-
     private static VBox labeled(String label, javafx.scene.Node node) {
         Label l = new Label(label);
         l.getStyleClass().add("form-label");
-        return new VBox(4, l, node);
+        if (node instanceof javafx.scene.layout.Region region) {
+            region.setMaxWidth(Double.MAX_VALUE);
+        }
+        VBox box = new VBox(4, l, node);
+        box.setFillWidth(true);
+        return box;
     }
 
     private static TableColumn<PriceHistory, String> col(String title, java.util.function.Function<PriceHistory, String> fn) {
@@ -789,6 +848,18 @@ public final class ProductFormView extends StackPane {
 
     private static String firstNonNull(String a, String b) {
         return a != null ? a : b;
+    }
+
+    private static String lifecycleBadgeClass(String cycle) {
+        if (cycle == null) {
+            return "badge-neutral";
+        }
+        return switch (cycle) {
+            case "ACTIF" -> "badge-success";
+            case "EN_ATTENTE_VALIDATION" -> "badge-warning";
+            case "SUSPENDU", "ARRETE", "ARCHIVE" -> "badge-danger";
+            default -> "badge-neutral";
+        };
     }
 
     private static String nullToEmpty(String value) {

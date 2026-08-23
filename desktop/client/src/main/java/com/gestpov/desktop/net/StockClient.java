@@ -176,6 +176,10 @@ public class StockClient {
         return JsonLists.mapArray(api.get("/api/stock/exits"), StockExitDoc::fromJson);
     }
 
+    public JsonNode getExit(long id) throws ApiException {
+        return api.get("/api/stock/exits/" + id);
+    }
+
     public List<InventoryCount> listInventories() throws ApiException {
         return JsonLists.mapArray(api.get("/api/stock/inventories"), InventoryCount::fromJson);
     }

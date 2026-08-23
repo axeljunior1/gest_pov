@@ -96,7 +96,8 @@ class StockEntryControllerTest extends com.erp.products.AbstractIntegrationTest 
                                 "lignes", List.of(Map.of(
                                         "productId", productId,
                                         "variantId", variantId,
-                                        "quantityInput", 50
+                                        "quantityInput", 50,
+                                        "unitCost", 5
                                 ))
                         ))))
                 .andExpect(status().isCreated())
@@ -179,7 +180,8 @@ class StockEntryControllerTest extends com.erp.products.AbstractIntegrationTest 
                                 "locationId", locationId,
                                 "lignes", List.of(Map.of(
                                         "productId", simpleProductId,
-                                        "quantityInput", 25
+                                        "quantityInput", 25,
+                                        "unitCost", 3
                                 ))
                         ))))
                 .andExpect(status().isCreated())

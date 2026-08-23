@@ -232,6 +232,7 @@ class AlertControllerTest extends com.erp.products.AbstractIntegrationTest {
                                         "productId", productId,
                                         "variantId", variantId,
                                         "quantityInput", 10,
+                                        "unitCost", 5,
                                         "lotNumber", "LOT-EXP-SOON",
                                         "expiryDate", soon.toString()
                                 ))
@@ -264,6 +265,7 @@ class AlertControllerTest extends com.erp.products.AbstractIntegrationTest {
                                         "productId", productId,
                                         "variantId", variantId,
                                         "quantityInput", 5,
+                                        "unitCost", 5,
                                         "lotNumber", "LOT-EXP-PAST",
                                         "expiryDate", expired.toString()
                                 ))
