@@ -11,6 +11,7 @@ import com.gestpov.desktop.session.SessionContext;
 import com.gestpov.desktop.ui.component.EmptyState;
 import com.gestpov.desktop.ui.component.ErrorBanner;
 import com.gestpov.desktop.ui.component.LoadingOverlay;
+import com.gestpov.desktop.ui.products.ProductLabels;
 import com.gestpov.desktop.util.FxAsync;
 import javafx.beans.property.ReadOnlyStringWrapper;
 import javafx.collections.FXCollections;
@@ -108,9 +109,16 @@ public final class SalesListView extends StackPane implements Reloadable {
                 col("N°", SaleSummary::saleNumber),
                 col("Statut", SaleSummary::status),
                 col("Client", s -> s.customerName() == null ? "" : s.customerName()),
-                col("Caissier", s -> s.cashierName() == null ? "" : s.cashierName()),
-                col("Total", s -> s.total() == null ? "" : s.total().toPlainString()),
-                col("Date", s -> s.createdAt() == null ? "" : s.createdAt())
+                col("Vendeur", s -> s.sellerName() == null ? "—" : s.sellerName()),
+                col("Caissier", s -> s.cashierName() == null ? "—" : s.cashierName()),
+                col("Total", s -> ProductLabels.price(s.total())),
+                col("Retours", s -> s.refundCount() > 0
+                        ? s.refundCount() + " · " + ProductLabels.price(s.totalRefunded())
+                        : "—"),
+                col("Date", s -> {
+                    String date = s.paidAt() != null ? s.paidAt() : s.createdAt();
+                    return date == null ? "" : date;
+                })
         );
         table.getSelectionModel().selectedItemProperty().addListener((o, a, b) -> {
             if (b != null && b.id() != null) {
@@ -157,8 +165,9 @@ public final class SalesListView extends StackPane implements Reloadable {
         detailTitle.setText(sale.saleNumber() == null ? "Vente #" + sale.id() : sale.saleNumber());
         detailBody.setText("Statut : " + nullSafe(sale.status())
                 + "\nClient : " + nullSafe(sale.customerName())
-                + "\nTotal : " + (sale.total() == null ? "—" : sale.total())
-                + "\nRemboursé : " + (detail.totalRefunded() == null ? "0" : detail.totalRefunded()));
+                + "\nVendeur : " + nullSafe(sale.sellerName())
+                + "\nTotal : " + ProductLabels.price(sale.total())
+                + "\nRemboursé : " + ProductLabels.price(detail.totalRefunded()));
         lines.setItems(FXCollections.observableArrayList(
                 sale.lignes() == null ? java.util.List.of()
                         : sale.lignes().stream()

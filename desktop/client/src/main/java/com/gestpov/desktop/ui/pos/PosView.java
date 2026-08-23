@@ -6,6 +6,7 @@ import com.gestpov.desktop.model.PosProduct;
 import com.gestpov.desktop.model.Sale;
 import com.gestpov.desktop.model.SaleLine;
 import com.gestpov.desktop.net.ApiException;
+import com.gestpov.desktop.net.CustomerClient;
 import com.gestpov.desktop.net.PosClient;
 import com.gestpov.desktop.session.SessionContext;
 import com.gestpov.desktop.ui.Reloadable;
@@ -54,6 +55,7 @@ public final class PosView extends StackPane implements Reloadable {
 
     private final SessionContext session;
     private final PosClient pos;
+    private final CustomerClient customers;
     private final boolean canPrepare;
     private final boolean canCollect;
     private final boolean canOpenSession;
@@ -121,6 +123,7 @@ public final class PosView extends StackPane implements Reloadable {
     public PosView(SessionContext session) {
         this.session = session;
         this.pos = new PosClient(session.api());
+        this.customers = new CustomerClient(session.api());
         this.canPrepare = session.hasPermission("pos.sale.create")
                 || session.hasPermission("pos.sale.prepare")
                 || session.hasPermission("pos.sale.send_to_payment");
@@ -361,6 +364,12 @@ public final class PosView extends StackPane implements Reloadable {
             customerSearch.clear();
             searchCustomers();
         });
+        Button newCustomerBtn = new Button("+ Nouveau client");
+        newCustomerBtn.getStyleClass().addAll("button-secondary", "pos-action-sm");
+        newCustomerBtn.setOnAction(e -> openCreateCustomerDialog());
+        boolean canCreateCustomer = session.hasPermission("customer.create");
+        newCustomerBtn.setVisible(canCreateCustomer);
+        newCustomerBtn.setManaged(canCreateCustomer);
         loyaltyPoints.setPromptText("Points à utiliser");
         loyaltyPoints.setPrefWidth(100);
         redeemLoyaltyBtn.getStyleClass().addAll("button-secondary", "pos-action-sm");
@@ -371,7 +380,7 @@ public final class PosView extends StackPane implements Reloadable {
         loyaltyPoints.setManaged(redeemLoyaltyBtn.isVisible());
         boolean canCustomer = session.hasPermission("customer.read");
         HBox customerRow = new HBox(8, customerSearch, findCustomer, customerCombo, attachCustomer, clearCustomer,
-                browseCustomers, loyaltyPoints, redeemLoyaltyBtn);
+                browseCustomers, newCustomerBtn, loyaltyPoints, redeemLoyaltyBtn);
         customerRow.setAlignment(Pos.CENTER_LEFT);
         HBox.setHgrow(customerCombo, Priority.ALWAYS);
         VBox customerBox = new VBox(6, customerLabel, customerRow);
@@ -573,14 +582,12 @@ public final class PosView extends StackPane implements Reloadable {
         syncStationTabs();
         refreshChrome();
         if (sessionMatchesStation() && TYPE_SALES.equals(requiredType()) && canPrepare) {
-            ensureSale();
             loadCatalogPreview();
         }
         if (sessionMatchesStation() && TYPE_CASHIER.equals(requiredType()) && canCollect && isCentral()) {
             reloadPending();
         }
         if (sessionMatchesStation() && TYPE_CASHIER.equals(requiredType()) && !isCentral() && canPrepare) {
-            ensureSale();
             loadCatalogPreview();
         }
     }
@@ -606,7 +613,6 @@ public final class PosView extends StackPane implements Reloadable {
         syncStationTabs();
         refreshChrome();
         if (sessionMatchesStation() && TYPE_SALES.equals(requiredType())) {
-            ensureSale();
             loadCatalogPreview();
         }
         if (sessionMatchesStation() && TYPE_CASHIER.equals(requiredType()) && isCentral()) {
@@ -745,11 +751,9 @@ public final class PosView extends StackPane implements Reloadable {
         FxAsync.runVoid(() -> pos.openSession(opening, openType), () -> {
             sessionType = openType;
             refreshChrome();
+            loading.setLoading(false);
             if (TYPE_SALES.equals(openType) || !isCentral()) {
-                ensureSale();
                 loadCatalogPreview();
-            } else {
-                loading.setLoading(false);
             }
             if (TYPE_CASHIER.equals(openType) && isCentral()) {
                 reloadPending();
@@ -791,12 +795,34 @@ public final class PosView extends StackPane implements Reloadable {
         refreshChrome();
     }
 
-    private void ensureSale() {
+    /**
+     * Exécute {@code action} avec une vente courante, en la créant à la demande si besoin
+     * (au premier ajout réel — pas à l'ouverture de session, pour éviter les ventes fantômes à 0).
+     */
+    private void withSale(java.util.function.Consumer<Sale> action) {
         if (!canPrepare) {
+            error.show("Ouvrez la session avant d'ajouter un produit.");
+            return;
+        }
+        if (sale != null) {
+            action.accept(sale);
             return;
         }
         loading.setLoading(true);
-        FxAsync.run(pos::createSale, this::showSale, this::fail);
+        FxAsync.run(pos::createSale, created -> {
+            sale = created;
+            action.accept(created);
+        }, this::fail);
+    }
+
+    /** Réinitialise le panier affiché sans provisionner de nouvelle vente côté serveur. */
+    private void resetCartForNextCustomer() {
+        sale = null;
+        cart.getItems().clear();
+        total.setText(ProductLabels.price(BigDecimal.ZERO));
+        customerLabel.setText("Aucun client");
+        changeLabel.setText("");
+        cashReceived.clear();
     }
 
     private void sendToCash() {
@@ -814,7 +840,7 @@ public final class PosView extends StackPane implements Reloadable {
                             + " envoyée à la caisse.");
             done.setHeaderText("Envoi caisse");
             done.showAndWait();
-            ensureSale();
+            resetCartForNextCustomer();
         }, this::fail);
     }
 
@@ -833,7 +859,7 @@ public final class PosView extends StackPane implements Reloadable {
                             + " mise en attente.");
             done.setHeaderText("En attente");
             done.showAndWait();
-            ensureSale();
+            resetCartForNextCustomer();
         }, this::fail);
     }
 
@@ -931,10 +957,6 @@ public final class PosView extends StackPane implements Reloadable {
     }
 
     private void scanBarcodeToCart(String code) {
-        if (sale == null || sale.id() == null) {
-            error.show("Ouvrez la session et créez une vente avant de scanner.");
-            return;
-        }
         BigDecimal quantity;
         try {
             quantity = parseDecimal(qty.getText(), BigDecimal.ONE);
@@ -946,21 +968,23 @@ public final class PosView extends StackPane implements Reloadable {
             error.show("Quantité invalide.");
             return;
         }
-        loading.setLoading(true);
         BigDecimal qtyToAdd = quantity;
-        FxAsync.run(() -> pos.scanItem(sale.id(), code, qtyToAdd), paid -> {
-            loading.setLoading(false);
-            error.hide();
-            showSale(paid);
-            search.clear();
-            qty.setText("1");
-            loadCatalogPreview();
-            search.requestFocus();
-        }, t -> {
-            loading.setLoading(false);
-            fail(t);
-            search.selectAll();
-            search.requestFocus();
+        withSale(currentSale -> {
+            loading.setLoading(true);
+            FxAsync.run(() -> pos.scanItem(currentSale.id(), code, qtyToAdd), paid -> {
+                loading.setLoading(false);
+                error.hide();
+                showSale(paid);
+                search.clear();
+                qty.setText("1");
+                loadCatalogPreview();
+                search.requestFocus();
+            }, t -> {
+                loading.setLoading(false);
+                fail(t);
+                search.selectAll();
+                search.requestFocus();
+            });
         });
     }
 
@@ -1039,10 +1063,7 @@ public final class PosView extends StackPane implements Reloadable {
 
     private void addSelected() {
         PosProduct product = results.getSelectionModel().getSelectedItem();
-        if (product == null || sale == null) {
-            if (sale == null) {
-                error.show("Ouvrez la session avant d'ajouter un produit.");
-            }
+        if (product == null) {
             return;
         }
         BigDecimal quantity;
@@ -1083,8 +1104,10 @@ public final class PosView extends StackPane implements Reloadable {
         }
         Long v = variantId;
         Long p = packagingId;
-        loading.setLoading(true);
-        FxAsync.run(() -> pos.addLine(sale.id(), product.id(), v, p, quantity), this::showSale, this::fail);
+        withSale(currentSale -> {
+            loading.setLoading(true);
+            FxAsync.run(() -> pos.addLine(currentSale.id(), product.id(), v, p, quantity), this::showSale, this::fail);
+        });
     }
 
     private Long pickPackaging(List<PosProduct.PosPackaging> packs) {
@@ -1114,8 +1137,12 @@ public final class PosView extends StackPane implements Reloadable {
             error.show("Quantité invalide.");
             return;
         }
+        Long lineId = line.id();
         loading.setLoading(true);
-        FxAsync.run(() -> pos.updateQty(sale.id(), line.id(), quantity), this::showSale, this::fail);
+        FxAsync.run(() -> pos.updateQty(sale.id(), lineId, quantity), updated -> {
+            showSale(updated);
+            reselectLine(lineId);
+        }, this::fail);
     }
 
     private void bumpSelectedQty(BigDecimal delta) {
@@ -1129,9 +1156,27 @@ public final class PosView extends StackPane implements Reloadable {
         if (next.compareTo(BigDecimal.ONE) < 0) {
             next = BigDecimal.ONE;
         }
+        Long lineId = line.id();
         loading.setLoading(true);
         BigDecimal quantity = next;
-        FxAsync.run(() -> pos.updateQty(sale.id(), line.id(), quantity), this::showSale, this::fail);
+        FxAsync.run(() -> pos.updateQty(sale.id(), lineId, quantity), updated -> {
+            showSale(updated);
+            reselectLine(lineId);
+        }, this::fail);
+    }
+
+    /** Reconstitue la sélection/focus de la table après un refresh (les lignes sont de nouvelles instances). */
+    private void reselectLine(Long lineId) {
+        if (lineId == null) {
+            return;
+        }
+        for (SaleLine l : cart.getItems()) {
+            if (lineId.equals(l.id())) {
+                cart.getSelectionModel().select(l);
+                break;
+            }
+        }
+        cart.requestFocus();
     }
 
     private void removeSelectedLine() {
@@ -1157,8 +1202,12 @@ public final class PosView extends StackPane implements Reloadable {
             error.show("Remise invalide.");
             return;
         }
+        Long lineId = line.id();
         loading.setLoading(true);
-        FxAsync.run(() -> pos.lineDiscount(sale.id(), line.id(), amount), this::showSale, this::fail);
+        FxAsync.run(() -> pos.lineDiscount(sale.id(), lineId, amount), updated -> {
+            showSale(updated);
+            reselectLine(lineId);
+        }, this::fail);
     }
 
     private void searchCustomers() {
@@ -1180,12 +1229,70 @@ public final class PosView extends StackPane implements Reloadable {
 
     private void attachCustomer() {
         Customer c = customerCombo.getSelectionModel().getSelectedItem();
-        if (c == null || c.id() == null || sale == null) {
+        if (c == null || c.id() == null) {
             error.show("Choisissez un client.");
             return;
         }
-        loading.setLoading(true);
-        FxAsync.run(() -> pos.assignCustomer(sale.id(), c.id()), this::showSale, this::fail);
+        withSale(currentSale -> {
+            loading.setLoading(true);
+            FxAsync.run(() -> pos.assignCustomer(currentSale.id(), c.id()), this::showSale, this::fail);
+        });
+    }
+
+    private void openCreateCustomerDialog() {
+        javafx.scene.control.Dialog<Void> dialog = new javafx.scene.control.Dialog<>();
+        dialog.setTitle("Nouveau client");
+        dialog.getDialogPane().getButtonTypes().add(javafx.scene.control.ButtonType.CANCEL);
+        dialog.initOwner(getScene() == null ? null : getScene().getWindow());
+
+        TextField firstName = new TextField();
+        firstName.setPromptText("Prénom *");
+        TextField lastName = new TextField();
+        lastName.setPromptText("Nom *");
+        TextField phone = new TextField();
+        phone.setPromptText("Téléphone");
+        TextField email = new TextField();
+        email.setPromptText("Email (optionnel)");
+
+        Button confirm = new Button("Créer et associer");
+        confirm.getStyleClass().add("button-primary");
+        confirm.setOnAction(e -> {
+            if (firstName.getText().isBlank() || lastName.getText().isBlank()) {
+                error.show("Nom et prénom obligatoires.");
+                return;
+            }
+            Customer draft = new Customer(null, firstName.getText().trim(), lastName.getText().trim(),
+                    phone.getText().trim(), email.getText().trim(), "", "", "", 0, true);
+            loading.setLoading(true);
+            FxAsync.run(() -> customers.create(draft), created -> {
+                loading.setLoading(false);
+                error.hide();
+                dialog.close();
+                withSale(currentSale -> {
+                    loading.setLoading(true);
+                    FxAsync.run(() -> pos.assignCustomer(currentSale.id(), created.id()), this::showSale, this::fail);
+                });
+            }, t -> {
+                loading.setLoading(false);
+                fail(t);
+            });
+        });
+
+        VBox content = new VBox(10,
+                new HBox(8, labeledField("Prénom", firstName), labeledField("Nom", lastName)),
+                new HBox(8, labeledField("Téléphone", phone), labeledField("Email", email)),
+                confirm);
+        content.setPadding(new Insets(10));
+        content.setPrefWidth(360);
+        dialog.getDialogPane().setContent(content);
+        dialog.showAndWait();
+    }
+
+    private static VBox labeledField(String label, TextField field) {
+        Label l = new Label(label);
+        l.getStyleClass().add("form-label");
+        HBox.setHgrow(field, Priority.ALWAYS);
+        return new VBox(4, l, field);
     }
 
     private void detachCustomer() {
@@ -1271,7 +1378,7 @@ public final class PosView extends StackPane implements Reloadable {
                 sale = null;
                 reloadPending();
             } else {
-                ensureSale();
+                resetCartForNextCustomer();
             }
         }, this::fail);
     }
@@ -1409,7 +1516,7 @@ public final class PosView extends StackPane implements Reloadable {
                     sale = null;
                     reloadPending();
                 } else {
-                    ensureSale();
+                    resetCartForNextCustomer();
                 }
             }, t -> {
                 loading.setLoading(false);
