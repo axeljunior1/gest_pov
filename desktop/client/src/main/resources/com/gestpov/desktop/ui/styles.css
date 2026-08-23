@@ -707,6 +707,10 @@
     -fx-text-fill: #14532d;
 }
 
+.pos-title .text {
+    -fx-fill: #14532d;
+}
+
 .pos-workspace {
     -fx-alignment: TOP_CENTER;
 }
@@ -725,6 +729,10 @@
     -fx-font-size: 13px;
     -fx-font-weight: 800;
     -fx-text-fill: #166534;
+}
+
+.pos-section-label .text {
+    -fx-fill: #166534;
 }
 
 .pos-search {
@@ -809,16 +817,28 @@
     -fx-text-fill: #bbf7d0;
 }
 
+.pos-total-caption .text {
+    -fx-fill: #bbf7d0;
+}
+
 .pos-total-amount {
     -fx-font-size: 32px;
     -fx-font-weight: 900;
     -fx-text-fill: #ffffff;
 }
 
+.pos-total-amount .text {
+    -fx-fill: #ffffff;
+}
+
 .pos-change {
     -fx-font-size: 15px;
     -fx-font-weight: 800;
     -fx-text-fill: #166534;
+}
+
+.pos-change .text {
+    -fx-fill: #166534;
 }
 
 .pos-session-card {

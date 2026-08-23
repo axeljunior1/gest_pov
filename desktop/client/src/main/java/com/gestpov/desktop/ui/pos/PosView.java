@@ -6,7 +6,6 @@ import com.gestpov.desktop.model.PosProduct;
 import com.gestpov.desktop.model.Sale;
 import com.gestpov.desktop.model.SaleLine;
 import com.gestpov.desktop.net.ApiException;
-import com.gestpov.desktop.net.CustomerClient;
 import com.gestpov.desktop.net.PosClient;
 import com.gestpov.desktop.session.SessionContext;
 import com.gestpov.desktop.ui.Reloadable;
@@ -55,7 +54,6 @@ public final class PosView extends StackPane implements Reloadable {
 
     private final SessionContext session;
     private final PosClient pos;
-    private final CustomerClient customers;
     private final boolean canPrepare;
     private final boolean canCollect;
     private final boolean canOpenSession;
@@ -89,7 +87,14 @@ public final class PosView extends StackPane implements Reloadable {
     private final Label changeLabel = new Label("");
     private final Label customerLabel = new Label("Aucun client");
     private final TextField customerSearch = new TextField();
-    private final ComboBox<Customer> customerCombo = new ComboBox<>();
+    private final ListView<Customer> customerResults = new ListView<>();
+    private final VBox quickCreateCustomerBox = new VBox(6);
+    private final TextField newCustomerLastName = new TextField();
+    private final TextField newCustomerFirstName = new TextField();
+    private final TextField newCustomerPhone = new TextField();
+    private final Button chooseCustomerBtn = new Button("Choisir un client…");
+    private final Button detachCustomerBtn = new Button("Retirer le client");
+    private javafx.scene.control.Dialog<Void> customerSearchDialog;
     private final TextField loyaltyPoints = new TextField();
     private final Button redeemLoyaltyBtn = new Button("Points fidélité");
     private final TextField qty = new TextField("1");
@@ -123,7 +128,6 @@ public final class PosView extends StackPane implements Reloadable {
     public PosView(SessionContext session) {
         this.session = session;
         this.pos = new PosClient(session.api());
-        this.customers = new CustomerClient(session.api());
         this.canPrepare = session.hasPermission("pos.sale.create")
                 || session.hasPermission("pos.sale.prepare")
                 || session.hasPermission("pos.sale.send_to_payment");
@@ -320,70 +324,92 @@ public final class PosView extends StackPane implements Reloadable {
             }
         });
 
-        customerSearch.setPromptText("Client…");
+        customerSearch.setPromptText("Nom, téléphone…");
         customerSearch.setOnAction(e -> searchCustomers());
-        customerCombo.setConverter(new StringConverter<>() {
-            @Override
-            public String toString(Customer c) {
-                return c == null ? "" : c.displayLabel();
-            }
+        javafx.animation.PauseTransition customerSearchDebounce =
+                new javafx.animation.PauseTransition(javafx.util.Duration.millis(250));
+        customerSearchDebounce.setOnFinished(e -> searchCustomers());
+        customerSearch.textProperty().addListener((o, a, b) -> {
+            customerSearchDebounce.stop();
+            customerSearchDebounce.playFromStart();
+        });
 
-            @Override
-            public Customer fromString(String s) {
-                return null;
-            }
-        });
-        customerCombo.setCellFactory(cb -> new ListCell<>() {
+        customerResults.setPlaceholder(new EmptyState("Aucun client"));
+        customerResults.getStyleClass().add("pos-panel");
+        customerResults.setCellFactory(lv -> new ListCell<>() {
             @Override
             protected void updateItem(Customer item, boolean empty) {
                 super.updateItem(item, empty);
-                setText(empty || item == null ? null : item.displayLabel());
+                if (empty || item == null) {
+                    setText(null);
+                    setGraphic(null);
+                    return;
+                }
+                Label name = new Label(item.displayName().isBlank() ? item.displayLabel() : item.displayName());
+                name.setStyle("-fx-font-weight: 700;");
+                String phoneText = item.phone() == null ? "" : item.phone();
+                VBox box;
+                if (phoneText.isBlank()) {
+                    box = new VBox(name);
+                } else {
+                    Label phone = new Label(phoneText);
+                    phone.setStyle("-fx-text-fill: #64748b; -fx-font-size: 12px;");
+                    box = new VBox(2, name, phone);
+                }
+                setText(null);
+                setGraphic(box);
             }
         });
-        customerCombo.setButtonCell(new ListCell<>() {
-            @Override
-            protected void updateItem(Customer item, boolean empty) {
-                super.updateItem(item, empty);
-                setText(empty || item == null ? null : item.displayLabel());
+        customerResults.setOnMouseClicked(e -> {
+            Customer selected = customerResults.getSelectionModel().getSelectedItem();
+            if (selected != null) {
+                attachCustomer(selected);
             }
         });
-        Button findCustomer = new Button("Chercher");
-        findCustomer.getStyleClass().addAll("button-secondary", "pos-action-sm");
-        findCustomer.setOnAction(e -> searchCustomers());
-        Button attachCustomer = new Button("Associer");
-        attachCustomer.getStyleClass().addAll("button-primary", "pos-action-sm");
-        attachCustomer.setOnAction(e -> attachCustomer());
-        Button clearCustomer = new Button("×");
-        clearCustomer.setTooltip(new javafx.scene.control.Tooltip("Retirer le client"));
-        clearCustomer.getStyleClass().addAll("button-ghost", "pos-action-sm");
-        clearCustomer.setOnAction(e -> detachCustomer());
-        Button browseCustomers = new Button("…");
-        browseCustomers.setTooltip(new javafx.scene.control.Tooltip("Afficher les premiers clients"));
-        browseCustomers.getStyleClass().addAll("button-secondary", "pos-action-sm");
-        browseCustomers.setOnAction(e -> {
-            customerSearch.clear();
-            searchCustomers();
+        customerResults.getItems().addListener((javafx.collections.ListChangeListener<Customer>) change -> {
+            int count = customerResults.getItems().size();
+            customerResults.setPrefHeight(Math.min(Math.max(count, 1), 6) * 44 + 4);
         });
-        Button newCustomerBtn = new Button("+ Nouveau client");
-        newCustomerBtn.getStyleClass().addAll("button-secondary", "pos-action-sm");
-        newCustomerBtn.setOnAction(e -> openCreateCustomerDialog());
-        boolean canCreateCustomer = session.hasPermission("customer.create");
-        newCustomerBtn.setVisible(canCreateCustomer);
-        newCustomerBtn.setManaged(canCreateCustomer);
+
+        newCustomerLastName.setPromptText("Nom *");
+        newCustomerFirstName.setPromptText("Prénom");
+        newCustomerPhone.setPromptText("Téléphone");
+        Button quickCreateBtn = new Button("Créer et associer");
+        quickCreateBtn.getStyleClass().addAll("button-primary", "pos-action-sm");
+        quickCreateBtn.setOnAction(e -> quickCreateCustomer());
+        Label quickCreateHint = new Label("Aucun client trouvé — création rapide");
+        quickCreateHint.getStyleClass().add("section-hint");
+        VBox quickCreateFields = new VBox(6, newCustomerLastName, newCustomerFirstName, newCustomerPhone, quickCreateBtn);
+        quickCreateCustomerBox.getChildren().setAll(quickCreateHint, quickCreateFields);
+        quickCreateCustomerBox.getStyleClass().add("card");
+        quickCreateCustomerBox.setPadding(new Insets(10));
+        quickCreateCustomerBox.setVisible(false);
+        quickCreateCustomerBox.setManaged(false);
+
+        chooseCustomerBtn.getStyleClass().addAll("button-secondary", "pos-action-sm");
+        chooseCustomerBtn.setOnAction(e -> openCustomerSearchDialog());
+        detachCustomerBtn.getStyleClass().addAll("button-danger", "pos-action-sm");
+        detachCustomerBtn.setOnAction(e -> detachCustomer());
+        detachCustomerBtn.setVisible(false);
+        detachCustomerBtn.setManaged(false);
+
+        customerLabel.getStyleClass().add("pos-section-label");
+        HBox customerHeaderRow = new HBox(10, customerLabel, chooseCustomerBtn, detachCustomerBtn);
+        customerHeaderRow.setAlignment(Pos.CENTER_LEFT);
+
         loyaltyPoints.setPromptText("Points à utiliser");
         loyaltyPoints.setPrefWidth(100);
         redeemLoyaltyBtn.getStyleClass().addAll("button-secondary", "pos-action-sm");
         redeemLoyaltyBtn.setOnAction(e -> redeemLoyalty());
-        redeemLoyaltyBtn.setVisible(session.hasPermission("loyalty.redeem"));
-        redeemLoyaltyBtn.setManaged(redeemLoyaltyBtn.isVisible());
-        loyaltyPoints.setVisible(redeemLoyaltyBtn.isVisible());
-        loyaltyPoints.setManaged(redeemLoyaltyBtn.isVisible());
+        redeemLoyaltyBtn.setVisible(false);
+        redeemLoyaltyBtn.setManaged(false);
+        loyaltyPoints.setVisible(false);
+        loyaltyPoints.setManaged(false);
+        HBox loyaltyRow = new HBox(8, loyaltyPoints, redeemLoyaltyBtn);
+        loyaltyRow.setAlignment(Pos.CENTER_LEFT);
+
         boolean canCustomer = session.hasPermission("customer.read");
-        HBox customerRow = new HBox(8, customerSearch, findCustomer, customerCombo, attachCustomer, clearCustomer,
-                browseCustomers, newCustomerBtn, loyaltyPoints, redeemLoyaltyBtn);
-        customerRow.setAlignment(Pos.CENTER_LEFT);
-        HBox.setHgrow(customerCombo, Priority.ALWAYS);
-        VBox customerBox = new VBox(6, customerLabel, customerRow);
+        VBox customerBox = new VBox(6, customerHeaderRow, loyaltyRow);
         customerBox.setVisible(canCustomer);
         customerBox.setManaged(canCustomer);
 
@@ -823,6 +849,14 @@ public final class PosView extends StackPane implements Reloadable {
         customerLabel.setText("Aucun client");
         changeLabel.setText("");
         cashReceived.clear();
+        chooseCustomerBtn.setVisible(true);
+        chooseCustomerBtn.setManaged(true);
+        detachCustomerBtn.setVisible(false);
+        detachCustomerBtn.setManaged(false);
+        redeemLoyaltyBtn.setVisible(false);
+        redeemLoyaltyBtn.setManaged(false);
+        loyaltyPoints.setVisible(false);
+        loyaltyPoints.setManaged(false);
     }
 
     private void sendToCash() {
@@ -1210,89 +1244,82 @@ public final class PosView extends StackPane implements Reloadable {
         }, this::fail);
     }
 
+    private void openCustomerSearchDialog() {
+        javafx.scene.control.Dialog<Void> dialog = new javafx.scene.control.Dialog<>();
+        dialog.setTitle("Choisir un client");
+        dialog.getDialogPane().getButtonTypes().add(javafx.scene.control.ButtonType.CANCEL);
+        dialog.initOwner(getScene() == null ? null : getScene().getWindow());
+
+        customerSearch.clear();
+        customerResults.getItems().clear();
+        quickCreateCustomerBox.setVisible(false);
+        quickCreateCustomerBox.setManaged(false);
+
+        Label title = new Label("Rechercher un client");
+        title.getStyleClass().add("section-title");
+        VBox content = new VBox(10, title, customerSearch, customerResults, quickCreateCustomerBox);
+        content.setPadding(new Insets(12));
+        content.setPrefWidth(380);
+        dialog.getDialogPane().setContent(content);
+
+        customerSearchDialog = dialog;
+        javafx.application.Platform.runLater(customerSearch::requestFocus);
+        searchCustomers();
+        dialog.showAndWait();
+        customerSearchDialog = null;
+    }
+
     private void searchCustomers() {
         String q = customerSearch.getText() == null ? "" : customerSearch.getText().trim();
         loading.setLoading(true);
         FxAsync.run(() -> pos.searchCustomers(q, 20), list -> {
             loading.setLoading(false);
             error.hide();
-            customerCombo.getItems().setAll(list);
-            if (!list.isEmpty()) {
-                customerCombo.getSelectionModel().selectFirst();
-            } else {
-                error.show(q.isEmpty()
-                        ? "Aucun client à afficher."
-                        : "Aucun client trouvé.");
+            customerResults.getItems().setAll(list);
+            boolean canCreateCustomer = session.hasPermission("customer.create");
+            boolean showQuickCreate = list.isEmpty() && !q.isEmpty() && canCreateCustomer;
+            if (showQuickCreate) {
+                newCustomerLastName.setText(q);
+                newCustomerFirstName.clear();
+                newCustomerPhone.clear();
             }
+            quickCreateCustomerBox.setVisible(showQuickCreate);
+            quickCreateCustomerBox.setManaged(showQuickCreate);
         }, this::fail);
     }
 
-    private void attachCustomer() {
-        Customer c = customerCombo.getSelectionModel().getSelectedItem();
+    private void attachCustomer(Customer c) {
         if (c == null || c.id() == null) {
-            error.show("Choisissez un client.");
             return;
         }
         withSale(currentSale -> {
             loading.setLoading(true);
-            FxAsync.run(() -> pos.assignCustomer(currentSale.id(), c.id()), this::showSale, this::fail);
+            FxAsync.run(() -> pos.assignCustomer(currentSale.id(), c.id()), updated -> {
+                showSale(updated);
+                if (customerSearchDialog != null) {
+                    customerSearchDialog.close();
+                }
+            }, this::fail);
         });
     }
 
-    private void openCreateCustomerDialog() {
-        javafx.scene.control.Dialog<Void> dialog = new javafx.scene.control.Dialog<>();
-        dialog.setTitle("Nouveau client");
-        dialog.getDialogPane().getButtonTypes().add(javafx.scene.control.ButtonType.CANCEL);
-        dialog.initOwner(getScene() == null ? null : getScene().getWindow());
-
-        TextField firstName = new TextField();
-        firstName.setPromptText("Prénom *");
-        TextField lastName = new TextField();
-        lastName.setPromptText("Nom *");
-        TextField phone = new TextField();
-        phone.setPromptText("Téléphone");
-        TextField email = new TextField();
-        email.setPromptText("Email (optionnel)");
-
-        Button confirm = new Button("Créer et associer");
-        confirm.getStyleClass().add("button-primary");
-        confirm.setOnAction(e -> {
-            if (firstName.getText().isBlank() || lastName.getText().isBlank()) {
-                error.show("Nom et prénom obligatoires.");
-                return;
-            }
-            Customer draft = new Customer(null, firstName.getText().trim(), lastName.getText().trim(),
-                    phone.getText().trim(), email.getText().trim(), "", "", "", 0, true);
-            loading.setLoading(true);
-            FxAsync.run(() -> customers.create(draft), created -> {
-                loading.setLoading(false);
-                error.hide();
-                dialog.close();
-                withSale(currentSale -> {
-                    loading.setLoading(true);
-                    FxAsync.run(() -> pos.assignCustomer(currentSale.id(), created.id()), this::showSale, this::fail);
-                });
-            }, t -> {
-                loading.setLoading(false);
-                fail(t);
-            });
+    private void quickCreateCustomer() {
+        if (newCustomerLastName.getText() == null || newCustomerLastName.getText().isBlank()) {
+            error.show("Nom obligatoire.");
+            return;
+        }
+        String lastName = newCustomerLastName.getText().trim();
+        String firstName = newCustomerFirstName.getText() == null ? "" : newCustomerFirstName.getText().trim();
+        String phone = newCustomerPhone.getText() == null ? "" : newCustomerPhone.getText().trim();
+        loading.setLoading(true);
+        FxAsync.run(() -> pos.quickCreateCustomer(lastName, firstName, phone), created -> {
+            loading.setLoading(false);
+            error.hide();
+            attachCustomer(created);
+        }, t -> {
+            loading.setLoading(false);
+            fail(t);
         });
-
-        VBox content = new VBox(10,
-                new HBox(8, labeledField("Prénom", firstName), labeledField("Nom", lastName)),
-                new HBox(8, labeledField("Téléphone", phone), labeledField("Email", email)),
-                confirm);
-        content.setPadding(new Insets(10));
-        content.setPrefWidth(360);
-        dialog.getDialogPane().setContent(content);
-        dialog.showAndWait();
-    }
-
-    private static VBox labeledField(String label, TextField field) {
-        Label l = new Label(label);
-        l.getStyleClass().add("form-label");
-        HBox.setHgrow(field, Priority.ALWAYS);
-        return new VBox(4, l, field);
     }
 
     private void detachCustomer() {
@@ -1546,12 +1573,22 @@ public final class PosView extends StackPane implements Reloadable {
         sale = next;
         cart.getItems().setAll(next.lignes() == null ? List.of() : next.lignes());
         total.setText(ProductLabels.price(next.total() == null ? BigDecimal.ZERO : next.total()));
-        if (next.hasCustomer()) {
+        boolean hasCustomer = next.hasCustomer();
+        if (hasCustomer) {
             customerLabel.setText("Client : " + (next.customerName() == null ? "#" + next.customerId() : next.customerName())
                     + (next.customerLoyaltyPoints() == null ? "" : " · " + next.customerLoyaltyPoints() + " pts"));
         } else {
             customerLabel.setText("Aucun client");
         }
+        chooseCustomerBtn.setVisible(!hasCustomer);
+        chooseCustomerBtn.setManaged(!hasCustomer);
+        detachCustomerBtn.setVisible(hasCustomer);
+        detachCustomerBtn.setManaged(hasCustomer);
+        boolean canRedeem = hasCustomer && session.hasPermission("loyalty.redeem");
+        redeemLoyaltyBtn.setVisible(canRedeem);
+        redeemLoyaltyBtn.setManaged(canRedeem);
+        loyaltyPoints.setVisible(canRedeem);
+        loyaltyPoints.setManaged(canRedeem);
         if ("CASH".equals(payMethod.getValue()) && next.total() != null
                 && (cashReceived.getText() == null || cashReceived.getText().isBlank()
                 || cart.getItems().isEmpty())) {

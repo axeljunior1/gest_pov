@@ -210,6 +210,19 @@ public class PosClient {
         return Sale.fromJson(api.put("/api/pos/sales/" + saleId + "/customer", Map.of("customerId", customerId)));
     }
 
+    /** Création rapide côté POS — seul le nom est obligatoire (prénom "Client" par défaut). */
+    public Customer quickCreateCustomer(String lastName, String firstName, String phone) throws ApiException {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("lastName", lastName);
+        if (firstName != null && !firstName.isBlank()) {
+            body.put("firstName", firstName);
+        }
+        if (phone != null && !phone.isBlank()) {
+            body.put("phone", phone);
+        }
+        return Customer.fromJson(api.post("/api/pos/customers/quick", body));
+    }
+
     public Sale clearCustomer(long saleId) throws ApiException {
         return Sale.fromJson(api.delete("/api/pos/sales/" + saleId + "/customer"));
     }

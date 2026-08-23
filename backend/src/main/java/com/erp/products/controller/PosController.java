@@ -108,7 +108,19 @@ public class PosController {
     @ResponseStatus(HttpStatus.CREATED)
     @PreAuthorize("@permissionChecker.has(authentication, 'pos.sale.create')")
     public SaleResponse createSale() {
-        return saleService.createSale();
+        // Filet de sécurité pour une vraie collision simultanée entre deux postes (le n° de
+        // vente lui-même est désormais dérivé du MAX existant, robuste aux trous de séquence).
+        int attempts = 0;
+        while (true) {
+            try {
+                return saleService.createSale();
+            } catch (org.springframework.dao.DataIntegrityViolationException e) {
+                attempts++;
+                if (attempts >= 5) {
+                    throw e;
+                }
+            }
+        }
     }
 
     @GetMapping("/sales/{id}")

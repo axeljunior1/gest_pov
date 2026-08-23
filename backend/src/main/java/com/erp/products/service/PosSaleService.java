@@ -764,7 +764,19 @@ public class PosSaleService {
     private String generateSaleNumber() {
         String prefix = settingsService.getNumberingConfig().getSalePrefix()
                 + "-" + LocalDate.now().format(DateTimeFormatter.BASIC_ISO_DATE) + "-";
-        long seq = saleRepository.countBySaleNumberStartingWith(prefix) + 1;
+        // MAX(suffixe)+1, pas COUNT(*)+1 : un COUNT se désynchronise dès qu'une vente du
+        // préfixe est supprimée (ex. nettoyage des ventes fantômes) et régénère indéfiniment
+        // le même numéro déjà pris.
+        long seq = saleRepository.findTopBySaleNumberStartingWithOrderBySaleNumberDesc(prefix)
+                .map(s -> {
+                    String suffix = s.getSaleNumber().substring(prefix.length());
+                    try {
+                        return Long.parseLong(suffix);
+                    } catch (NumberFormatException e) {
+                        return 0L;
+                    }
+                })
+                .orElse(0L) + 1;
         return prefix + String.format("%04d", seq);
     }
 

@@ -17,6 +17,9 @@ public interface SaleRepository extends JpaRepository<Sale, Long> {
 
     long countBySaleNumberStartingWith(String prefix);
 
+    /** Dernier numéro du préfixe (ordre lexicographique = numérique tant que le suffixe reste sur 4 chiffres). */
+    Optional<Sale> findTopBySaleNumberStartingWithOrderBySaleNumberDesc(String prefix);
+
     Optional<Sale> findBySaleNumber(String saleNumber);
 
     List<Sale> findByPosSessionIdAndStatusOrderByCreatedAtDesc(Long sessionId, SaleStatus status);
