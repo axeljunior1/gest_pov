@@ -155,6 +155,28 @@ public class StockClient {
         return api.post("/api/stock/entries", body);
     }
 
+    public JsonNode updateEntry(long id, Long supplierId, long warehouseId, long locationId, LocalDate entryDate,
+                               String referenceDocument, String notes, List<Map<String, Object>> lines)
+            throws ApiException {
+        Map<String, Object> body = new LinkedHashMap<>();
+        if (supplierId != null) {
+            body.put("supplierId", supplierId);
+        }
+        body.put("warehouseId", warehouseId);
+        body.put("locationId", locationId);
+        if (entryDate != null) {
+            body.put("entryDate", entryDate.toString());
+        }
+        if (referenceDocument != null && !referenceDocument.isBlank()) {
+            body.put("referenceDocument", referenceDocument.trim());
+        }
+        if (notes != null && !notes.isBlank()) {
+            body.put("notes", notes.trim());
+        }
+        body.put("lignes", lines);
+        return api.put("/api/stock/entries/" + id, body);
+    }
+
     public JsonNode validateEntry(long id) throws ApiException {
         return api.post("/api/stock/entries/" + id + "/validate", Map.of());
     }
@@ -245,6 +267,19 @@ public class StockClient {
         }
         body.put("lignes", lines);
         return api.post("/api/stock/exits", body);
+    }
+
+    public JsonNode updateExit(long id, long warehouseId, long locationId, String reason, String notes,
+                              List<Map<String, Object>> lines) throws ApiException {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("warehouseId", warehouseId);
+        body.put("locationId", locationId);
+        body.put("reason", reason);
+        if (notes != null && !notes.isBlank()) {
+            body.put("notes", notes.trim());
+        }
+        body.put("lignes", lines);
+        return api.put("/api/stock/exits/" + id, body);
     }
 
     public JsonNode validateExit(long id) throws ApiException {

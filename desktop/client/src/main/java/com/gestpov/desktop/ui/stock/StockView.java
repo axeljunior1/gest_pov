@@ -20,7 +20,6 @@ import com.gestpov.desktop.ui.component.ListPager;
 import com.gestpov.desktop.ui.component.LoadingOverlay;
 import com.gestpov.desktop.util.FxAsync;
 import javafx.beans.property.ReadOnlyStringWrapper;
-import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.Alert;
@@ -94,6 +93,7 @@ public final class StockView extends StackPane implements Reloadable {
     private final TextField reasonField = new TextField();
 
     private final TableView<StockMovement> movementsTable = new TableView<>();
+    private final ListPager<StockMovement> movementsPager = new ListPager<>(movementsTable);
     private final ComboBox<ProductOption> historyProductFilter = new ComboBox<>();
     private final ComboBox<Warehouse> historyWarehouseFilter = new ComboBox<>();
     private final DatePicker historyDateFrom = new DatePicker();
@@ -169,8 +169,20 @@ public final class StockView extends StackPane implements Reloadable {
             if (!btn.isSelected()) {
                 btn.setSelected(true);
             }
+            pulse(btn);
             showSelectedTab();
         });
+    }
+
+    /** Petit effet de transition (pop) quand un onglet devient actif. */
+    private static void pulse(ToggleButton btn) {
+        javafx.animation.ScaleTransition st = new javafx.animation.ScaleTransition(
+                javafx.util.Duration.millis(140), btn);
+        btn.setScaleX(0.94);
+        btn.setScaleY(0.94);
+        st.setToX(1.0);
+        st.setToY(1.0);
+        st.play();
     }
 
     private void showSelectedTab() {
@@ -326,10 +338,9 @@ public final class StockView extends StackPane implements Reloadable {
         bar.getStyleClass().add("card");
         movementsTable.setPlaceholder(new EmptyState("Aucun mouvement"));
         movementsTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
-        movementsTable.setItems(FXCollections.observableArrayList());
         movementsTable.getColumns().addAll(
                 movCol("Date", m -> m.createdAt() == null ? "—" : m.createdAt()),
-                movCol("Type", StockMovement::typeLabel),
+                movementTypeCol(),
                 movCol("Produit", m -> m.productNom() == null ? "—" : m.productNom()),
                 movCol("Entrepôt", m -> m.warehouseCode() == null ? "—" : m.warehouseCode()),
                 movCol("Empl.", m -> m.locationCode() == null ? "—" : m.locationCode()),
@@ -338,7 +349,21 @@ public final class StockView extends StackPane implements Reloadable {
                 movCol("Réf.", m -> m.reference() == null ? "" : m.reference())
         );
         VBox.setVgrow(movementsTable, Priority.ALWAYS);
-        historyPane.getChildren().setAll(bar, movementsTable);
+        historyPane.getChildren().setAll(bar, movementsTable, movementsPager.bar());
+    }
+
+    private TableColumn<StockMovement, String> movementTypeCol() {
+        TableColumn<StockMovement, String> col = movCol("Type", StockMovement::typeLabel);
+        col.setCellFactory(c -> new TableCell<>() {
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty ? null : item);
+                StockMovement row = empty || getTableRow() == null ? null : getTableRow().getItem();
+                setStyle(row == null ? "" : "-fx-text-fill: " + row.typeColor() + "; -fx-font-weight: 800;");
+            }
+        });
+        return col;
     }
 
     private void prefillMoveFrom(StockItem item) {
@@ -700,7 +725,7 @@ public final class StockView extends StackPane implements Reloadable {
         LocalDate to = historyDateTo.getValue();
         FxAsync.run(() -> client.listMovements(productId, warehouseId, from, to), list -> {
             loading.setLoading(false);
-            movementsTable.getItems().setAll(list);
+            movementsPager.setItems(list);
         }, this::fail);
     }
 

@@ -18,6 +18,7 @@ public class AlertRuleEngine {
     private final ExpiryAlertChecker expiryAlertChecker;
     private final DormantProductChecker dormantProductChecker;
     private final SupplierDelayChecker supplierDelayChecker;
+    private final StaleDraftChecker staleDraftChecker;
     private final AlertService alertService;
 
     @Transactional
@@ -38,6 +39,7 @@ public class AlertRuleEngine {
         expiryAlertChecker.checkAll();
         dormantProductChecker.checkAll();
         supplierDelayChecker.checkAll();
+        staleDraftChecker.checkAll();
     }
 
     @Transactional

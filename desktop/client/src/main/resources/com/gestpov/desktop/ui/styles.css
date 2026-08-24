@@ -32,6 +32,17 @@
     -fx-fill: #7c2d12;
 }
 
+.app-title-center {
+    -fx-font-size: 20px;
+    -fx-font-weight: 800;
+    -fx-text-fill: #2563eb;
+    -fx-letter-spacing: 0.6px;
+}
+
+.app-title-center .text {
+    -fx-fill: #2563eb;
+}
+
 .top-bar {
     -fx-background-color: #ffffff;
     -fx-border-color: #cbd5e1;
@@ -81,7 +92,6 @@
     -fx-border-color: #1e293b;
     -fx-border-width: 0 1 0 0;
     -fx-padding: 18 14 18 14;
-    -fx-pref-width: 252;
 }
 
 /* ScrollPane JavaFX peint souvent en blanc : force le fond sombre. */
@@ -165,6 +175,34 @@
 .nav-button-active:focused {
     -fx-background-color: #2563eb;
     -fx-text-fill: #ffffff;
+}
+
+.nav-star {
+    -fx-background-color: transparent;
+    -fx-text-fill: #64748b;
+    -fx-font-size: 14px;
+    -fx-padding: 4 6 4 4;
+    -fx-cursor: hand;
+    -fx-background-radius: 6;
+}
+
+.nav-star .text {
+    -fx-fill: #64748b;
+}
+
+.nav-star:hover {
+    -fx-background-color: #1e293b;
+    -fx-text-fill: #fbbf24;
+}
+
+.nav-star:hover .text {
+    -fx-fill: #fbbf24;
+}
+
+.nav-star-active,
+.nav-star-active .text {
+    -fx-text-fill: #fbbf24;
+    -fx-fill: #fbbf24;
 }
 
 .nav-coming {
@@ -282,6 +320,17 @@
 
 .button-secondary:hover {
     -fx-background-color: #cbd5e1;
+}
+
+/* Onglets (ToggleButton) actifs — ex. Stock/Mouvement/Historique, Entrées/Sorties. */
+.button-secondary:selected {
+    -fx-background-color: #2563eb;
+    -fx-text-fill: #ffffff;
+    -fx-effect: dropshadow(gaussian, rgba(37, 99, 235, 0.35), 8, 0.2, 0, 2);
+}
+
+.button-secondary:selected:hover {
+    -fx-background-color: #1d4ed8;
 }
 
 .button-danger {

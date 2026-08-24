@@ -21,6 +21,8 @@ public interface AlertRepository extends JpaRepository<Alert, Long>, JpaSpecific
 
     List<Alert> findByStatusOrderByLastTriggeredAtDesc(AlertStatus status);
 
+    List<Alert> findByTypeAndStatus(AlertType type, AlertStatus status);
+
     List<Alert> findByProductIdOrderByLastTriggeredAtDesc(Long productId);
 
     List<Alert> findAllByOrderByLastTriggeredAtDesc();

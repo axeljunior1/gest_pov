@@ -1,6 +1,7 @@
 package com.gestpov.desktop.ui;
 
 import com.gestpov.desktop.net.DashboardClient;
+import com.gestpov.desktop.net.FavoritesClient;
 import com.gestpov.desktop.session.SessionContext;
 import com.gestpov.desktop.ui.admin.AlertsView;
 import com.gestpov.desktop.ui.admin.ImportExportView;
@@ -31,7 +32,9 @@ import com.gestpov.desktop.ui.stock.WarehousesView;
 import com.gestpov.desktop.ui.suppliers.SuppliersView;
 import com.gestpov.desktop.ui.units.UnitsView;
 import com.gestpov.desktop.util.FxAsync;
+import javafx.animation.Interpolator;
 import javafx.animation.KeyFrame;
+import javafx.animation.KeyValue;
 import javafx.animation.Timeline;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -43,20 +46,43 @@ import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
+import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
+import javafx.scene.shape.Rectangle;
 import javafx.util.Duration;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * Fenêtre principale après login. Navigation par permissions + raccourcis clavier.
  */
 public final class MainWindow extends BorderPane {
 
+    private static final double SIDEBAR_WIDTH = 252;
+    private static final double SIDEBAR_RAIL_WIDTH = 60;
+
     private final SessionContext session;
     private final StackPane center = new StackPane();
+    private final VBox sidebar = new VBox(12);
+    private final Label brand = new Label("Gest POV");
+    private final VBox sidebarBody = new VBox(12);
+    private final Button sidebarToggle = new Button("☰");
+    private boolean sidebarCollapsed = false;
+
+    private final FavoritesClient favoritesClient;
+    private final VBox navItems = new VBox(4);
+    private final VBox favoritesSection = new VBox(4);
+    private final VBox favoritesRows = new VBox(4);
+    private final Set<String> favoriteKeys = new LinkedHashSet<>();
+    private final Map<String, HBox> navRows = new LinkedHashMap<>();
+    private final Map<String, Button> navStars = new LinkedHashMap<>();
+    private final Map<String, Integer> navOriginalIndex = new LinkedHashMap<>();
     private final List<Button> navButtons = new ArrayList<>();
     private final Label healthDot = new Label("●");
     private final Label healthLabel = new Label("Serveur…");
@@ -121,8 +147,8 @@ public final class MainWindow extends BorderPane {
 
     public MainWindow(SessionContext session, Runnable logout) {
         this.session = session;
+        this.favoritesClient = new FavoritesClient(session.api());
 
-        Label brand = new Label("Gest POV");
         brand.getStyleClass().add("brand-title");
         Label server = new Label(session.serverName() + "  ·  v" + session.serverVersion());
         server.getStyleClass().add("brand-sub");
@@ -157,17 +183,23 @@ public final class MainWindow extends BorderPane {
         licenseNav.setOnAction(e -> showLicense());
         settingsNav.setOnAction(e -> showSettings());
 
-        VBox navItems = new VBox(4);
+        Label favoritesLabel = section("FAVORIS");
+        favoritesSection.getChildren().setAll(favoritesLabel, favoritesRows);
+        favoritesSection.setManaged(false);
+        favoritesSection.setVisible(false);
+        navItems.getChildren().add(favoritesSection);
+
         boolean any = false;
         if (session.hasPermission("dashboard.read")) {
-            navItems.getChildren().addAll(section("ACCUEIL"), dashboardNav);
+            navItems.getChildren().addAll(section("ACCUEIL"), row("dashboard", dashboardNav));
             any = true;
         }
         if (session.hasPermission("products.read")) {
-            navItems.getChildren().addAll(section("CATALOGUE"), productsNav, categoriesNav, brandsNav,
-                    suppliersNav, unitsNav, attributesNav);
+            navItems.getChildren().addAll(section("CATALOGUE"), row("products", productsNav),
+                    row("categories", categoriesNav), row("brands", brandsNav), row("suppliers", suppliersNav),
+                    row("units", unitsNav), row("attributes", attributesNav));
             if (session.hasPermission("products.update")) {
-                navItems.getChildren().add(barcodePrintNav);
+                navItems.getChildren().add(row("barcode-print", barcodePrintNav));
             }
             any = true;
         }
@@ -178,16 +210,17 @@ public final class MainWindow extends BorderPane {
         if (stockSection) {
             navItems.getChildren().add(section("STOCK"));
             if (session.hasPermission("stock.read")) {
-                navItems.getChildren().addAll(stockNav, warehousesNav, valuationNav, transfersNav);
+                navItems.getChildren().addAll(row("stock", stockNav), row("warehouses", warehousesNav),
+                        row("valuation", valuationNav), row("transfers", transfersNav));
             }
             if (session.hasPermission("stock_entry.read") || session.hasPermission("stock_exit.read")) {
-                navItems.getChildren().add(entriesExitsNav);
+                navItems.getChildren().add(row("entries-exits", entriesExitsNav));
             }
             if (session.hasPermission("inventory.read")) {
-                navItems.getChildren().add(inventoriesNav);
+                navItems.getChildren().add(row("inventories", inventoriesNav));
             }
             if (session.hasPermission("stock_entry.read")) {
-                navItems.getChildren().add(purchaseOrdersNav);
+                navItems.getChildren().add(row("purchase-orders", purchaseOrdersNav));
             }
             any = true;
         }
@@ -201,31 +234,31 @@ public final class MainWindow extends BorderPane {
                 || session.hasPermission("analytics.sales.read")) {
             navItems.getChildren().add(section("VENTES"));
             if (session.hasPermission("pos.sale.read")) {
-                navItems.getChildren().add(posNav);
+                navItems.getChildren().add(row("pos", posNav));
             }
             if (session.hasPermission("pos.ticket.print") || session.hasPermission("pos.ticket.reprint")
                     || session.hasPermission("pos.report.read")) {
-                navItems.getChildren().add(posHistoryNav);
+                navItems.getChildren().add(row("pos-history", posHistoryNav));
             }
             if (session.hasPermission("pos.report.read")) {
-                navItems.getChildren().add(posReportsNav);
+                navItems.getChildren().add(row("pos-reports", posReportsNav));
             }
             if (session.hasPermission("pos.return.create") || session.hasPermission("pos.sale.refund")
                     || session.hasPermission("pos.return.read")) {
-                navItems.getChildren().add(posReturnsNav);
+                navItems.getChildren().add(row("pos-returns", posReturnsNav));
             }
             if (session.hasPermission("customer.read")) {
-                navItems.getChildren().add(customersNav);
+                navItems.getChildren().add(row("customers", customersNav));
             }
             if (session.hasPermission("pos.sale.read") || session.hasPermission("pos.sale.read_own")
                     || session.hasPermission("analytics.sales.read") || session.hasPermission("pos.report.read")) {
-                navItems.getChildren().add(salesNav);
+                navItems.getChildren().add(row("sales", salesNav));
             }
             any = true;
         }
         if (session.hasPermission("analytics.read") || session.hasPermission("analytics.sales.read")
                 || session.hasPermission("sales.cancellations.read")) {
-            navItems.getChildren().addAll(section("ANALYTICS"), analyticsNav);
+            navItems.getChildren().addAll(section("ANALYTICS"), row("analytics", analyticsNav));
             any = true;
         }
         boolean adminSection = session.hasPermission("users.read")
@@ -236,24 +269,25 @@ public final class MainWindow extends BorderPane {
         if (adminSection) {
             navItems.getChildren().add(section("ADMIN"));
             if (session.hasPermission("users.read")) {
-                navItems.getChildren().add(usersNav);
+                navItems.getChildren().add(row("users", usersNav));
             }
             if (session.hasPermission("roles.read")) {
-                navItems.getChildren().add(rolesNav);
+                navItems.getChildren().add(row("roles", rolesNav));
             }
             if (session.hasPermission("alerts.read")) {
-                navItems.getChildren().add(alertsNav);
+                navItems.getChildren().add(row("alerts", alertsNav));
             }
             if (session.hasPermission("import.read") || session.hasPermission("export.read")) {
-                navItems.getChildren().add(importExportNav);
+                navItems.getChildren().add(row("import-export", importExportNav));
             }
             any = true;
         }
         if (session.hasPermission("settings.read")) {
-            navItems.getChildren().addAll(section("PARAMÈTRES"), settingsNav, licenseNav);
+            navItems.getChildren().addAll(section("PARAMÈTRES"), row("settings", settingsNav),
+                    row("license", licenseNav));
             any = true;
         } else {
-            navItems.getChildren().addAll(section("PARAMÈTRES"), licenseNav);
+            navItems.getChildren().addAll(section("PARAMÈTRES"), row("license", licenseNav));
             any = true;
         }
         if (!any) {
@@ -263,7 +297,15 @@ public final class MainWindow extends BorderPane {
             navItems.getChildren().add(none);
         }
 
-        Label hints = new Label("F4 Caisse  ·  F2 Recherche POS\nCtrl+1…8 écrans");
+        for (Map.Entry<String, HBox> entry : navRows.entrySet()) {
+            navOriginalIndex.put(entry.getKey(), navItems.getChildren().indexOf(entry.getValue()));
+        }
+        FxAsync.run(favoritesClient::list, keys -> keys.forEach(k -> applyFavoriteState(k, true)),
+                ignored -> {
+                    // pas de favoris disponibles (hors ligne au demarrage) — l'utilisateur pourra reessayer
+                });
+
+        Label hints = new Label("F4 Caisse  ·  F2 Recherche POS\nCtrl+1…8 écrans  ·  Ctrl+B menu");
         hints.getStyleClass().add("nav-coming");
         hints.setWrapText(true);
 
@@ -275,9 +317,26 @@ public final class MainWindow extends BorderPane {
         scroll.setBackground(null);
         navItems.setStyle("-fx-background-color: transparent;");
 
-        VBox sidebar = new VBox(12, brand, server, scroll, hints);
+        sidebarToggle.getStyleClass().add("button-ghost");
+        sidebarToggle.setTooltip(new javafx.scene.control.Tooltip("Ouvrir/fermer le menu (Ctrl+B)"));
+        sidebarToggle.setOnAction(e -> toggleSidebar());
+        HBox brandSpacer = new HBox();
+        HBox.setHgrow(brandSpacer, Priority.ALWAYS);
+        HBox brandRow = new HBox(8, brand, brandSpacer, sidebarToggle);
+        brandRow.setAlignment(Pos.CENTER_LEFT);
+
+        sidebarBody.getChildren().setAll(server, scroll, hints);
+        sidebar.getChildren().setAll(brandRow, sidebarBody);
         sidebar.getStyleClass().add("sidebar");
         VBox.setVgrow(scroll, Priority.ALWAYS);
+        VBox.setVgrow(sidebarBody, Priority.ALWAYS);
+        sidebar.setMinWidth(0);
+        sidebar.setPrefWidth(SIDEBAR_WIDTH);
+        sidebar.setMaxWidth(SIDEBAR_WIDTH);
+        Rectangle sidebarClip = new Rectangle();
+        sidebarClip.widthProperty().bind(sidebar.widthProperty());
+        sidebarClip.heightProperty().bind(sidebar.heightProperty());
+        sidebar.setClip(sidebarClip);
 
         healthDot.getStyleClass().add("health-dot");
         healthDot.getStyleClass().add("health-unknown");
@@ -295,10 +354,22 @@ public final class MainWindow extends BorderPane {
             logout.run();
         });
 
-        HBox top = new HBox(16, health, user, logoutBtn);
-        top.setAlignment(Pos.CENTER_RIGHT);
-        top.getStyleClass().add("top-bar");
-        HBox.setHgrow(user, Priority.ALWAYS);
+        HBox topRight = new HBox(16, health, user, logoutBtn);
+        topRight.setAlignment(Pos.CENTER_LEFT);
+
+        Label companyTitle = new Label("AXIT - GEST-POV");
+        companyTitle.getStyleClass().add("app-title-center");
+
+        Region leftSpacer = new Region();
+        leftSpacer.prefWidthProperty().bind(topRight.widthProperty());
+        leftSpacer.setMouseTransparent(true);
+
+        BorderPane topBar = new BorderPane();
+        topBar.getStyleClass().add("top-bar");
+        topBar.setLeft(leftSpacer);
+        topBar.setCenter(companyTitle);
+        BorderPane.setAlignment(companyTitle, Pos.CENTER);
+        topBar.setRight(topRight);
 
         center.setPadding(new Insets(16));
         openDefaultScreen();
@@ -306,9 +377,11 @@ public final class MainWindow extends BorderPane {
         addEventFilter(KeyEvent.KEY_PRESSED, this::onShortcut);
         startHealthPolling();
 
+        VBox.setVgrow(center, Priority.ALWAYS);
+        VBox rightSide = new VBox(topBar, center);
+
         setLeft(sidebar);
-        setTop(top);
-        setCenter(center);
+        setCenter(rightSide);
     }
 
     private void openDefaultScreen() {
@@ -336,6 +409,20 @@ public final class MainWindow extends BorderPane {
         healthTimeline = new Timeline(new KeyFrame(Duration.seconds(20), e -> pingHealth()));
         healthTimeline.setCycleCount(Timeline.INDEFINITE);
         healthTimeline.play();
+    }
+
+    private void toggleSidebar() {
+        sidebarCollapsed = !sidebarCollapsed;
+        double target = sidebarCollapsed ? SIDEBAR_RAIL_WIDTH : SIDEBAR_WIDTH;
+        Timeline anim = new Timeline(new KeyFrame(Duration.millis(220),
+                new KeyValue(sidebar.prefWidthProperty(), target, Interpolator.EASE_BOTH),
+                new KeyValue(sidebar.maxWidthProperty(), target, Interpolator.EASE_BOTH)));
+        anim.play();
+        brand.setManaged(!sidebarCollapsed);
+        brand.setVisible(!sidebarCollapsed);
+        sidebarBody.setManaged(!sidebarCollapsed);
+        sidebarBody.setVisible(!sidebarCollapsed);
+        sidebarToggle.setText(sidebarCollapsed ? "»" : "☰");
     }
 
     private void stopHealth() {
@@ -394,6 +481,11 @@ public final class MainWindow extends BorderPane {
             return;
         }
         if (!e.isControlDown() || e.isAltDown() || e.isMetaDown()) {
+            return;
+        }
+        if (e.getCode() == KeyCode.B) {
+            toggleSidebar();
+            e.consume();
             return;
         }
         switch (e.getCode()) {
@@ -690,6 +782,61 @@ public final class MainWindow extends BorderPane {
         if (!active.getStyleClass().contains("nav-button-active")) {
             active.getStyleClass().add("nav-button-active");
         }
+    }
+
+    /** Ligne de nav (bouton + etoile favori) ; l'etoile deplace la ligne en haut du bandeau. */
+    private HBox row(String key, Button navButton) {
+        Button star = new Button(favoriteKeys.contains(key) ? "★" : "☆");
+        star.getStyleClass().add("nav-star");
+        star.setOnAction(e -> toggleFavorite(key));
+        HBox.setHgrow(navButton, Priority.ALWAYS);
+        HBox r = new HBox(4, navButton, star);
+        r.setAlignment(Pos.CENTER_LEFT);
+        navRows.put(key, r);
+        navStars.put(key, star);
+        return r;
+    }
+
+    private void toggleFavorite(String key) {
+        boolean nowFavorite = !favoriteKeys.contains(key);
+        applyFavoriteState(key, nowFavorite);
+        if (nowFavorite) {
+            FxAsync.runVoid(() -> favoritesClient.add(key), () -> {
+            }, ignored -> applyFavoriteState(key, false));
+        } else {
+            FxAsync.runVoid(() -> favoritesClient.remove(key), () -> {
+            }, ignored -> applyFavoriteState(key, true));
+        }
+    }
+
+    private void applyFavoriteState(String key, boolean favorite) {
+        HBox row = navRows.get(key);
+        Button star = navStars.get(key);
+        if (row == null || star == null) {
+            return;
+        }
+        if (favorite) {
+            if (!favoriteKeys.add(key)) {
+                return;
+            }
+            navItems.getChildren().remove(row);
+            favoritesRows.getChildren().add(row);
+            star.setText("★");
+            star.getStyleClass().add("nav-star-active");
+        } else {
+            if (!favoriteKeys.remove(key)) {
+                return;
+            }
+            favoritesRows.getChildren().remove(row);
+            int idx = Math.min(navOriginalIndex.getOrDefault(key, navItems.getChildren().size()),
+                    navItems.getChildren().size());
+            navItems.getChildren().add(idx, row);
+            star.setText("☆");
+            star.getStyleClass().remove("nav-star-active");
+        }
+        boolean hasFavorites = !favoritesRows.getChildren().isEmpty();
+        favoritesSection.setManaged(hasFavorites);
+        favoritesSection.setVisible(hasFavorites);
     }
 
     private Button nav(String title) {

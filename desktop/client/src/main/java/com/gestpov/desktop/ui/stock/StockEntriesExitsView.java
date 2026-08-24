@@ -18,6 +18,7 @@ import com.gestpov.desktop.ui.component.EmptyState;
 import com.gestpov.desktop.ui.component.ErrorBanner;
 import com.gestpov.desktop.ui.component.LoadingOverlay;
 import com.gestpov.desktop.util.FxAsync;
+import javafx.animation.PauseTransition;
 import javafx.beans.property.ReadOnlyStringWrapper;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -42,10 +43,13 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
+import javafx.util.Duration;
 
 import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -67,10 +71,12 @@ public final class StockEntriesExitsView extends StackPane implements Reloadable
     private final SupplierClient suppliers;
     private final boolean canReadEntries;
     private final boolean canCreateEntries;
+    private final boolean canUpdateEntries;
     private final boolean canValidateEntries;
     private final boolean canCancelEntries;
     private final boolean canReadExits;
     private final boolean canCreateExits;
+    private final boolean canUpdateExits;
     private final boolean canValidateExits;
     private final boolean canCancelExits;
     private final ErrorBanner error = new ErrorBanner();
@@ -100,10 +106,12 @@ public final class StockEntriesExitsView extends StackPane implements Reloadable
         this.suppliers = new SupplierClient(session.api());
         this.canReadEntries = session.hasPermission("stock_entry.read");
         this.canCreateEntries = session.hasPermission("stock_entry.create");
+        this.canUpdateEntries = session.hasPermission("stock_entry.update");
         this.canValidateEntries = session.hasPermission("stock_entry.validate");
         this.canCancelEntries = session.hasPermission("stock_entry.cancel");
         this.canReadExits = session.hasPermission("stock_exit.read");
         this.canCreateExits = session.hasPermission("stock_exit.create");
+        this.canUpdateExits = session.hasPermission("stock_exit.update");
         this.canValidateExits = session.hasPermission("stock_exit.validate");
         this.canCancelExits = session.hasPermission("stock_exit.cancel");
         getChildren().addAll(build(), loading);
@@ -162,7 +170,11 @@ public final class StockEntriesExitsView extends StackPane implements Reloadable
             TableRow<StockEntryDoc> row = new TableRow<>();
             row.setOnMouseClicked(ev -> {
                 if (ev.getClickCount() == 2 && !row.isEmpty() && row.getItem().id() != null) {
-                    showEntryDetail(row.getItem().id());
+                    if (canUpdateEntries && "DRAFT".equals(row.getItem().status())) {
+                        openEditEntryDraft(row.getItem().id());
+                    } else {
+                        showEntryDetail(row.getItem().id());
+                    }
                 }
             });
             return row;
@@ -207,7 +219,11 @@ public final class StockEntriesExitsView extends StackPane implements Reloadable
             TableRow<StockExitDoc> row = new TableRow<>();
             row.setOnMouseClicked(ev -> {
                 if (ev.getClickCount() == 2 && !row.isEmpty() && row.getItem().id() != null) {
-                    showExitDetail(row.getItem().id());
+                    if (canUpdateExits && "DRAFT".equals(row.getItem().status())) {
+                        openEditExitDraft(row.getItem().id());
+                    } else {
+                        showExitDetail(row.getItem().id());
+                    }
                 }
             });
             return row;
@@ -488,14 +504,34 @@ public final class StockEntriesExitsView extends StackPane implements Reloadable
                         products.search(new com.gestpov.desktop.model.ProductQuery()), suppliers.findAll()),
                 refs -> {
                     loading.setLoading(false);
-                    showCreateEntryDialog(refs);
+                    showEntryDraftDialog(refs, null);
                 }, this::fail);
     }
 
-    private void showCreateEntryDialog(Refs refs) {
+    private void openEditEntryDraft(long id) {
+        loading.setLoading(true);
+        FxAsync.run(() -> new EntryEditContext(client.getEntry(id), new Refs(client.listWarehouses(),
+                        products.search(new com.gestpov.desktop.model.ProductQuery()), suppliers.findAll())),
+                ctx -> {
+                    loading.setLoading(false);
+                    showEntryDraftDialog(ctx.refs(), ctx.entry());
+                }, this::fail);
+    }
+
+    /**
+     * Dialogue de saisie d'une entrée — création ou reprise d'un brouillon (existing != null).
+     * Chaque ligne complète (produit + quantité) déclenche un enregistrement automatique du
+     * brouillon côté serveur (débattu 700ms) : l'utilisateur peut fermer et revenir plus tard,
+     * rien n'est perdu tant qu'au moins une ligne est valide.
+     */
+    private void showEntryDraftDialog(Refs refs, JsonNode existing) {
+        boolean editing = existing != null;
+        Long[] idHolder = {editing ? existing.path("id").asLong() : null};
+
         Dialog<Void> dialog = new Dialog<>();
-        dialog.setTitle("Créer une entrée de stock");
-        dialog.getDialogPane().getButtonTypes().add(ButtonType.CANCEL);
+        dialog.setTitle(editing ? "Brouillon d'entrée " + existing.path("entryNumber").asText("")
+                : "Créer une entrée de stock");
+        dialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
         dialog.initOwner(getScene() == null ? null : getScene().getWindow());
 
         ComboBox<Supplier> supplierCombo = new ComboBox<>();
@@ -508,20 +544,6 @@ public final class StockEntriesExitsView extends StackPane implements Reloadable
         whCombo.setMaxWidth(Double.MAX_VALUE);
         ComboBox<StockLocation> locCombo = new ComboBox<>();
         locCombo.setMaxWidth(Double.MAX_VALUE);
-        whCombo.valueProperty().addListener((o, a, b) -> {
-            locCombo.getItems().clear();
-            if (b != null && b.id() != null) {
-                FxAsync.run(() -> client.listLocations(b.id()), locs -> {
-                    locCombo.getItems().setAll(locs);
-                    if (!locs.isEmpty()) {
-                        locCombo.getSelectionModel().selectFirst();
-                    }
-                }, this::fail);
-            }
-        });
-        if (!refs.warehouses().isEmpty()) {
-            whCombo.getSelectionModel().selectFirst();
-        }
 
         DatePicker entryDate = new DatePicker(LocalDate.now());
         entryDate.setMaxWidth(Double.MAX_VALUE);
@@ -530,11 +552,26 @@ public final class StockEntriesExitsView extends StackPane implements Reloadable
         TextField notesField = new TextField();
         notesField.setPromptText("Notes (optionnel)");
 
+        Label statusLabel = new Label(editing
+                ? "Brouillon existant — les modifications sont enregistrées automatiquement."
+                : "Renseignez l'entrepôt et au moins un produit : le brouillon est créé automatiquement.");
+        statusLabel.getStyleClass().add("page-sub");
+        statusLabel.setWrapText(true);
+
         VBox linesBox = new VBox(8);
         record LineRow(ComboBox<ProductOption> product, TextField qty, TextField unitCost) {
         }
         List<LineRow> rows = new java.util.ArrayList<>();
-        Runnable addRow = () -> {
+
+        PauseTransition debounce = new PauseTransition(Duration.millis(700));
+        Runnable[] persistRef = new Runnable[1];
+        debounce.setOnFinished(e -> persistRef[0].run());
+        Runnable schedule = () -> {
+            debounce.stop();
+            debounce.playFromStart();
+        };
+
+        java.util.function.Supplier<LineRow> addRow = () -> {
             ComboBox<ProductOption> productCombo = new ComboBox<>();
             productCombo.getItems().setAll(refs.products());
             productCombo.setMaxWidth(220);
@@ -549,7 +586,10 @@ public final class StockEntriesExitsView extends StackPane implements Reloadable
                         && costField.getText().isBlank()) {
                     costField.setText(b.prixAchat().toPlainString());
                 }
+                schedule.run();
             });
+            qtyField.textProperty().addListener((o, a, b) -> schedule.run());
+            costField.textProperty().addListener((o, a, b) -> schedule.run());
             Button removeBtn = new Button("×");
             removeBtn.getStyleClass().add("button-ghost");
             HBox lineRow = new HBox(8, productCombo, qtyField, costField, removeBtn);
@@ -558,24 +598,17 @@ public final class StockEntriesExitsView extends StackPane implements Reloadable
             removeBtn.setOnAction(ev -> {
                 rows.remove(row);
                 linesBox.getChildren().remove(lineRow);
+                schedule.run();
             });
             rows.add(row);
             linesBox.getChildren().add(lineRow);
+            return row;
         };
         Button addLineBtn = new Button("+ Ajouter une ligne (autre produit)");
         addLineBtn.getStyleClass().addAll("button-secondary", "pos-action-sm");
-        addLineBtn.setOnAction(e -> addRow.run());
-        addRow.run();
+        addLineBtn.setOnAction(e -> addRow.get());
 
-        Button confirm = new Button("Créer (brouillon)");
-        confirm.getStyleClass().add("button-primary");
-        confirm.setOnAction(e -> {
-            Warehouse wh = whCombo.getValue();
-            StockLocation loc = locCombo.getValue();
-            if (wh == null || wh.id() == null || loc == null || loc.id() == null) {
-                error.show("Choisissez un entrepôt et un emplacement.");
-                return;
-            }
+        java.util.function.Supplier<List<Map<String, Object>>> collectLines = () -> {
             List<Map<String, Object>> lines = new java.util.ArrayList<>();
             for (LineRow r : rows) {
                 ProductOption p = r.product().getValue();
@@ -586,12 +619,10 @@ public final class StockEntriesExitsView extends StackPane implements Reloadable
                 try {
                     qty = new BigDecimal(r.qty().getText().trim().replace(',', '.'));
                 } catch (Exception ex) {
-                    error.show("Quantité invalide pour « " + p.nom() + " ».");
-                    return;
+                    continue;
                 }
                 if (qty.compareTo(BigDecimal.ZERO) <= 0) {
-                    error.show("Quantité invalide pour « " + p.nom() + " ».");
-                    return;
+                    continue;
                 }
                 Map<String, Object> line = new LinkedHashMap<>();
                 line.put("productId", p.id());
@@ -600,40 +631,103 @@ public final class StockEntriesExitsView extends StackPane implements Reloadable
                 if (costText != null && !costText.isBlank()) {
                     try {
                         line.put("unitCost", new BigDecimal(costText.trim().replace(',', '.')));
-                    } catch (Exception ex) {
-                        error.show("Coût unitaire invalide pour « " + p.nom() + " ».");
-                        return;
+                    } catch (Exception ignored) {
+                        // coût laissé au repli serveur (prix d'achat produit)
                     }
                 }
                 lines.add(line);
             }
+            return lines;
+        };
+
+        persistRef[0] = () -> {
+            Warehouse wh = whCombo.getValue();
+            StockLocation loc = locCombo.getValue();
+            if (wh == null || wh.id() == null || loc == null || loc.id() == null) {
+                return;
+            }
+            List<Map<String, Object>> lines = collectLines.get();
             if (lines.isEmpty()) {
-                error.show("Ajoutez au moins une ligne de produit.");
                 return;
             }
             Long supplierId = supplierCombo.getValue() == null ? null : supplierCombo.getValue().id();
             LocalDate date = entryDate.getValue();
             String reference = referenceField.getText();
             String notes = notesField.getText();
-            loading.setLoading(true);
-            FxAsync.run(() -> client.createEntry(supplierId, wh.id(), loc.id(), date, reference, notes, lines),
-                    created -> {
-                        loading.setLoading(false);
+            statusLabel.setText("Enregistrement…");
+            FxAsync.run(() -> idHolder[0] == null
+                            ? client.createEntry(supplierId, wh.id(), loc.id(), date, reference, notes, lines)
+                            : client.updateEntry(idHolder[0], supplierId, wh.id(), loc.id(), date, reference,
+                                    notes, lines),
+                    node -> {
+                        idHolder[0] = node.path("id").asLong();
+                        dialog.setTitle("Brouillon d'entrée " + node.path("entryNumber").asText(""));
+                        statusLabel.setText("Brouillon enregistré à " + LocalTime.now().format(TIME_FORMAT));
                         error.hide();
-                        dialog.close();
-                        Alert done = new Alert(Alert.AlertType.INFORMATION,
-                                "Entrée créée en brouillon — sélectionnez-la (double-clic) pour joindre la "
-                                        + "facture puis cliquez « Valider » pour incrémenter le stock.");
-                        done.setHeaderText("Bon d'entrée créé");
-                        done.showAndWait();
-                        tabEntries.setSelected(true);
-                        showSelectedTab();
                         reload();
                     }, t -> {
-                        loading.setLoading(false);
+                        statusLabel.setText("Échec de l'enregistrement automatique — nouvel essai à la "
+                                + "prochaine modification.");
                         fail(t);
                     });
+        };
+
+        whCombo.valueProperty().addListener((o, a, b) -> {
+            locCombo.getItems().clear();
+            if (b != null && b.id() != null) {
+                FxAsync.run(() -> client.listLocations(b.id()), locs -> {
+                    locCombo.getItems().setAll(locs);
+                    Long wantedLocationId = editing ? existing.path("locationId").asLong(0) : 0;
+                    locs.stream().filter(l -> l.id() != null && l.id().equals(wantedLocationId)).findFirst()
+                            .or(() -> locs.isEmpty() ? java.util.Optional.empty() : java.util.Optional.of(locs.get(0)))
+                            .ifPresent(l -> locCombo.getSelectionModel().select(l));
+                }, this::fail);
+            }
         });
+        entryDate.valueProperty().addListener((o, a, b) -> schedule.run());
+        referenceField.textProperty().addListener((o, a, b) -> schedule.run());
+        notesField.textProperty().addListener((o, a, b) -> schedule.run());
+        supplierCombo.valueProperty().addListener((o, a, b) -> schedule.run());
+
+        if (editing) {
+            long supplierId = existing.path("supplierId").asLong(0);
+            refs.suppliers().stream().filter(s -> s.id() != null && s.id() == supplierId).findFirst()
+                    .ifPresent(supplierCombo::setValue);
+            long warehouseId = existing.path("warehouseId").asLong(0);
+            refs.warehouses().stream().filter(w -> w.id() != null && w.id() == warehouseId).findFirst()
+                    .ifPresent(whCombo::setValue);
+            if (existing.hasNonNull("entryDate")) {
+                try {
+                    entryDate.setValue(LocalDate.parse(existing.path("entryDate").asText()));
+                } catch (Exception ignored) {
+                    // date par defaut conservee
+                }
+            }
+            referenceField.setText(textOr(existing, "referenceDocument", ""));
+            notesField.setText(textOr(existing, "notes", ""));
+            JsonNode lignes = existing.get("lignes");
+            if (lignes != null && lignes.isArray() && !lignes.isEmpty()) {
+                for (JsonNode l : lignes) {
+                    LineRow row = addRow.get();
+                    long productId = l.path("productId").asLong(0);
+                    refs.products().stream().filter(p -> p.id() != null && p.id() == productId).findFirst()
+                            .ifPresent(p -> row.product().setValue(p));
+                    if (l.hasNonNull("quantityInput")) {
+                        row.qty().setText(l.path("quantityInput").asText());
+                    }
+                    if (l.hasNonNull("unitCost")) {
+                        row.unitCost().setText(l.path("unitCost").asText());
+                    }
+                }
+            } else {
+                addRow.get();
+            }
+        } else {
+            if (!refs.warehouses().isEmpty()) {
+                whCombo.getSelectionModel().selectFirst();
+            }
+            addRow.get();
+        }
 
         VBox content = new VBox(10,
                 labeled("Fournisseur", supplierCombo),
@@ -645,11 +739,15 @@ public final class StockEntriesExitsView extends StackPane implements Reloadable
                 linesBox,
                 addLineBtn,
                 labeled("Notes", notesField),
-                confirm
+                statusLabel
         );
         content.setPadding(new Insets(10));
         content.setPrefWidth(420);
-        dialog.getDialogPane().setContent(content);
+        ScrollPane scroll = new ScrollPane(content);
+        scroll.setFitToWidth(true);
+        scroll.setPrefViewportHeight(560);
+        dialog.getDialogPane().setContent(scroll);
+        dialog.setOnHidden(e -> reload());
         dialog.showAndWait();
     }
 
@@ -749,20 +847,34 @@ public final class StockEntriesExitsView extends StackPane implements Reloadable
                         products.search(new com.gestpov.desktop.model.ProductQuery()), List.of()),
                 refs -> {
                     loading.setLoading(false);
-                    showCreateExitDialog(refs);
+                    showExitDraftDialog(refs, null);
                 }, this::fail);
     }
 
-    private void showCreateExitDialog(Refs refs) {
+    private void openEditExitDraft(long id) {
+        loading.setLoading(true);
+        FxAsync.run(() -> new ExitEditContext(client.getExit(id), new Refs(client.listWarehouses(),
+                        products.search(new com.gestpov.desktop.model.ProductQuery()), List.of())),
+                ctx -> {
+                    loading.setLoading(false);
+                    showExitDraftDialog(ctx.refs(), ctx.exit());
+                }, this::fail);
+    }
+
+    /** Dialogue de saisie d'une sortie — création ou reprise d'un brouillon ; autosave comme pour les entrées. */
+    private void showExitDraftDialog(Refs refs, JsonNode existing) {
+        boolean editing = existing != null;
+        Long[] idHolder = {editing ? existing.path("id").asLong() : null};
+
         Dialog<Void> dialog = new Dialog<>();
-        dialog.setTitle("Créer une sortie de stock");
-        dialog.getDialogPane().getButtonTypes().add(ButtonType.CANCEL);
+        dialog.setTitle(editing ? "Brouillon de sortie " + existing.path("exitNumber").asText("")
+                : "Créer une sortie de stock");
+        dialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
         dialog.initOwner(getScene() == null ? null : getScene().getWindow());
 
         ComboBox<String> reasonCombo = new ComboBox<>();
         reasonCombo.getItems().setAll(EXIT_REASONS);
         reasonCombo.setConverter(reasonConverter());
-        reasonCombo.getSelectionModel().selectFirst();
         reasonCombo.setMaxWidth(Double.MAX_VALUE);
 
         ComboBox<Warehouse> whCombo = new ComboBox<>();
@@ -770,60 +882,56 @@ public final class StockEntriesExitsView extends StackPane implements Reloadable
         whCombo.setMaxWidth(Double.MAX_VALUE);
         ComboBox<StockLocation> locCombo = new ComboBox<>();
         locCombo.setMaxWidth(Double.MAX_VALUE);
-        whCombo.valueProperty().addListener((o, a, b) -> {
-            locCombo.getItems().clear();
-            if (b != null && b.id() != null) {
-                FxAsync.run(() -> client.listLocations(b.id()), locs -> {
-                    locCombo.getItems().setAll(locs);
-                    if (!locs.isEmpty()) {
-                        locCombo.getSelectionModel().selectFirst();
-                    }
-                }, this::fail);
-            }
-        });
-        if (!refs.warehouses().isEmpty()) {
-            whCombo.getSelectionModel().selectFirst();
-        }
 
         TextField notesField = new TextField();
         notesField.setPromptText("Notes (optionnel)");
+
+        Label statusLabel = new Label(editing
+                ? "Brouillon existant — les modifications sont enregistrées automatiquement."
+                : "Renseignez l'entrepôt et au moins un produit : le brouillon est créé automatiquement.");
+        statusLabel.getStyleClass().add("page-sub");
+        statusLabel.setWrapText(true);
 
         VBox linesBox = new VBox(8);
         record LineRow(ComboBox<ProductOption> product, TextField qty) {
         }
         List<LineRow> rows = new java.util.ArrayList<>();
-        Runnable addRow = () -> {
+
+        PauseTransition debounce = new PauseTransition(Duration.millis(700));
+        Runnable[] persistRef = new Runnable[1];
+        debounce.setOnFinished(e -> persistRef[0].run());
+        Runnable schedule = () -> {
+            debounce.stop();
+            debounce.playFromStart();
+        };
+
+        java.util.function.Supplier<LineRow> addRow = () -> {
             ComboBox<ProductOption> productCombo = new ComboBox<>();
             productCombo.getItems().setAll(refs.products());
             productCombo.setMaxWidth(260);
             TextField qtyField = new TextField("1");
             qtyField.setPrefWidth(80);
+            qtyField.textProperty().addListener((o, a, b) -> schedule.run());
             Button removeBtn = new Button("×");
             removeBtn.getStyleClass().add("button-ghost");
             HBox lineRow = new HBox(8, productCombo, qtyField, removeBtn);
             lineRow.setAlignment(Pos.CENTER_LEFT);
             LineRow row = new LineRow(productCombo, qtyField);
+            productCombo.valueProperty().addListener((o, a, b) -> schedule.run());
             removeBtn.setOnAction(ev -> {
                 rows.remove(row);
                 linesBox.getChildren().remove(lineRow);
+                schedule.run();
             });
             rows.add(row);
             linesBox.getChildren().add(lineRow);
+            return row;
         };
         Button addLineBtn = new Button("+ Ajouter une ligne");
         addLineBtn.getStyleClass().addAll("button-secondary", "pos-action-sm");
-        addLineBtn.setOnAction(e -> addRow.run());
-        addRow.run();
+        addLineBtn.setOnAction(e -> addRow.get());
 
-        Button confirm = new Button("Créer (brouillon)");
-        confirm.getStyleClass().add("button-primary");
-        confirm.setOnAction(e -> {
-            Warehouse wh = whCombo.getValue();
-            StockLocation loc = locCombo.getValue();
-            if (wh == null || wh.id() == null || loc == null || loc.id() == null) {
-                error.show("Choisissez un entrepôt et un emplacement.");
-                return;
-            }
+        java.util.function.Supplier<List<Map<String, Object>>> collectLines = () -> {
             List<Map<String, Object>> lines = new java.util.ArrayList<>();
             for (LineRow r : rows) {
                 ProductOption p = r.product().getValue();
@@ -834,41 +942,93 @@ public final class StockEntriesExitsView extends StackPane implements Reloadable
                 try {
                     qty = new BigDecimal(r.qty().getText().trim().replace(',', '.'));
                 } catch (Exception ex) {
-                    error.show("Quantité invalide pour « " + p.nom() + " ».");
-                    return;
+                    continue;
                 }
                 if (qty.compareTo(BigDecimal.ZERO) <= 0) {
-                    error.show("Quantité invalide pour « " + p.nom() + " ».");
-                    return;
+                    continue;
                 }
                 Map<String, Object> line = new LinkedHashMap<>();
                 line.put("productId", p.id());
                 line.put("quantityInput", qty);
                 lines.add(line);
             }
+            return lines;
+        };
+
+        persistRef[0] = () -> {
+            Warehouse wh = whCombo.getValue();
+            StockLocation loc = locCombo.getValue();
+            if (wh == null || wh.id() == null || loc == null || loc.id() == null) {
+                return;
+            }
+            List<Map<String, Object>> lines = collectLines.get();
             if (lines.isEmpty()) {
-                error.show("Ajoutez au moins une ligne de produit.");
                 return;
             }
             String reason = reasonCombo.getValue() == null ? "OTHER" : reasonCombo.getValue();
             String notes = notesField.getText();
-            loading.setLoading(true);
-            FxAsync.run(() -> client.createExit(wh.id(), loc.id(), reason, notes, lines), created -> {
-                loading.setLoading(false);
-                error.hide();
-                dialog.close();
-                Alert done = new Alert(Alert.AlertType.INFORMATION,
-                        "Sortie créée en brouillon — sélectionnez-la puis cliquez « Valider » pour décrémenter le stock.");
-                done.setHeaderText("Bon de sortie créé");
-                done.showAndWait();
-                tabExits.setSelected(true);
-                showSelectedTab();
-                reload();
-            }, t -> {
-                loading.setLoading(false);
-                fail(t);
-            });
+            statusLabel.setText("Enregistrement…");
+            FxAsync.run(() -> idHolder[0] == null
+                            ? client.createExit(wh.id(), loc.id(), reason, notes, lines)
+                            : client.updateExit(idHolder[0], wh.id(), loc.id(), reason, notes, lines),
+                    node -> {
+                        idHolder[0] = node.path("id").asLong();
+                        dialog.setTitle("Brouillon de sortie " + node.path("exitNumber").asText(""));
+                        statusLabel.setText("Brouillon enregistré à " + LocalTime.now().format(TIME_FORMAT));
+                        error.hide();
+                        reload();
+                    }, t -> {
+                        statusLabel.setText("Échec de l'enregistrement automatique — nouvel essai à la "
+                                + "prochaine modification.");
+                        fail(t);
+                    });
+        };
+
+        whCombo.valueProperty().addListener((o, a, b) -> {
+            locCombo.getItems().clear();
+            if (b != null && b.id() != null) {
+                FxAsync.run(() -> client.listLocations(b.id()), locs -> {
+                    locCombo.getItems().setAll(locs);
+                    Long wantedLocationId = editing ? existing.path("locationId").asLong(0) : 0;
+                    locs.stream().filter(l -> l.id() != null && l.id().equals(wantedLocationId)).findFirst()
+                            .or(() -> locs.isEmpty() ? java.util.Optional.empty() : java.util.Optional.of(locs.get(0)))
+                            .ifPresent(l -> locCombo.getSelectionModel().select(l));
+                }, this::fail);
+            }
         });
+        reasonCombo.valueProperty().addListener((o, a, b) -> schedule.run());
+        notesField.textProperty().addListener((o, a, b) -> schedule.run());
+
+        if (editing) {
+            String reason = textOr(existing, "reason", null);
+            if (reason != null) {
+                reasonCombo.setValue(reason);
+            }
+            long warehouseId = existing.path("warehouseId").asLong(0);
+            refs.warehouses().stream().filter(w -> w.id() != null && w.id() == warehouseId).findFirst()
+                    .ifPresent(whCombo::setValue);
+            notesField.setText(textOr(existing, "notes", ""));
+            JsonNode lignes = existing.get("lignes");
+            if (lignes != null && lignes.isArray() && !lignes.isEmpty()) {
+                for (JsonNode l : lignes) {
+                    LineRow row = addRow.get();
+                    long productId = l.path("productId").asLong(0);
+                    refs.products().stream().filter(p -> p.id() != null && p.id() == productId).findFirst()
+                            .ifPresent(p -> row.product().setValue(p));
+                    if (l.hasNonNull("quantityInput")) {
+                        row.qty().setText(l.path("quantityInput").asText());
+                    }
+                }
+            } else {
+                addRow.get();
+            }
+        } else {
+            reasonCombo.getSelectionModel().selectFirst();
+            if (!refs.warehouses().isEmpty()) {
+                whCombo.getSelectionModel().selectFirst();
+            }
+            addRow.get();
+        }
 
         VBox content = new VBox(10,
                 labeled("Motif", reasonCombo),
@@ -878,11 +1038,15 @@ public final class StockEntriesExitsView extends StackPane implements Reloadable
                 linesBox,
                 addLineBtn,
                 labeled("Notes", notesField),
-                confirm
+                statusLabel
         );
         content.setPadding(new Insets(10));
         content.setPrefWidth(360);
-        dialog.getDialogPane().setContent(content);
+        ScrollPane scroll = new ScrollPane(content);
+        scroll.setFitToWidth(true);
+        scroll.setPrefViewportHeight(520);
+        dialog.getDialogPane().setContent(scroll);
+        dialog.setOnHidden(e -> reload());
         dialog.showAndWait();
     }
 
@@ -945,6 +1109,7 @@ public final class StockEntriesExitsView extends StackPane implements Reloadable
     // ISO reste trie-able correctement même à cheval sur un changement de mois/année.
     private static final java.time.format.DateTimeFormatter DATE_TIME_FORMAT =
             java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
+    private static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("HH:mm:ss");
 
     /** Date + heure de création (triable chronologiquement) ; repli sur la date métier seule si absente. */
     private static String dateTime(String createdAtIso, String fallbackDate) {
@@ -1013,6 +1178,12 @@ public final class StockEntriesExitsView extends StackPane implements Reloadable
         TableColumn<StockExitDoc, String> col = new TableColumn<>(title);
         col.setCellValueFactory(d -> new ReadOnlyStringWrapper(d.getValue() == null ? "" : fn.apply(d.getValue())));
         return col;
+    }
+
+    private record EntryEditContext(JsonNode entry, Refs refs) {
+    }
+
+    private record ExitEditContext(JsonNode exit, Refs refs) {
     }
 
     private record Refs(List<Warehouse> warehouses, List<Product> productsRaw, List<Supplier> suppliers) {

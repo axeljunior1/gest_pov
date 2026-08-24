@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
@@ -29,4 +30,6 @@ public interface StockExitRepository extends JpaRepository<StockExit, Long>, Jpa
     Optional<StockExit> findBySaleId(Long saleId);
 
     boolean existsBySaleId(Long saleId);
+
+    List<StockExit> findByStatusAndCreatedAtBefore(StockExitStatus status, Instant cutoff);
 }

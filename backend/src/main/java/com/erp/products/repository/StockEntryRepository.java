@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
@@ -25,4 +26,6 @@ public interface StockEntryRepository extends JpaRepository<StockEntry, Long>, J
     long countByStatus(StockEntryStatus status);
 
     List<StockEntry> findTop10ByStatusOrderByValidatedAtDescCreatedAtDesc(StockEntryStatus status);
+
+    List<StockEntry> findByStatusAndCreatedAtBefore(StockEntryStatus status, Instant cutoff);
 }
