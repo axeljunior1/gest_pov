@@ -206,6 +206,38 @@ public final class AppFlow {
         login.getStyleClass().add("button-primary");
         login.setOnAction(e -> doLogin(server, email.getText().trim(), password.getText(), status, login));
         password.setOnAction(e -> login.fire());
+
+        TextField badgeCode = new TextField();
+        badgeCode.setPromptText("Scannez ou saisissez le badge");
+        PasswordField pin = new PasswordField();
+        pin.setPromptText("Code PIN");
+        Button loginBadge = new Button("Connexion");
+        loginBadge.getStyleClass().add("button-primary");
+        loginBadge.setOnAction(e -> doLoginWithBadge(server, badgeCode.getText().trim(), pin.getText(), status,
+                loginBadge));
+        pin.setOnAction(e -> loginBadge.fire());
+
+        VBox emailBox = new VBox(12, labeled("Email", email), labeled("Mot de passe", password), login);
+        VBox badgeBox = new VBox(12, labeled("Badge", badgeCode), labeled("Code PIN", pin), loginBadge);
+        badgeBox.setVisible(false);
+        badgeBox.setManaged(false);
+
+        Button switchMode = new Button("Se connecter avec un badge");
+        switchMode.getStyleClass().add("button-ghost");
+        switchMode.setOnAction(e -> {
+            boolean toBadge = !badgeBox.isVisible();
+            emailBox.setVisible(!toBadge);
+            emailBox.setManaged(!toBadge);
+            badgeBox.setVisible(toBadge);
+            badgeBox.setManaged(toBadge);
+            switchMode.setText(toBadge ? "Se connecter avec email + mot de passe" : "Se connecter avec un badge");
+            if (toBadge) {
+                Platform.runLater(badgeCode::requestFocus);
+            } else {
+                Platform.runLater(email::requestFocus);
+            }
+        });
+
         Button back = new Button("Changer de serveur");
         back.getStyleClass().add("button-ghost");
         back.setOnAction(e -> showDiscovery());
@@ -213,16 +245,56 @@ public final class AppFlow {
         UiTheme.apply(stage, box(
                 title("Connexion Gest POV"),
                 statusScroll,
-                labeled("Email", email),
-                labeled("Mot de passe", password),
-                login,
+                emailBox,
+                badgeBox,
+                switchMode,
                 back
-        ), 560, 480);
+        ), 560, 520);
         Platform.runLater(() -> {
             if (email.getText() == null || email.getText().isBlank()) {
                 email.requestFocus();
             } else {
                 password.requestFocus();
+            }
+        });
+    }
+
+    private void doLoginWithBadge(DiscoveredServer server, String badgeCode, String pin, Label status,
+                                  Button login) {
+        if (badgeCode == null || badgeCode.isBlank()) {
+            status.setText("Scannez ou saisissez votre badge.");
+            return;
+        }
+        login.setDisable(true);
+        status.setText("Connexion…");
+        FxAsync.run(() -> {
+            AuthSession loggedIn = auth.loginWithBadge(badgeCode, pin);
+            try {
+                return new LoginOutcome(auth.me(), null);
+            } catch (ApiException api) {
+                if (api.isLicenseRequired()) {
+                    return new LoginOutcome(loggedIn, api);
+                }
+                throw api;
+            }
+        }, outcome -> {
+            if (outcome.licenseError() != null) {
+                showLicenseActivation(server, outcome.session(), outcome.licenseError());
+            } else {
+                showHome(server, outcome.session());
+            }
+        }, error -> {
+            login.setDisable(false);
+            if (error instanceof ApiException api) {
+                status.setText(ApiException.loginMessage(api));
+                if (!status.getStyleClass().contains("status-message-error")) {
+                    status.getStyleClass().add("status-message-error");
+                }
+            } else {
+                status.setText("Connexion au serveur impossible. Vérifiez que le serveur Gest POV est démarré.");
+                if (!status.getStyleClass().contains("status-message-error")) {
+                    status.getStyleClass().add("status-message-error");
+                }
             }
         });
     }

@@ -38,6 +38,8 @@ public class StockOperationRequest {
     /** Validation manager (ajustements dépassant le seuil configuré) — jamais persistés. */
     private String managerEmail;
     private String managerPassword;
+    private String managerBadgeCode;
+    private String managerPin;
 
     private String utilisateur = "system";
 }

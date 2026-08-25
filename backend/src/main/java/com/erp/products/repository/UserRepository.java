@@ -13,6 +13,14 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     boolean existsByEmailIgnoreCase(String email);
 
+    Optional<User> findByBadgeCodeIgnoreCase(String badgeCode);
+
+    boolean existsByBadgeCodeIgnoreCase(String badgeCode);
+
+    @Query("SELECT DISTINCT u FROM User u LEFT JOIN FETCH u.roles r LEFT JOIN FETCH r.permissions "
+            + "WHERE UPPER(u.badgeCode) = UPPER(:badgeCode)")
+    Optional<User> findByBadgeCodeWithRolesAndPermissions(@Param("badgeCode") String badgeCode);
+
     long countByIsActiveTrue();
 
     @Query("SELECT DISTINCT u FROM User u LEFT JOIN FETCH u.roles r LEFT JOIN FETCH r.permissions WHERE u.email = :email")

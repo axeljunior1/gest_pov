@@ -91,6 +91,7 @@ public class SecurityConfig {
                         .requestMatchers(antMatcher("/api/license/**")).permitAll()
                         .requestMatchers(antMatcher("/api/discovery"), antMatcher("/api/discovery/**")).permitAll()
                         .requestMatchers(antMatcher("/api/auth/login")).permitAll()
+                        .requestMatchers(antMatcher("/api/auth/login/badge")).permitAll()
                         .requestMatchers(antMatcher("/api/settings/public")).permitAll()
                         .requestMatchers(antMatcher("/uploads/**")).permitAll()
                         .requestMatchers(

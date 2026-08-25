@@ -13,6 +13,7 @@ public class UserResponse {
     private String firstName;
     private String lastName;
     private String email;
+    private String badgeCode;
     private Boolean isActive;
     private Instant lastLoginAt;
     private Instant createdAt;

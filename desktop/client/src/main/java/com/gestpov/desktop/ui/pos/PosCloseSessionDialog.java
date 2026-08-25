@@ -74,6 +74,10 @@ final class PosCloseSessionDialog {
         managerEmail.setPromptText("Email manager");
         PasswordField managerPassword = new PasswordField();
         managerPassword.setPromptText("Mot de passe manager");
+        TextField managerBadge = new TextField();
+        managerBadge.setPromptText("Badge manager");
+        PasswordField managerPin = new PasswordField();
+        managerPin.setPromptText("Code PIN manager");
 
         VBox reasonBox = new VBox(8,
                 section("Écart détecté — justification obligatoire"),
@@ -82,10 +86,25 @@ final class PosCloseSessionDialog {
         reasonBox.setVisible(false);
         reasonBox.setManaged(false);
 
+        VBox managerEmailBox = new VBox(8, labeled("Email", managerEmail), labeled("Mot de passe", managerPassword));
+        VBox managerBadgeBox = new VBox(8, labeled("Badge", managerBadge), labeled("Code PIN", managerPin));
+        managerBadgeBox.setVisible(false);
+        managerBadgeBox.setManaged(false);
+        Button toggleManagerMode = new Button("Utiliser un badge");
+        toggleManagerMode.setStyle("-fx-background-color: transparent; -fx-text-fill: #1d4ed8;"
+                + " -fx-font-weight: 700; -fx-padding: 4 0 4 0;");
+        toggleManagerMode.setOnAction(e -> {
+            boolean toBadge = !managerBadgeBox.isVisible();
+            managerEmailBox.setVisible(!toBadge);
+            managerEmailBox.setManaged(!toBadge);
+            managerBadgeBox.setVisible(toBadge);
+            managerBadgeBox.setManaged(toBadge);
+            toggleManagerMode.setText(toBadge ? "Utiliser email + mot de passe" : "Utiliser un badge");
+        });
+
         VBox managerBox = new VBox(8,
                 section("Validation manager obligatoire"),
-                labeled("Email", managerEmail),
-                labeled("Mot de passe", managerPassword));
+                managerEmailBox, managerBadgeBox, toggleManagerMode);
         managerBox.setVisible(false);
         managerBox.setManaged(false);
 
@@ -187,8 +206,10 @@ final class PosCloseSessionDialog {
                 return;
             }
             boolean needMgr = needsReason && preview.path("requireManagerValidationForDifference").asBoolean(false);
-            if (needMgr && (blank(managerEmail.getText()) || blank(managerPassword.getText()))) {
-                status.setText("Validation manager obligatoire.");
+            boolean hasEmailPwd = !blank(managerEmail.getText()) && !blank(managerPassword.getText());
+            boolean hasBadge = !blank(managerBadge.getText()) && !blank(managerPin.getText());
+            if (needMgr && !hasEmailPwd && !hasBadge) {
+                status.setText("Validation manager obligatoire (email+mot de passe ou badge+PIN).");
                 return;
             }
             validate.setDisable(true);
@@ -199,8 +220,10 @@ final class PosCloseSessionDialog {
                     true,
                     needsReason ? reason : null,
                     blankToNull(comment.getText()),
-                    needMgr ? managerEmail.getText().trim() : null,
-                    needMgr ? managerPassword.getText() : null
+                    needMgr && hasEmailPwd ? managerEmail.getText().trim() : null,
+                    needMgr && hasEmailPwd ? managerPassword.getText() : null,
+                    needMgr && hasBadge ? managerBadge.getText().trim() : null,
+                    needMgr && hasBadge ? managerPin.getText() : null
             ), report -> {
                 // Afficher le rapport DANS cette fenêtre (évite un 2e Stage blanc)
                 showReportInStage(stage, root, report, () -> {

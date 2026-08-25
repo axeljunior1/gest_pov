@@ -42,6 +42,7 @@ public class StockService {
     private final SettingsService settingsService;
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final BadgePinAuthService badgePinAuthService;
     private final com.erp.products.service.stockvaluation.StockCmpValuationService cmpValuationService;
 
     @Transactional
@@ -141,14 +142,22 @@ public class StockService {
         if (threshold == null || quantityDelta.compareTo(threshold) <= 0) {
             return;
         }
-        if (request.getManagerEmail() == null || request.getManagerEmail().isBlank()
-                || request.getManagerPassword() == null || request.getManagerPassword().isBlank()) {
+        boolean hasBadge = request.getManagerBadgeCode() != null && !request.getManagerBadgeCode().isBlank()
+                && request.getManagerPin() != null && !request.getManagerPin().isBlank();
+        boolean hasEmailPwd = request.getManagerEmail() != null && !request.getManagerEmail().isBlank()
+                && request.getManagerPassword() != null && !request.getManagerPassword().isBlank();
+        if (!hasBadge && !hasEmailPwd) {
             throw new BusinessException("Validation manager obligatoire pour cet ajustement de stock");
         }
-        User manager = userRepository.findByEmailIgnoreCase(request.getManagerEmail().trim())
-                .orElseThrow(() -> new BusinessException("Manager introuvable"));
-        if (!passwordEncoder.matches(request.getManagerPassword(), manager.getPasswordHash())) {
-            throw new BusinessException("Identifiants manager invalides");
+        User manager;
+        if (hasBadge) {
+            manager = badgePinAuthService.authenticate(request.getManagerBadgeCode(), request.getManagerPin());
+        } else {
+            manager = userRepository.findByEmailIgnoreCase(request.getManagerEmail().trim())
+                    .orElseThrow(() -> new BusinessException("Manager introuvable"));
+            if (!passwordEncoder.matches(request.getManagerPassword(), manager.getPasswordHash())) {
+                throw new BusinessException("Identifiants manager invalides");
+            }
         }
         boolean authorized = manager.getRoles().stream()
                 .flatMap(role -> role.getPermissions().stream())

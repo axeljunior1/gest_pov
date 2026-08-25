@@ -10,4 +10,6 @@ public class RefundValidateRequest {
     private List<SaleRefundRequest.RefundPaymentRequest> payments;
     private String managerEmail;
     private String managerPassword;
+    private String managerBadgeCode;
+    private String managerPin;
 }

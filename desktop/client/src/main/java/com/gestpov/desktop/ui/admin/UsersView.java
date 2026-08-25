@@ -46,6 +46,8 @@ public final class UsersView extends StackPane implements Reloadable {
     private final TextField lastName = new TextField();
     private final TextField email = new TextField();
     private final PasswordField password = new PasswordField();
+    private final TextField badgeCode = new TextField();
+    private final PasswordField pin = new PasswordField();
     private final CheckBox active = new CheckBox("Actif");
     private final ComboBox<Role> rolePick = new ComboBox<>();
     private final Button save = new Button("Créer");
@@ -70,6 +72,8 @@ public final class UsersView extends StackPane implements Reloadable {
         lastName.setPromptText("Nom *");
         email.setPromptText("Email *");
         password.setPromptText("Mot de passe");
+        badgeCode.setPromptText("Code badge (optionnel)");
+        pin.setPromptText("PIN (optionnel)");
         active.setSelected(true);
         rolePick.setPromptText("Rôle");
         rolePick.setConverter(new javafx.util.StringConverter<>() {
@@ -93,8 +97,11 @@ public final class UsersView extends StackPane implements Reloadable {
         refresh.getStyleClass().add("button-secondary");
         refresh.setOnAction(e -> reload());
 
-        HBox form = new HBox(8, firstName, lastName, email, password, rolePick, active, save, cancel, refresh);
-        form.setAlignment(Pos.CENTER_LEFT);
+        HBox row1 = new HBox(8, firstName, lastName, email, password);
+        row1.setAlignment(Pos.CENTER_LEFT);
+        HBox row2 = new HBox(8, badgeCode, pin, rolePick, active, save, cancel, refresh);
+        row2.setAlignment(Pos.CENTER_LEFT);
+        VBox form = new VBox(8, row1, row2);
         boolean canWrite = session.hasPermission("users.create") || session.hasPermission("users.update");
         form.setVisible(canWrite);
         form.setManaged(canWrite);
@@ -104,6 +111,7 @@ public final class UsersView extends StackPane implements Reloadable {
         table.getColumns().addAll(
                 col("Nom", UserAccount::displayName),
                 col("Email", UserAccount::email),
+                col("Badge", u -> u.badgeCode() == null || u.badgeCode().isBlank() ? "—" : u.badgeCode()),
                 col("Actif", u -> Boolean.TRUE.equals(u.isActive()) ? "Oui" : "Non"),
                 col("Rôles", u -> String.join(", ", u.roles() == null ? List.of() : u.roles()))
         );
@@ -149,6 +157,9 @@ public final class UsersView extends StackPane implements Reloadable {
         email.setText(u.email());
         password.clear();
         password.setPromptText("Laisser vide = inchangé");
+        badgeCode.setText(u.badgeCode() == null ? "" : u.badgeCode());
+        pin.clear();
+        pin.setPromptText("Laisser vide = inchangé");
         active.setSelected(Boolean.TRUE.equals(u.isActive()));
         if (u.roles() != null && !u.roles().isEmpty()) {
             String codeOrName = u.roles().get(0);
@@ -167,6 +178,10 @@ public final class UsersView extends StackPane implements Reloadable {
         email.clear();
         password.clear();
         password.setPromptText("Mot de passe");
+        badgeCode.clear();
+        badgeCode.setPromptText("Code badge (optionnel)");
+        pin.clear();
+        pin.setPromptText("PIN (optionnel)");
         active.setSelected(true);
         rolePick.getSelectionModel().clearSelection();
         save.setText("Créer");
@@ -188,6 +203,8 @@ public final class UsersView extends StackPane implements Reloadable {
         }
         List<Long> roleIds = List.of(role.id());
         String pwd = password.getText();
+        String badge = badgeCode.getText();
+        String pinValue = pin.getText();
         loading.setLoading(true);
         if (editingId == null) {
             if (pwd == null || pwd.isBlank()) {
@@ -195,18 +212,20 @@ public final class UsersView extends StackPane implements Reloadable {
                 error.show("Mot de passe obligatoire à la création.");
                 return;
             }
-            FxAsync.run(() -> users.create(fn, ln, em, pwd, active.isSelected(), roleIds), ignored -> {
-                loading.setLoading(false);
-                reset();
-                reload();
-            }, this::fail);
+            FxAsync.run(() -> users.create(fn, ln, em, pwd, badge, pinValue, active.isSelected(), roleIds),
+                    ignored -> {
+                        loading.setLoading(false);
+                        reset();
+                        reload();
+                    }, this::fail);
         } else {
             Long id = editingId;
-            FxAsync.run(() -> users.update(id, fn, ln, em, pwd, active.isSelected(), roleIds), ignored -> {
-                loading.setLoading(false);
-                reset();
-                reload();
-            }, this::fail);
+            FxAsync.run(() -> users.update(id, fn, ln, em, pwd, badge, pinValue, active.isSelected(), roleIds),
+                    ignored -> {
+                        loading.setLoading(false);
+                        reset();
+                        reload();
+                    }, this::fail);
         }
     }
 

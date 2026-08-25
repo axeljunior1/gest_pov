@@ -31,7 +31,8 @@ class PhaseEfgClientsTest {
             assertEquals(1, list.size());
             assertEquals("Admin", list.get(0).firstName());
 
-            UserAccount created = users.create("Jean", "Test", "jean@test.local", "Secret1!", true, List.of(2L));
+            UserAccount created = users.create("Jean", "Test", "jean@test.local", "Secret1!", null, null, true,
+                    List.of(2L));
             assertEquals("Jean", created.firstName());
 
             List<Role> roleList = roles.list();

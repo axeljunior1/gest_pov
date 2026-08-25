@@ -50,7 +50,9 @@ public class ClientConfigStore {
                 props.getProperty("client.version", ClientConfig.CURRENT_VERSION),
                 parseInt(props.getProperty("discovery.udp.port"), 38471),
                 parseInt(props.getProperty("http.timeout.ms"), 20000),
-                props.getProperty("auth.last.email", "")
+                props.getProperty("auth.last.email", ""),
+                props.getProperty("ticket.printer.name", ""),
+                parseInt(props.getProperty("ticket.printer.width.chars"), ClientConfig.DEFAULT_TICKET_WIDTH_CHARS)
         );
     }
 
@@ -66,6 +68,8 @@ public class ClientConfigStore {
         props.setProperty("discovery.udp.port", String.valueOf(config.discoveryUdpPort()));
         props.setProperty("http.timeout.ms", String.valueOf(config.timeoutMs()));
         props.setProperty("auth.last.email", nullToEmpty(config.lastLoginEmail()));
+        props.setProperty("ticket.printer.name", nullToEmpty(config.ticketPrinterName()));
+        props.setProperty("ticket.printer.width.chars", String.valueOf(config.ticketPaperWidthChars()));
         try (OutputStream out = Files.newOutputStream(configFile)) {
             props.store(out, "Gest POV Desktop — pas de secrets DB");
         }

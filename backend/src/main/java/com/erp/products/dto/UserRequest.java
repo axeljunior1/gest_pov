@@ -22,6 +22,10 @@ public class UserRequest {
 
     private String password;
 
+    private String badgeCode;
+
+    private String pin;
+
     private Boolean isActive = true;
 
     @NotEmpty

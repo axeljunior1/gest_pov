@@ -23,6 +23,17 @@ public class AuthClient {
         return session;
     }
 
+    public AuthSession loginWithBadge(String badgeCode, String pin) throws ApiException {
+        JsonNode json = api.post("/api/auth/login/badge",
+                java.util.Map.of("badgeCode", badgeCode, "pin", pin));
+        AuthSession session = AuthSession.fromLogin(json);
+        if (session.token() == null || session.token().isBlank()) {
+            throw new ApiException("Réponse login sans jeton");
+        }
+        api.setBearerToken(session.token());
+        return session;
+    }
+
     public AuthSession me() throws ApiException {
         JsonNode json = api.get("/api/auth/me");
         return AuthSession.fromMe(api.getBearerToken(), json);

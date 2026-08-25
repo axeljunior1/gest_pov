@@ -35,6 +35,7 @@ public class UserMapper {
                 .firstName(user.getFirstName())
                 .lastName(user.getLastName())
                 .email(user.getEmail())
+                .badgeCode(user.getBadgeCode())
                 .isActive(user.getIsActive())
                 .lastLoginAt(user.getLastLoginAt())
                 .createdAt(user.getCreatedAt())

@@ -42,6 +42,7 @@ public class PosRefundService {
     private final AuditService auditService;
     private final LoyaltyService loyaltyService;
     private final PasswordEncoder passwordEncoder;
+    private final BadgePinAuthService badgePinAuthService;
     private final com.erp.products.service.stockvaluation.StockCmpValuationService cmpValuationService;
 
     @Transactional(readOnly = true)
@@ -459,14 +460,22 @@ public class PosRefundService {
         if (threshold == null || amount.compareTo(threshold) <= 0) {
             return;
         }
-        if (request.getManagerEmail() == null || request.getManagerEmail().isBlank()
-                || request.getManagerPassword() == null || request.getManagerPassword().isBlank()) {
+        boolean hasBadge = request.getManagerBadgeCode() != null && !request.getManagerBadgeCode().isBlank()
+                && request.getManagerPin() != null && !request.getManagerPin().isBlank();
+        boolean hasEmailPwd = request.getManagerEmail() != null && !request.getManagerEmail().isBlank()
+                && request.getManagerPassword() != null && !request.getManagerPassword().isBlank();
+        if (!hasBadge && !hasEmailPwd) {
             throw new BusinessException("Validation manager obligatoire pour ce montant de remboursement");
         }
-        User manager = userRepository.findByEmailIgnoreCase(request.getManagerEmail().trim())
-                .orElseThrow(() -> new BusinessException("Manager introuvable"));
-        if (!passwordEncoder.matches(request.getManagerPassword(), manager.getPasswordHash())) {
-            throw new BusinessException("Identifiants manager invalides");
+        User manager;
+        if (hasBadge) {
+            manager = badgePinAuthService.authenticate(request.getManagerBadgeCode(), request.getManagerPin());
+        } else {
+            manager = userRepository.findByEmailIgnoreCase(request.getManagerEmail().trim())
+                    .orElseThrow(() -> new BusinessException("Manager introuvable"));
+            if (!passwordEncoder.matches(request.getManagerPassword(), manager.getPasswordHash())) {
+                throw new BusinessException("Identifiants manager invalides");
+            }
         }
         if (!userHasPermission(manager, PERM_VALIDATE_SENSITIVE_REFUND)) {
             throw new BusinessException("Cet utilisateur ne peut pas valider ce remboursement");

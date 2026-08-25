@@ -17,4 +17,6 @@ public class PosSessionCloseRequest {
     /** Validation manager si paramètre activé et écart ≠ 0. */
     private String managerEmail;
     private String managerPassword;
+    private String managerBadgeCode;
+    private String managerPin;
 }

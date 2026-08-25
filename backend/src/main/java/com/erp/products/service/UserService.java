@@ -57,6 +57,10 @@ public class UserService {
         if (request.getPassword() == null || request.getPassword().isBlank()) {
             throw new BusinessException("Mot de passe obligatoire a la creation");
         }
+        String badgeCode = normalizeBadgeCode(request.getBadgeCode());
+        if (badgeCode != null && userRepository.existsByBadgeCodeIgnoreCase(badgeCode)) {
+            throw new BusinessException("Badge deja utilise: " + badgeCode);
+        }
         licenseService.assertCanCreateUser();
 
         User user = User.builder()
@@ -64,6 +68,9 @@ public class UserService {
                 .lastName(request.getLastName().trim())
                 .email(email)
                 .passwordHash(passwordEncoder.encode(request.getPassword()))
+                .badgeCode(badgeCode)
+                .pinHash(request.getPin() != null && !request.getPin().isBlank()
+                        ? passwordEncoder.encode(request.getPin()) : null)
                 .isActive(request.getIsActive() != null ? request.getIsActive() : true)
                 .roles(loadRoles(request.getRoleIds()))
                 .build();
@@ -90,6 +97,17 @@ public class UserService {
         if (request.getPassword() != null && !request.getPassword().isBlank()) {
             user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
         }
+        String badgeCode = normalizeBadgeCode(request.getBadgeCode());
+        if (badgeCode != null && !badgeCode.equalsIgnoreCase(user.getBadgeCode())
+                && userRepository.existsByBadgeCodeIgnoreCase(badgeCode)) {
+            throw new BusinessException("Badge deja utilise: " + badgeCode);
+        }
+        user.setBadgeCode(badgeCode);
+        if (request.getPin() != null && !request.getPin().isBlank()) {
+            user.setPinHash(passwordEncoder.encode(request.getPin()));
+            user.setPinFailedAttempts(0);
+            user.setPinLockedUntil(null);
+        }
         if (request.getIsActive() != null) {
             user.setIsActive(request.getIsActive());
         }
@@ -111,6 +129,13 @@ public class UserService {
         userRepository.delete(user);
         auditService.log("User", id, com.erp.products.domain.enums.AuditAction.SUPPRESSION,
                 "Utilisateur supprime: " + user.getEmail(), currentUserService.getCurrentUserEmailOrDefault());
+    }
+
+    private String normalizeBadgeCode(String badgeCode) {
+        if (badgeCode == null || badgeCode.isBlank()) {
+            return null;
+        }
+        return badgeCode.trim();
     }
 
     private Set<Role> loadRoles(List<Long> roleIds) {

@@ -1,5 +1,6 @@
 package com.erp.products.controller;
 
+import com.erp.products.dto.BadgeLoginRequest;
 import com.erp.products.dto.LoginRequest;
 import com.erp.products.dto.LoginResponse;
 import com.erp.products.dto.UserResponse;
@@ -20,6 +21,11 @@ public class AuthController {
     @PostMapping("/login")
     public LoginResponse login(@Valid @RequestBody LoginRequest request) {
         return authService.login(request);
+    }
+
+    @PostMapping("/login/badge")
+    public LoginResponse loginWithBadge(@Valid @RequestBody BadgeLoginRequest request) {
+        return authService.loginWithBadge(request);
     }
 
     @GetMapping("/me")

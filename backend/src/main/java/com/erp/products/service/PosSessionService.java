@@ -51,6 +51,7 @@ public class PosSessionService {
     private final CurrentUserService currentUserService;
     private final PermissionEvaluator permissionChecker;
     private final PasswordEncoder passwordEncoder;
+    private final BadgePinAuthService badgePinAuthService;
     private final PosMapper mapper;
     private final SaleCancellationService saleCancellationService;
 
@@ -285,18 +286,26 @@ public class PosSessionService {
     }
 
     private void validateManagerApproval(PosSessionCloseRequest request, User closingUser) {
-        if (request.getManagerEmail() == null || request.getManagerEmail().isBlank()
-                || request.getManagerPassword() == null || request.getManagerPassword().isBlank()) {
+        boolean hasBadge = request.getManagerBadgeCode() != null && !request.getManagerBadgeCode().isBlank()
+                && request.getManagerPin() != null && !request.getManagerPin().isBlank();
+        boolean hasEmailPwd = request.getManagerEmail() != null && !request.getManagerEmail().isBlank()
+                && request.getManagerPassword() != null && !request.getManagerPassword().isBlank();
+        if (!hasBadge && !hasEmailPwd) {
             throw new BusinessException("Validation manager obligatoire : identifiants manager requis");
         }
-        String email = request.getManagerEmail().trim().toLowerCase();
-        if (email.equalsIgnoreCase(closingUser.getEmail())) {
-            throw new BusinessException("La validation manager doit etre effectuee par un autre utilisateur");
+        User manager;
+        if (hasBadge) {
+            manager = badgePinAuthService.authenticate(request.getManagerBadgeCode(), request.getManagerPin());
+        } else {
+            String email = request.getManagerEmail().trim().toLowerCase();
+            manager = userRepository.findByEmailWithRolesAndPermissions(email)
+                    .orElseThrow(() -> new BusinessException("Identifiants manager invalides"));
+            if (!passwordEncoder.matches(request.getManagerPassword(), manager.getPasswordHash())) {
+                throw new BusinessException("Identifiants manager invalides");
+            }
         }
-        User manager = userRepository.findByEmailWithRolesAndPermissions(email)
-                .orElseThrow(() -> new BusinessException("Identifiants manager invalides"));
-        if (!passwordEncoder.matches(request.getManagerPassword(), manager.getPasswordHash())) {
-            throw new BusinessException("Identifiants manager invalides");
+        if (manager.getEmail().equalsIgnoreCase(closingUser.getEmail())) {
+            throw new BusinessException("La validation manager doit etre effectuee par un autre utilisateur");
         }
         if (!userHasPermission(manager, PERM_VALIDATE_CASH_DIFFERENCE)) {
             throw new BusinessException("Cet utilisateur ne peut pas valider un ecart de caisse");

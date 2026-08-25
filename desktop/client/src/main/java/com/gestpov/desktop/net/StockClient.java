@@ -301,7 +301,8 @@ public class StockClient {
     }
 
     public void adjust(long productId, long warehouseId, long locationId, BigDecimal quantityBase, String reference,
-                       String reason, String managerEmail, String managerPassword) throws ApiException {
+                       String reason, String managerEmail, String managerPassword, String managerBadgeCode,
+                       String managerPin) throws ApiException {
         Map<String, Object> body = operation(productId, warehouseId, locationId, quantityBase, reference);
         if (reason != null && !reason.isBlank()) {
             body.put("reason", reason.trim());
@@ -311,6 +312,12 @@ public class StockClient {
         }
         if (managerPassword != null && !managerPassword.isBlank()) {
             body.put("managerPassword", managerPassword);
+        }
+        if (managerBadgeCode != null && !managerBadgeCode.isBlank()) {
+            body.put("managerBadgeCode", managerBadgeCode.trim());
+        }
+        if (managerPin != null && !managerPin.isBlank()) {
+            body.put("managerPin", managerPin);
         }
         api.post("/api/stock/adjust", body);
     }

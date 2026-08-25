@@ -2,6 +2,7 @@ package com.erp.products.service;
 
 import com.erp.products.domain.entity.Permission;
 import com.erp.products.domain.entity.User;
+import com.erp.products.dto.BadgeLoginRequest;
 import com.erp.products.dto.LoginRequest;
 import com.erp.products.dto.LoginResponse;
 import com.erp.products.dto.UserResponse;
@@ -27,6 +28,7 @@ public class AuthService {
     private final UserRepository userRepository;
     private final JwtService jwtService;
     private final UserMapper userMapper;
+    private final BadgePinAuthService badgePinAuthService;
 
     @Transactional
     public LoginResponse login(LoginRequest request) {
@@ -48,6 +50,26 @@ public class AuthService {
         List<String> permissions = userResponse.getPermissions();
 
         String token = jwtService.generateToken(email, permissions);
+
+        return LoginResponse.builder()
+                .token(token)
+                .tokenType("Bearer")
+                .user(userResponse)
+                .permissions(permissions)
+                .build();
+    }
+
+    @Transactional
+    public LoginResponse loginWithBadge(BadgeLoginRequest request) {
+        User user = badgePinAuthService.authenticate(request.getBadgeCode(), request.getPin());
+
+        user.setLastLoginAt(Instant.now());
+        userRepository.save(user);
+
+        UserResponse userResponse = userMapper.toUserResponse(user);
+        List<String> permissions = userResponse.getPermissions();
+
+        String token = jwtService.generateToken(user.getEmail(), permissions);
 
         return LoginResponse.builder()
                 .token(token)

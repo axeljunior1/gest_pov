@@ -230,14 +230,16 @@ public final class PosReturnsView extends StackPane {
             BigDecimal total = created.hasNonNull("totalAmount")
                     ? new BigDecimal(created.get("totalAmount").asText())
                     : BigDecimal.ZERO;
-            validateReturn(returnId, method, total, null, null);
+            validateReturn(returnId, method, total, null, null, null, null);
         }, this::fail);
     }
 
     private void validateReturn(long returnId, String method, BigDecimal total,
-                                 String managerEmail, String managerPassword) {
+                                 String managerEmail, String managerPassword,
+                                 String managerBadgeCode, String managerPin) {
         loading.setLoading(true);
-        FxAsync.run(() -> pos.validateReturn(returnId, method, total, managerEmail, managerPassword), validated -> {
+        FxAsync.run(() -> pos.validateReturn(returnId, method, total, managerEmail, managerPassword,
+                managerBadgeCode, managerPin), validated -> {
             loading.setLoading(false);
             error.hide();
             javafx.scene.control.Alert done = new javafx.scene.control.Alert(
@@ -275,28 +277,53 @@ public final class PosReturnsView extends StackPane {
         managerEmail.setPromptText("Email manager");
         javafx.scene.control.PasswordField managerPassword = new javafx.scene.control.PasswordField();
         managerPassword.setPromptText("Mot de passe manager");
+        TextField managerBadge = new TextField();
+        managerBadge.setPromptText("Badge manager");
+        javafx.scene.control.PasswordField managerPin = new javafx.scene.control.PasswordField();
+        managerPin.setPromptText("Code PIN manager");
         Label dialogError = new Label();
         dialogError.getStyleClass().add("error-banner-text");
         dialogError.setWrapText(true);
         dialogError.setVisible(false);
         dialogError.setManaged(false);
 
+        VBox emailBox = new VBox(8, labeled("Email", managerEmail), labeled("Mot de passe", managerPassword));
+        VBox badgeBox = new VBox(8, labeled("Badge", managerBadge), labeled("Code PIN", managerPin));
+        badgeBox.setVisible(false);
+        badgeBox.setManaged(false);
+        Button toggleMode = new Button("Utiliser un badge");
+        toggleMode.getStyleClass().add("button-ghost");
+        toggleMode.setOnAction(e -> {
+            boolean toBadge = !badgeBox.isVisible();
+            emailBox.setVisible(!toBadge);
+            emailBox.setManaged(!toBadge);
+            badgeBox.setVisible(toBadge);
+            badgeBox.setManaged(toBadge);
+            toggleMode.setText(toBadge ? "Utiliser email + mot de passe" : "Utiliser un badge");
+        });
+
         Button confirm = new Button("Valider le retour");
         confirm.getStyleClass().add("button-primary");
         confirm.setOnAction(e -> {
-            if (managerEmail.getText() == null || managerEmail.getText().isBlank()
-                    || managerPassword.getText() == null || managerPassword.getText().isBlank()) {
-                dialogError.setText("Email et mot de passe manager obligatoires.");
+            boolean hasEmailPwd = managerEmail.getText() != null && !managerEmail.getText().isBlank()
+                    && managerPassword.getText() != null && !managerPassword.getText().isBlank();
+            boolean hasBadge = managerBadge.getText() != null && !managerBadge.getText().isBlank()
+                    && managerPin.getText() != null && !managerPin.getText().isBlank();
+            if (!hasEmailPwd && !hasBadge) {
+                dialogError.setText("Identifiants manager obligatoires (email+mot de passe ou badge+PIN).");
                 dialogError.setVisible(true);
                 dialogError.setManaged(true);
                 return;
             }
             dialog.close();
-            validateReturn(returnId, method, total, managerEmail.getText().trim(), managerPassword.getText());
+            validateReturn(returnId, method, total,
+                    hasEmailPwd ? managerEmail.getText().trim() : null,
+                    hasEmailPwd ? managerPassword.getText() : null,
+                    hasBadge ? managerBadge.getText().trim() : null,
+                    hasBadge ? managerPin.getText() : null);
         });
 
-        VBox content = new VBox(10, info, dialogError,
-                labeled("Email", managerEmail), labeled("Mot de passe", managerPassword), confirm);
+        VBox content = new VBox(10, info, dialogError, emailBox, badgeBox, toggleMode, confirm);
         content.setPadding(new Insets(12));
         content.setPrefWidth(360);
         dialog.getDialogPane().setContent(content);

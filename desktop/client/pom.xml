@@ -36,6 +36,13 @@
             <version>2.17.2</version>
         </dependency>
 
+        <!-- Impression tickets ESC/POS (imprimantes thermiques sans pilote Windows classique) -->
+        <dependency>
+            <groupId>com.github.anastaciocintra</groupId>
+            <artifactId>escpos-coffee</artifactId>
+            <version>4.1.0</version>
+        </dependency>
+
         <!-- Tests -->
         <dependency>
             <groupId>org.junit.jupiter</groupId>
