@@ -220,8 +220,26 @@ public class PosClient {
     }
 
     public Sale lineDiscount(long saleId, long lineId, BigDecimal amount) throws ApiException {
-        return Sale.fromJson(api.put("/api/pos/sales/" + saleId + "/lines/" + lineId + "/discount",
-                Map.of("discountAmount", amount)));
+        return lineDiscount(saleId, lineId, amount, null, null, null, null);
+    }
+
+    public Sale lineDiscount(long saleId, long lineId, BigDecimal amount, String managerEmail,
+                             String managerPassword, String managerBadgeCode, String managerPin) throws ApiException {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("discountAmount", amount);
+        if (managerEmail != null && !managerEmail.isBlank()) {
+            body.put("managerEmail", managerEmail.trim());
+        }
+        if (managerPassword != null && !managerPassword.isBlank()) {
+            body.put("managerPassword", managerPassword);
+        }
+        if (managerBadgeCode != null && !managerBadgeCode.isBlank()) {
+            body.put("managerBadgeCode", managerBadgeCode.trim());
+        }
+        if (managerPin != null && !managerPin.isBlank()) {
+            body.put("managerPin", managerPin);
+        }
+        return Sale.fromJson(api.put("/api/pos/sales/" + saleId + "/lines/" + lineId + "/discount", body));
     }
 
     public Sale assignCustomer(long saleId, long customerId) throws ApiException {
@@ -325,6 +343,31 @@ public class PosClient {
             body.put("managerPin", managerPin);
         }
         return api.post("/api/pos/returns/" + returnId + "/validate", body);
+    }
+
+    public JsonNode exchange(long saleId, List<Map<String, Object>> returnLines, List<Map<String, Object>> newLines,
+                             String reason, String paymentMethod, String managerEmail, String managerPassword,
+                             String managerBadgeCode, String managerPin) throws ApiException {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("returnLines", returnLines);
+        body.put("newLines", newLines);
+        if (reason != null && !reason.isBlank()) {
+            body.put("reason", reason.trim());
+        }
+        body.put("paymentMethod", paymentMethod == null || paymentMethod.isBlank() ? "CASH" : paymentMethod);
+        if (managerEmail != null && !managerEmail.isBlank()) {
+            body.put("managerEmail", managerEmail.trim());
+        }
+        if (managerPassword != null && !managerPassword.isBlank()) {
+            body.put("managerPassword", managerPassword);
+        }
+        if (managerBadgeCode != null && !managerBadgeCode.isBlank()) {
+            body.put("managerBadgeCode", managerBadgeCode.trim());
+        }
+        if (managerPin != null && !managerPin.isBlank()) {
+            body.put("managerPin", managerPin);
+        }
+        return api.post("/api/pos/sales/" + saleId + "/exchange", body);
     }
 
     public JsonNode returnReceipt(long returnId) throws ApiException {

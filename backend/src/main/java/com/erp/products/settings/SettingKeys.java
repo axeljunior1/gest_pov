@@ -51,6 +51,8 @@ public final class SettingKeys {
             "pos.require_manager_validation_for_cash_difference";
     public static final String POS_REQUIRE_MANAGER_APPROVAL_ABOVE_REFUND_AMOUNT =
             "pos.require_manager_approval_above_refund_amount";
+    public static final String POS_REQUIRE_MANAGER_APPROVAL_ABOVE_DISCOUNT_AMOUNT =
+            "pos.require_manager_approval_above_discount_amount";
 
     public static final String POS_BARCODE_SCAN_ENABLED = "pos.barcode_scan_enabled";
     public static final String POS_BARCODE_MIN_LENGTH = "pos.barcode_min_length";

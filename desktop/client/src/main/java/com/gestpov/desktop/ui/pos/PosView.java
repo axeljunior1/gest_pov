@@ -1236,12 +1236,97 @@ public final class PosView extends StackPane implements Reloadable {
             error.show("Remise invalide.");
             return;
         }
-        Long lineId = line.id();
+        submitDiscount(sale.id(), line.id(), amount, null, null, null, null);
+    }
+
+    private void submitDiscount(long saleId, long lineId, BigDecimal amount, String managerEmail,
+                                String managerPassword, String managerBadgeCode, String managerPin) {
         loading.setLoading(true);
-        FxAsync.run(() -> pos.lineDiscount(sale.id(), lineId, amount), updated -> {
+        FxAsync.run(() -> pos.lineDiscount(saleId, lineId, amount, managerEmail, managerPassword,
+                managerBadgeCode, managerPin), updated -> {
             showSale(updated);
             reselectLine(lineId);
-        }, this::fail);
+        }, t -> {
+            loading.setLoading(false);
+            if (t instanceof ApiException api && !api.isUnauthorized()
+                    && ApiException.userMessage(api).contains("Validation manager obligatoire")) {
+                promptDiscountManagerApproval(saleId, lineId, amount);
+            } else {
+                fail(t);
+            }
+        });
+    }
+
+    private void promptDiscountManagerApproval(long saleId, long lineId, BigDecimal amount) {
+        javafx.scene.control.Dialog<Void> dialog = new javafx.scene.control.Dialog<>();
+        dialog.setTitle("Validation manager requise");
+        dialog.getDialogPane().getButtonTypes().add(javafx.scene.control.ButtonType.CANCEL);
+        dialog.initOwner(getScene() == null ? null : getScene().getWindow());
+
+        Label info = new Label("Cette remise dépasse le seuil autorisé — validation d'un manager obligatoire.");
+        info.setWrapText(true);
+        info.getStyleClass().add("page-sub");
+        javafx.scene.control.TextField managerEmail = new javafx.scene.control.TextField();
+        managerEmail.setPromptText("Email manager");
+        javafx.scene.control.PasswordField managerPassword = new javafx.scene.control.PasswordField();
+        managerPassword.setPromptText("Mot de passe manager");
+        javafx.scene.control.TextField managerBadge = new javafx.scene.control.TextField();
+        managerBadge.setPromptText("Badge manager");
+        javafx.scene.control.PasswordField managerPin = new javafx.scene.control.PasswordField();
+        managerPin.setPromptText("Code PIN manager");
+        Label dialogError = new Label();
+        dialogError.getStyleClass().add("error-banner-text");
+        dialogError.setWrapText(true);
+        dialogError.setVisible(false);
+        dialogError.setManaged(false);
+
+        VBox emailBox = new VBox(8, labeled("Email", managerEmail), labeled("Mot de passe", managerPassword));
+        VBox badgeBox = new VBox(8, labeled("Badge", managerBadge), labeled("Code PIN", managerPin));
+        badgeBox.setVisible(false);
+        badgeBox.setManaged(false);
+        Button toggleMode = new Button("Utiliser un badge");
+        toggleMode.getStyleClass().add("button-ghost");
+        toggleMode.setOnAction(e -> {
+            boolean toBadge = !badgeBox.isVisible();
+            emailBox.setVisible(!toBadge);
+            emailBox.setManaged(!toBadge);
+            badgeBox.setVisible(toBadge);
+            badgeBox.setManaged(toBadge);
+            toggleMode.setText(toBadge ? "Utiliser email + mot de passe" : "Utiliser un badge");
+        });
+
+        Button confirm = new Button("Valider la remise");
+        confirm.getStyleClass().add("button-primary");
+        confirm.setOnAction(e -> {
+            boolean hasEmailPwd = managerEmail.getText() != null && !managerEmail.getText().isBlank()
+                    && managerPassword.getText() != null && !managerPassword.getText().isBlank();
+            boolean hasBadge = managerBadge.getText() != null && !managerBadge.getText().isBlank()
+                    && managerPin.getText() != null && !managerPin.getText().isBlank();
+            if (!hasEmailPwd && !hasBadge) {
+                dialogError.setText("Identifiants manager obligatoires (email+mot de passe ou badge+PIN).");
+                dialogError.setVisible(true);
+                dialogError.setManaged(true);
+                return;
+            }
+            dialog.close();
+            submitDiscount(saleId, lineId, amount,
+                    hasEmailPwd ? managerEmail.getText().trim() : null,
+                    hasEmailPwd ? managerPassword.getText() : null,
+                    hasBadge ? managerBadge.getText().trim() : null,
+                    hasBadge ? managerPin.getText() : null);
+        });
+
+        VBox content = new VBox(10, info, dialogError, emailBox, badgeBox, toggleMode, confirm);
+        content.setPadding(new Insets(12));
+        content.setPrefWidth(360);
+        dialog.getDialogPane().setContent(content);
+        dialog.showAndWait();
+    }
+
+    private static VBox labeled(String title, javafx.scene.Node node) {
+        Label l = new Label(title);
+        l.getStyleClass().add("form-label");
+        return new VBox(4, l, node);
     }
 
     private void openCustomerSearchDialog() {

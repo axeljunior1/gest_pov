@@ -21,6 +21,7 @@ public class PosController {
     private final PosCatalogService catalogService;
     private final PosTicketService ticketService;
     private final PosRefundService refundService;
+    private final PosExchangeService exchangeService;
     private final SettingsService settingsService;
     private final PosConfigService posConfigService;
     private final ClientConfigurationService clientConfigurationService;
@@ -155,8 +156,8 @@ public class PosController {
     public SaleResponse lineDiscount(
             @PathVariable Long id,
             @PathVariable Long lineId,
-            @RequestBody Map<String, BigDecimal> body) {
-        return saleService.applyLineDiscount(id, lineId, body.get("discountAmount"));
+            @RequestBody LineDiscountRequest request) {
+        return saleService.applyLineDiscount(id, lineId, request);
     }
 
     @PostMapping("/sales/{id}/hold")
@@ -287,6 +288,13 @@ public class PosController {
     @PreAuthorize("@permissionChecker.hasAny(authentication, 'pos.return.validate', 'pos.refund.validate', 'pos.sale.refund')")
     public SaleRefundResponse validateReturn(@PathVariable Long id, @RequestBody RefundValidateRequest request) {
         return refundService.validateReturn(id, request);
+    }
+
+    @PostMapping("/sales/{id}/exchange")
+    @ResponseStatus(HttpStatus.CREATED)
+    @PreAuthorize("@permissionChecker.hasAny(authentication, 'pos.return.create', 'pos.sale.refund')")
+    public SaleExchangeResponse exchange(@PathVariable Long id, @RequestBody SaleExchangeRequest request) {
+        return exchangeService.create(id, request);
     }
 
     @GetMapping("/returns/{id}")

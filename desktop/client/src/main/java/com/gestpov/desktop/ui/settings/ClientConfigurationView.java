@@ -1,11 +1,14 @@
 package com.gestpov.desktop.ui.settings;
 
+import com.gestpov.desktop.config.ClientConfig;
+import com.gestpov.desktop.config.ClientConfigStore;
 import com.gestpov.desktop.model.ClientConfiguration;
 import com.gestpov.desktop.net.ApiException;
 import com.gestpov.desktop.net.SettingsClient;
 import com.gestpov.desktop.session.SessionContext;
 import com.gestpov.desktop.ui.component.ErrorBanner;
 import com.gestpov.desktop.ui.component.LoadingOverlay;
+import com.gestpov.desktop.ui.pos.EscPosPrinter;
 import com.gestpov.desktop.util.FxAsync;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -60,6 +63,11 @@ public final class ClientConfigurationView extends VBox {
     private final CheckBox pricesIncludeTax = new CheckBox();
     private final CheckBox autoApplyTax = new CheckBox();
 
+    private final ComboBox<String> ticketPrinter = new ComboBox<>();
+    private final ComboBox<String> ticketPaperWidth = new ComboBox<>();
+    private final Label printerStatus = new Label();
+    private final ClientConfigStore configStore = ClientConfigStore.userDefault();
+
     private ClientConfiguration current = ClientConfiguration.empty();
 
     public ClientConfigurationView(SessionContext session, LoadingOverlay sharedLoading) {
@@ -108,6 +116,38 @@ public final class ClientConfigurationView extends VBox {
         posGrid.add(posFlags, 0, 2, 2, 1);
         ColumnGrow(posGrid);
 
+        Label printerTitle = new Label("Imprimante ticket (ce poste)");
+        printerTitle.getStyleClass().add("settings-group-title");
+        Label printerHint = new Label("Réglage local à cet ordinateur — pas synchronisé entre postes. "
+                + "Imprimante thermique ESC/POS installée en « Générique / Texte seul » dans Windows.");
+        printerHint.getStyleClass().add("page-sub");
+        printerHint.setWrapText(true);
+
+        ticketPrinter.setPromptText("Aucune (dialogue Windows classique)");
+        ticketPrinter.setMaxWidth(Double.MAX_VALUE);
+        ticketPaperWidth.getItems().addAll("80mm (48 car.)", "58mm (32 car.)");
+        ticketPaperWidth.setMaxWidth(Double.MAX_VALUE);
+        Button refreshPrinters = new Button("Détecter les imprimantes");
+        refreshPrinters.getStyleClass().add("button-secondary");
+        refreshPrinters.setOnAction(e -> refreshPrinterList());
+        Button testPrint = new Button("Imprimer un ticket test");
+        testPrint.getStyleClass().add("button-secondary");
+        testPrint.setOnAction(e -> testPrint());
+        Button savePrinter = new Button("Enregistrer l'imprimante");
+        savePrinter.getStyleClass().add("button-primary");
+        savePrinter.setOnAction(e -> savePrinterConfig());
+        printerStatus.getStyleClass().add("page-sub");
+        printerStatus.setWrapText(true);
+
+        GridPane printerGrid = new GridPane();
+        printerGrid.setHgap(12);
+        printerGrid.setVgap(10);
+        printerGrid.add(labeled("Imprimante Windows", ticketPrinter), 0, 0);
+        printerGrid.add(labeled("Largeur papier", ticketPaperWidth), 1, 0);
+        printerGrid.add(new HBox(8, refreshPrinters, testPrint, savePrinter), 0, 1, 2, 1);
+        printerGrid.add(printerStatus, 0, 2, 2, 1);
+        ColumnGrow(printerGrid);
+
         Label payTitle = new Label("Moyens de paiement");
         payTitle.getStyleClass().add("form-label");
         paymentBox.getStyleClass().add("config-check-list");
@@ -153,11 +193,66 @@ public final class ClientConfigurationView extends VBox {
         getChildren().addAll(
                 h, hint, error,
                 posTitle, posGrid, payTitle, paymentBox,
+                printerTitle, printerHint, printerGrid,
                 stockTitle, stockGrid,
                 taxTitle, taxGrid,
                 actions);
         getStyleClass().add("card");
         setPadding(new Insets(16));
+
+        bindPrinterConfig();
+        refreshPrinterList();
+    }
+
+    private void bindPrinterConfig() {
+        ClientConfig local = configStore.load();
+        if (local.hasTicketPrinter() && !ticketPrinter.getItems().contains(local.ticketPrinterName())) {
+            ticketPrinter.getItems().add(local.ticketPrinterName());
+        }
+        ticketPrinter.setValue(local.hasTicketPrinter() ? local.ticketPrinterName() : null);
+        ticketPaperWidth.getSelectionModel().select(local.ticketPaperWidthChars() <= 32 ? 1 : 0);
+    }
+
+    private void refreshPrinterList() {
+        String selected = ticketPrinter.getValue();
+        FxAsync.run(EscPosPrinter::listPrinters, names -> {
+            ticketPrinter.getItems().setAll(names);
+            if (selected != null) {
+                if (!ticketPrinter.getItems().contains(selected)) {
+                    ticketPrinter.getItems().add(selected);
+                }
+                ticketPrinter.setValue(selected);
+            }
+            printerStatus.setText(ticketPrinter.getItems().isEmpty()
+                    ? "Aucune imprimante détectée par Windows."
+                    : ticketPrinter.getItems().size() + " imprimante(s) détectée(s).");
+        }, e -> printerStatus.setText("Détection impossible : " + e.getMessage()));
+    }
+
+    private void savePrinterConfig() {
+        String name = ticketPrinter.getValue();
+        int width = ticketPaperWidth.getSelectionModel().getSelectedIndex() == 1 ? 32 : 48;
+        try {
+            configStore.save(configStore.load().withTicketPrinter(name == null ? "" : name, width));
+            printerStatus.setText(name == null || name.isBlank()
+                    ? "Aucune imprimante ESC/POS — dialogue d'impression Windows classique."
+                    : "Imprimante enregistrée pour ce poste : " + name);
+        } catch (Exception e) {
+            printerStatus.setText("Échec de l'enregistrement : " + e.getMessage());
+        }
+    }
+
+    private void testPrint() {
+        String name = ticketPrinter.getValue();
+        if (name == null || name.isBlank()) {
+            printerStatus.setText("Sélectionnez d'abord une imprimante.");
+            return;
+        }
+        int width = ticketPaperWidth.getSelectionModel().getSelectedIndex() == 1 ? 32 : 48;
+        printerStatus.setText("Impression du ticket test…");
+        FxAsync.runVoid(() -> EscPosPrinter.printTestPage(name, width),
+                () -> printerStatus.setText("Ticket test envoyé à " + name + "."),
+                e -> printerStatus.setText("Échec de l'impression test : " + e.getMessage()));
     }
 
     public void reload() {

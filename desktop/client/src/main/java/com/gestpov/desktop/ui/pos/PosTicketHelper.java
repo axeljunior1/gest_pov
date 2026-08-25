@@ -1,6 +1,8 @@
 package com.gestpov.desktop.ui.pos;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.gestpov.desktop.config.ClientConfig;
+import com.gestpov.desktop.config.ClientConfigStore;
 import javafx.print.PrinterJob;
 import javafx.scene.control.Alert;
 import javafx.scene.control.ButtonType;
@@ -110,9 +112,27 @@ public final class PosTicketHelper {
             return;
         }
         if (result.get() == print) {
-            printText(owner, text);
+            printTicketOrText(owner, ticket, text);
         } else if (result.get() == save) {
             saveText(owner, text);
+        }
+    }
+
+    private static void printTicketOrText(Window owner, JsonNode ticket, String text) {
+        ClientConfig config = ClientConfigStore.userDefault().load();
+        if (config.hasTicketPrinter()) {
+            printEscPos(owner, config, ticket);
+        } else {
+            printText(owner, text);
+        }
+    }
+
+    private static void printEscPos(Window owner, ClientConfig config, JsonNode ticket) {
+        try {
+            EscPosPrinter.printTicket(config.ticketPrinterName(), ticket, config.ticketPaperWidthChars());
+        } catch (Exception e) {
+            new Alert(Alert.AlertType.ERROR, "Impression ticket impossible sur « " + config.ticketPrinterName()
+                    + " » : " + e.getMessage()).showAndWait();
         }
     }
 

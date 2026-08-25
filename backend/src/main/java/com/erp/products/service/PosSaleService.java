@@ -9,10 +9,12 @@ import com.erp.products.mapper.PosMapper;
 import com.erp.products.repository.*;
 import com.erp.products.security.CurrentUserService;
 import com.erp.products.security.PermissionEvaluator;
+import com.erp.products.settings.SettingKeys;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.data.domain.PageRequest;
@@ -61,6 +63,9 @@ public class PosSaleService {
     private final SaleEventService saleEventService;
     private final com.erp.products.service.stockvaluation.StockCmpValuationService cmpValuationService;
     private final ClientConfigurationService clientConfigurationService;
+    private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
+    private final BadgePinAuthService badgePinAuthService;
 
     @Transactional
     public SaleResponse createSale() {
@@ -374,17 +379,54 @@ public class PosSaleService {
     }
 
     @Transactional
-    public SaleResponse applyLineDiscount(Long saleId, Long lineId, BigDecimal discountAmount) {
+    public SaleResponse applyLineDiscount(Long saleId, Long lineId, LineDiscountRequest request) {
         Sale sale = findSaleForUpdate(saleId);
         ensureEditable(sale);
         SaleLine line = sale.getLignes().stream()
                 .filter(l -> l.getId().equals(lineId))
                 .findFirst()
                 .orElseThrow(() -> new ResourceNotFoundException("Ligne non trouvee: " + lineId));
-        line.setDiscountAmount(discountAmount != null ? discountAmount : BigDecimal.ZERO);
+        BigDecimal discountAmount = request.getDiscountAmount() != null ? request.getDiscountAmount() : BigDecimal.ZERO;
+        validateDiscountManagerIfRequired(discountAmount, request);
+        line.setDiscountAmount(discountAmount);
         line.setLineTotal(computeLineTotal(line.getQuantityInput(), line.getUnitPrice(), line.getDiscountAmount()));
         recalculateTotals(sale);
         return mapper.toSaleResponse(saleRepository.save(sale));
+    }
+
+    /** Contrôle à deux : au-delà du seuil configuré, un second utilisateur (avec droit de validation) doit se ré-authentifier. */
+    private void validateDiscountManagerIfRequired(BigDecimal discountAmount, LineDiscountRequest request) {
+        BigDecimal threshold = settingsService.getDecimal(SettingKeys.POS_REQUIRE_MANAGER_APPROVAL_ABOVE_DISCOUNT_AMOUNT);
+        if (threshold == null || discountAmount.compareTo(threshold) <= 0) {
+            return;
+        }
+        boolean hasBadge = request.getManagerBadgeCode() != null && !request.getManagerBadgeCode().isBlank()
+                && request.getManagerPin() != null && !request.getManagerPin().isBlank();
+        boolean hasEmailPwd = request.getManagerEmail() != null && !request.getManagerEmail().isBlank()
+                && request.getManagerPassword() != null && !request.getManagerPassword().isBlank();
+        if (!hasBadge && !hasEmailPwd) {
+            throw new BusinessException("Validation manager obligatoire pour cette remise");
+        }
+        User manager;
+        if (hasBadge) {
+            manager = badgePinAuthService.authenticate(request.getManagerBadgeCode(), request.getManagerPin());
+        } else {
+            manager = userRepository.findByEmailIgnoreCase(request.getManagerEmail().trim())
+                    .orElseThrow(() -> new BusinessException("Manager introuvable"));
+            if (!passwordEncoder.matches(request.getManagerPassword(), manager.getPasswordHash())) {
+                throw new BusinessException("Identifiants manager invalides");
+            }
+        }
+        User actor = currentUserService.requireCurrentUser();
+        if (manager.getEmail().equalsIgnoreCase(actor.getEmail())) {
+            throw new BusinessException("La validation manager doit etre effectuee par un autre utilisateur");
+        }
+        boolean authorized = manager.getRoles().stream()
+                .flatMap(role -> role.getPermissions().stream())
+                .anyMatch(p -> "pos.sale.validate_discount".equals(p.getCode()));
+        if (!authorized) {
+            throw new BusinessException("Cet utilisateur ne peut pas valider cette remise");
+        }
     }
 
     @Transactional

@@ -63,6 +63,7 @@ public class PaymentAnalyticsService {
             case MOBILE_MONEY -> "Mobile money";
             case BANK_TRANSFER -> "Virement";
             case OTHER -> "Autre";
+            case EXCHANGE_OFFSET -> "Avoir (échange)";
         };
     }
 }

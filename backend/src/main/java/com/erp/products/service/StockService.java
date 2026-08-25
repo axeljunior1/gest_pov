@@ -159,6 +159,10 @@ public class StockService {
                 throw new BusinessException("Identifiants manager invalides");
             }
         }
+        User actor = currentUserService.requireCurrentUser();
+        if (manager.getEmail().equalsIgnoreCase(actor.getEmail())) {
+            throw new BusinessException("La validation manager doit etre effectuee par un autre utilisateur");
+        }
         boolean authorized = manager.getRoles().stream()
                 .flatMap(role -> role.getPermissions().stream())
                 .anyMatch(p -> "stock.adjust".equals(p.getCode()));

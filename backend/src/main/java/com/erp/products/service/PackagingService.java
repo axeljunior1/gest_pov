@@ -12,6 +12,8 @@ import com.erp.products.mapper.ProductMapper;
 import com.erp.products.repository.ProductPackagingRepository;
 import com.erp.products.repository.ProductRepository;
 import com.erp.products.repository.ProductVariantRepository;
+import com.erp.products.repository.SaleLineRepository;
+import com.erp.products.repository.StockEntryLineRepository;
 import com.erp.products.security.PermissionEvaluator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
@@ -37,6 +39,8 @@ public class PackagingService {
     private final PermissionEvaluator permissionChecker;
     private final ProductVariantPolicyService variantPolicyService;
     private final BarcodeRegistryService barcodeRegistryService;
+    private final SaleLineRepository saleLineRepository;
+    private final StockEntryLineRepository stockEntryLineRepository;
 
     @Transactional(readOnly = true)
     public List<ProductPackagingResponse> listByProduct(Long productId) {
@@ -154,9 +158,19 @@ public class PackagingService {
     @Transactional
     public void delete(Long productId, Long packagingId) {
         ProductPackaging packaging = findPackaging(productId, packagingId);
+        assertDeletable(packaging);
         packagingRepository.delete(packaging);
         auditService.log("Product", productId, AuditAction.MODIFICATION,
                 "Conditionnement supprimé: " + packaging.getNom());
+    }
+
+    private void assertDeletable(ProductPackaging packaging) {
+        if (saleLineRepository.existsByPackagingId(packaging.getId())) {
+            throw new BusinessException("Impossible : ce conditionnement a déjà été vendu.");
+        }
+        if (stockEntryLineRepository.existsByPackagingId(packaging.getId())) {
+            throw new BusinessException("Impossible : ce conditionnement a déjà été utilisé sur une entrée de stock.");
+        }
     }
 
     /**

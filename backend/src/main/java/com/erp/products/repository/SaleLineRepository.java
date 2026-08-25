@@ -9,4 +9,7 @@ public interface SaleLineRepository extends JpaRepository<SaleLine, Long> {
 
     @Query("SELECT COUNT(sl) > 0 FROM SaleLine sl WHERE sl.variant.id = :variantId")
     boolean existsByVariantId(@Param("variantId") Long variantId);
+
+    @Query("SELECT COUNT(sl) > 0 FROM SaleLine sl WHERE sl.packaging.id = :packagingId")
+    boolean existsByPackagingId(@Param("packagingId") Long packagingId);
 }

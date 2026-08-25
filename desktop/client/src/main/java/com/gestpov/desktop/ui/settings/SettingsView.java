@@ -20,6 +20,8 @@ import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
+import javafx.scene.control.ToggleButton;
+import javafx.scene.control.ToggleGroup;
 import javafx.scene.control.Tooltip;
 import javafx.scene.input.Clipboard;
 import javafx.scene.input.ClipboardContent;
@@ -91,8 +93,25 @@ public final class SettingsView extends StackPane implements Reloadable {
     private final LoadingOverlay loading = new LoadingOverlay();
     private final Label installIdValue = new Label("—");
     private final Label logoStatus = new Label("Logo : —");
-    private final VBox groupsBox = new VBox(16);
     private final ClientConfigurationView clientConfigView;
+
+    private final ToggleButton tabGeneral = new ToggleButton("Général");
+    private final ToggleButton tabPosConfig = new ToggleButton("Caisse, stock & taxes");
+    private final ToggleButton tabCompany = new ToggleButton("Entreprise & affichage");
+    private final ToggleButton tabStock = new ToggleButton("Stock & alertes");
+    private final ToggleButton tabNumbering = new ToggleButton("Numérotation");
+    private final ToggleButton tabPosAdvanced = new ToggleButton("Point de vente (POS)");
+    private final ToggleButton tabLoyalty = new ToggleButton("Fidélité");
+    private final ToggleButton tabOther = new ToggleButton("Autres");
+
+    private final VBox generalPane = new VBox(16);
+    private final VBox posConfigPane = new VBox(16);
+    private final VBox companyPane = new VBox(16);
+    private final VBox stockPane = new VBox(16);
+    private final VBox numberingPane = new VBox(16);
+    private final VBox posAdvancedPane = new VBox(16);
+    private final VBox loyaltyPane = new VBox(16);
+    private final VBox otherPane = new VBox(16);
     private final Map<String, Supplier<String>> editors = new LinkedHashMap<>();
     private Map<String, AppSetting> byKey = Map.of();
     private Map<String, List<ReferenceValueOption>> referenceValues = Map.of();
@@ -133,17 +152,69 @@ public final class SettingsView extends StackPane implements Reloadable {
 
         VBox installCard = buildInstallationCard();
         VBox logoCard = buildLogoCard();
-        groupsBox.getStyleClass().add("settings-groups");
+        generalPane.getChildren().setAll(installCard, logoCard);
+        posConfigPane.getChildren().setAll(clientConfigView);
+        for (VBox pane : List.of(companyPane, stockPane, numberingPane, posAdvancedPane, loyaltyPane, otherPane)) {
+            pane.getStyleClass().add("settings-groups");
+        }
 
-        ScrollPane scroll = new ScrollPane(new VBox(16, installCard, logoCard, clientConfigView, groupsBox));
+        ToggleGroup tabs = new ToggleGroup();
+        styleTab(tabGeneral, tabs, true);
+        styleTab(tabPosConfig, tabs, false);
+        styleTab(tabCompany, tabs, false);
+        styleTab(tabStock, tabs, false);
+        styleTab(tabNumbering, tabs, false);
+        styleTab(tabPosAdvanced, tabs, false);
+        styleTab(tabLoyalty, tabs, false);
+        styleTab(tabOther, tabs, false);
+        HBox tabBar = new HBox(8, tabGeneral, tabPosConfig, tabCompany, tabStock, tabNumbering, tabPosAdvanced,
+                tabLoyalty, tabOther);
+        tabBar.setAlignment(Pos.CENTER_LEFT);
+
+        StackPane body = new StackPane(generalPane, posConfigPane, companyPane, stockPane, numberingPane,
+                posAdvancedPane, loyaltyPane, otherPane);
+        showSelectedTab();
+
+        ScrollPane scroll = new ScrollPane(body);
         scroll.setFitToWidth(true);
         scroll.getStyleClass().add("settings-scroll");
         VBox.setVgrow(scroll, Priority.ALWAYS);
 
-        VBox page = new VBox(12, header, sub, error, scroll);
+        VBox page = new VBox(12, header, sub, error, tabBar, scroll);
         page.getStyleClass().add("content");
         page.setPadding(new Insets(0));
         return page;
+    }
+
+    private void styleTab(ToggleButton btn, ToggleGroup group, boolean selected) {
+        btn.setToggleGroup(group);
+        btn.getStyleClass().add("button-secondary");
+        btn.setSelected(selected);
+        btn.setOnAction(e -> {
+            if (!btn.isSelected()) {
+                btn.setSelected(true);
+            }
+            showSelectedTab();
+        });
+    }
+
+    private void showSelectedTab() {
+        generalPane.setVisible(tabGeneral.isSelected());
+        generalPane.setManaged(tabGeneral.isSelected());
+        posConfigPane.setVisible(tabPosConfig.isSelected());
+        posConfigPane.setManaged(tabPosConfig.isSelected());
+        companyPane.setVisible(tabCompany.isSelected());
+        companyPane.setManaged(tabCompany.isSelected());
+        stockPane.setVisible(tabStock.isSelected());
+        stockPane.setManaged(tabStock.isSelected());
+        numberingPane.setVisible(tabNumbering.isSelected());
+        numberingPane.setManaged(tabNumbering.isSelected());
+        posAdvancedPane.setVisible(tabPosAdvanced.isSelected());
+        posAdvancedPane.setManaged(tabPosAdvanced.isSelected());
+        loyaltyPane.setVisible(tabLoyalty.isSelected());
+        loyaltyPane.setManaged(tabLoyalty.isSelected());
+        otherPane.setVisible(tabOther.isSelected());
+        otherPane.setManaged(tabOther.isSelected());
     }
 
     private VBox buildLogoCard() {
@@ -242,7 +313,9 @@ public final class SettingsView extends StackPane implements Reloadable {
 
     private void rebuildEditors() {
         editors.clear();
-        groupsBox.getChildren().clear();
+        for (VBox pane : List.of(companyPane, stockPane, numberingPane, posAdvancedPane, loyaltyPane, otherPane)) {
+            pane.getChildren().clear();
+        }
 
         Set<String> placed = new LinkedHashSet<>();
         for (SettingGroup group : GROUPS) {
@@ -255,7 +328,7 @@ public final class SettingsView extends StackPane implements Reloadable {
                 }
             }
             if (!items.isEmpty()) {
-                groupsBox.getChildren().add(buildGroupCard(group.title(), items));
+                paneForGroup(group.title()).getChildren().add(buildGroupCard(group.title(), items));
             }
         }
 
@@ -265,15 +338,27 @@ public final class SettingsView extends StackPane implements Reloadable {
                 others.add(s);
             }
         }
-        if (!others.isEmpty()) {
-            groupsBox.getChildren().add(buildGroupCard("Autres", others));
+        boolean hasOthers = !others.isEmpty();
+        if (hasOthers) {
+            otherPane.getChildren().add(buildGroupCard("Autres", others));
         }
+        tabOther.setVisible(hasOthers);
+        tabOther.setManaged(hasOthers);
+        if (!hasOthers && tabOther.isSelected()) {
+            tabGeneral.setSelected(true);
+            showSelectedTab();
+        }
+    }
 
-        if (groupsBox.getChildren().isEmpty()) {
-            Label empty = new Label("Aucun paramètre disponible.");
-            empty.getStyleClass().add("empty-state");
-            groupsBox.getChildren().add(empty);
-        }
+    private VBox paneForGroup(String title) {
+        return switch (title) {
+            case "Entreprise & affichage" -> companyPane;
+            case "Stock & alertes" -> stockPane;
+            case "Numérotation documents" -> numberingPane;
+            case "Point de vente (POS)" -> posAdvancedPane;
+            case "Fidélité" -> loyaltyPane;
+            default -> otherPane;
+        };
     }
 
     private VBox buildGroupCard(String title, List<AppSetting> items) {

@@ -477,6 +477,10 @@ public class PosRefundService {
                 throw new BusinessException("Identifiants manager invalides");
             }
         }
+        User actor = currentUserService.requireCurrentUser();
+        if (manager.getEmail().equalsIgnoreCase(actor.getEmail())) {
+            throw new BusinessException("La validation manager doit etre effectuee par un autre utilisateur");
+        }
         if (!userHasPermission(manager, PERM_VALIDATE_SENSITIVE_REFUND)) {
             throw new BusinessException("Cet utilisateur ne peut pas valider ce remboursement");
         }

@@ -413,6 +413,8 @@ public class SettingsService {
                 "Validation manager obligatoire si ecart caisse a la cloture", false));
         map.put(SettingKeys.POS_REQUIRE_MANAGER_APPROVAL_ABOVE_REFUND_AMOUNT, def("999999", AppSettingType.NUMBER,
                 "Seuil remboursement necessitant validation manager", false));
+        map.put(SettingKeys.POS_REQUIRE_MANAGER_APPROVAL_ABOVE_DISCOUNT_AMOUNT, def("999999", AppSettingType.NUMBER,
+                "Seuil remise (montant) necessitant validation manager", false));
         map.put(SettingKeys.POS_BARCODE_SCAN_ENABLED, def("true", AppSettingType.BOOLEAN,
                 "Activer le scan code-barres POS", true));
         map.put(SettingKeys.POS_BARCODE_MIN_LENGTH, def("6", AppSettingType.NUMBER,
