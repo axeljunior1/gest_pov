@@ -163,6 +163,96 @@ class PosReturnRefundTest extends com.erp.products.AbstractIntegrationTest {
     }
 
     @Test
+    void fullReturnRefundsAmountIncludingTax() throws Exception {
+        mockMvc.perform(auth(put("/api/settings"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "settings", Map.of("tax.prices_include_tax", "false")))))
+                .andExpect(status().isOk());
+
+        openCashierSession(0);
+        MvcResult saleResult = mockMvc.perform(auth(post("/api/pos/sales")))
+                .andExpect(status().isCreated())
+                .andReturn();
+        Long saleId = objectMapper.readTree(saleResult.getResponse().getContentAsString()).get("id").asLong();
+
+        // prix produit = 10 (HT), TVA 20% : le client paie 12 (10 + 2 de taxe)
+        MvcResult lineResult = mockMvc.perform(auth(post("/api/pos/sales/" + saleId + "/lines"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "productId", productId,
+                                "quantityInput", 1,
+                                "taxRate", 20))))
+                .andExpect(status().isOk())
+                .andReturn();
+        Long lineId = objectMapper.readTree(lineResult.getResponse().getContentAsString())
+                .get("lignes").get(0).get("id").asLong();
+        double total = objectMapper.readTree(lineResult.getResponse().getContentAsString()).get("total").asDouble();
+
+        mockMvc.perform(auth(post("/api/pos/sales/" + saleId + "/validate"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "payments", List.of(Map.of("method", "CASH", "amount", total))))))
+                .andExpect(status().isOk());
+
+        // le retour complet doit rembourser le montant réellement payé (12), pas seulement le HT (10)
+        mockMvc.perform(auth(cashierToken, post("/api/pos/sales/" + saleId + "/refund"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "reason", "Retour total avec taxe",
+                                "returnToStock", true,
+                                "lines", List.of(Map.of("saleLineId", lineId, "quantity", 1))))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.totalAmount", is(12.0)));
+    }
+
+    @Test
+    void partialReturnAppliesLineDiscountProportionally() throws Exception {
+        openCashierSession(0);
+        MvcResult saleResult = mockMvc.perform(auth(post("/api/pos/sales")))
+                .andExpect(status().isCreated())
+                .andReturn();
+        Long saleId = objectMapper.readTree(saleResult.getResponse().getContentAsString()).get("id").asLong();
+
+        MvcResult lineResult = mockMvc.perform(auth(post("/api/pos/sales/" + saleId + "/lines"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "productId", productId,
+                                "quantityInput", 2))))
+                .andExpect(status().isOk())
+                .andReturn();
+        Long lineId = objectMapper.readTree(lineResult.getResponse().getContentAsString())
+                .get("lignes").get(0).get("id").asLong();
+
+        // 2 x 10 = 20, remise de ligne 8 => lineTotal 12 (6/unite)
+        mockMvc.perform(auth(put("/api/pos/sales/" + saleId + "/lines/" + lineId + "/discount"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("discountAmount", 8))))
+                .andExpect(status().isOk());
+
+        JsonNode sale = objectMapper.readTree(
+                mockMvc.perform(auth(get("/api/pos/sales/" + saleId)))
+                        .andReturn().getResponse().getContentAsString());
+        double total = sale.get("total").asDouble();
+
+        mockMvc.perform(auth(post("/api/pos/sales/" + saleId + "/validate"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "payments", List.of(Map.of("method", "CASH", "amount", total))))))
+                .andExpect(status().isOk());
+
+        // retour d'1 unite sur 2 : doit repartir la remise de ligne (6), pas le prix brut (10)
+        mockMvc.perform(auth(cashierToken, post("/api/pos/sales/" + saleId + "/refund"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "reason", "Retour partiel avec remise",
+                                "returnToStock", true,
+                                "lines", List.of(Map.of("saleLineId", lineId, "quantity", 1))))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.totalAmount", is(6.0)));
+    }
+
+    @Test
     void returnableLinesEndpoint() throws Exception {
         openCashierSession(0);
         Long saleId = createAndPaySale(2);

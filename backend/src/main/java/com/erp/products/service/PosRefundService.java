@@ -380,11 +380,42 @@ public class PosRefundService {
     }
 
     private BigDecimal computeLineRefundAmount(SaleLine line, BigDecimal quantity) {
-        BigDecimal unitPrice = line.getUnitPriceSnapshot() != null ? line.getUnitPriceSnapshot() : line.getUnitPrice();
-        if (quantity.compareTo(line.getQuantityInput()) == 0) {
-            return line.getLineTotal();
+        if (line.getQuantityInput() == null || line.getQuantityInput().compareTo(BigDecimal.ZERO) <= 0) {
+            return BigDecimal.ZERO;
         }
-        return unitPrice.multiply(quantity).setScale(4, RoundingMode.HALF_UP);
+        BigDecimal netPaidForFullLine = computeLineNetPaid(line);
+        return netPaidForFullLine.multiply(quantity)
+                .divide(line.getQuantityInput(), 4, RoundingMode.HALF_UP);
+    }
+
+    /**
+     * Montant reellement paye par le client pour la ligne entiere : base taxable (remise de ligne deja
+     * deduite dans lineTotal), plus la taxe si les prix sont HT (deja incluse dans lineTotal si TTC),
+     * moins la quote-part de remise fidelite (remise globale a la vente) allouee a cette ligne.
+     */
+    private BigDecimal computeLineNetPaid(SaleLine line) {
+        Sale sale = line.getSale();
+        BigDecimal taxable = line.getLineTotal() != null ? line.getLineTotal() : BigDecimal.ZERO;
+        BigDecimal rate = line.getTaxRate();
+        BigDecimal grossPaid = taxable;
+        if (rate != null && rate.compareTo(BigDecimal.ZERO) > 0
+                && !settingsService.getBoolean(SettingKeys.TAX_PRICES_INCLUDE_TAX)) {
+            BigDecimal lineTax = taxable.multiply(rate).divide(BigDecimal.valueOf(100), 6, RoundingMode.HALF_UP);
+            grossPaid = taxable.add(lineTax);
+        }
+        BigDecimal loyaltyDiscount = sale != null && sale.getLoyaltyDiscountAmount() != null
+                ? sale.getLoyaltyDiscountAmount() : BigDecimal.ZERO;
+        if (sale != null && loyaltyDiscount.compareTo(BigDecimal.ZERO) > 0) {
+            BigDecimal taxableSum = sale.getLignes().stream()
+                    .map(l -> l.getLineTotal() != null ? l.getLineTotal() : BigDecimal.ZERO)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            if (taxableSum.compareTo(BigDecimal.ZERO) > 0) {
+                BigDecimal lineLoyaltyShare = loyaltyDiscount.multiply(taxable)
+                        .divide(taxableSum, 6, RoundingMode.HALF_UP);
+                grossPaid = grossPaid.subtract(lineLoyaltyShare);
+            }
+        }
+        return grossPaid.max(BigDecimal.ZERO);
     }
 
     private void validateRefundAmount(Sale sale, BigDecimal newRefundAmount) {

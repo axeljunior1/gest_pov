@@ -661,6 +661,7 @@ public class PosSaleService {
     }
 
     private void recalculateTotals(Sale sale) {
+        boolean pricesIncludeTax = settingsService.getBoolean(SettingKeys.TAX_PRICES_INCLUDE_TAX);
         BigDecimal subtotal = BigDecimal.ZERO;
         BigDecimal discountTotal = BigDecimal.ZERO;
         BigDecimal taxTotal = BigDecimal.ZERO;
@@ -670,9 +671,13 @@ public class PosSaleService {
             subtotal = subtotal.add(lineSub);
             discountTotal = discountTotal.add(line.getDiscountAmount() != null ? line.getDiscountAmount() : BigDecimal.ZERO);
             BigDecimal taxable = line.getLineTotal();
-            if (line.getTaxRate() != null && line.getTaxRate().compareTo(BigDecimal.ZERO) > 0) {
-                taxTotal = taxTotal.add(taxable.multiply(line.getTaxRate())
-                        .divide(BigDecimal.valueOf(100), 4, RoundingMode.HALF_UP));
+            BigDecimal rate = line.getTaxRate();
+            if (rate != null && rate.compareTo(BigDecimal.ZERO) > 0) {
+                BigDecimal lineTax = pricesIncludeTax
+                        // prix TTC : la taxe est deja incluse dans taxable, on l'extrait sans l'ajouter au total
+                        ? taxable.multiply(rate).divide(BigDecimal.valueOf(100).add(rate), 4, RoundingMode.HALF_UP)
+                        : taxable.multiply(rate).divide(BigDecimal.valueOf(100), 4, RoundingMode.HALF_UP);
+                taxTotal = taxTotal.add(lineTax);
             }
         }
 
@@ -681,8 +686,9 @@ public class PosSaleService {
         sale.setTaxTotal(taxTotal.setScale(4, RoundingMode.HALF_UP));
         BigDecimal loyaltyDiscount = sale.getLoyaltyDiscountAmount() != null
                 ? sale.getLoyaltyDiscountAmount() : BigDecimal.ZERO;
-        sale.setTotal(subtotal.subtract(discountTotal).subtract(loyaltyDiscount)
-                .add(taxTotal).max(BigDecimal.ZERO).setScale(4, RoundingMode.HALF_UP));
+        BigDecimal netOfDiscounts = subtotal.subtract(discountTotal).subtract(loyaltyDiscount);
+        BigDecimal total = pricesIncludeTax ? netOfDiscounts : netOfDiscounts.add(taxTotal);
+        sale.setTotal(total.max(BigDecimal.ZERO).setScale(4, RoundingMode.HALF_UP));
     }
 
     private BigDecimal computeLineTotal(BigDecimal qty, BigDecimal unitPrice, BigDecimal discount) {

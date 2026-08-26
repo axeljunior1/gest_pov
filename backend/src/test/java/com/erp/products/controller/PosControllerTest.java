@@ -370,6 +370,60 @@ class PosControllerTest extends com.erp.products.AbstractIntegrationTest {
                 .andExpect(jsonPath("$.offsetAmount", is(25.0)));
     }
 
+    @Test
+    void shouldNotAddTaxOnTopWhenPricesIncludeTax() throws Exception {
+        mockMvc.perform(put("/api/settings")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "settings", Map.of("tax.prices_include_tax", "true")))))
+                .andExpect(status().isOk());
+
+        openSession();
+        MvcResult saleResult = mockMvc.perform(auth(post("/api/pos/sales")))
+                .andExpect(status().isCreated())
+                .andReturn();
+        Long saleId = objectMapper.readTree(saleResult.getResponse().getContentAsString()).get("id").asLong();
+
+        // prix produit = 25 (TTC), TVA 20% : le total doit rester 25, la TVA (~4.1667) est extraite, pas ajoutee
+        mockMvc.perform(auth(post("/api/pos/sales/" + saleId + "/lines"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "productId", productId,
+                                "quantityInput", 1,
+                                "taxRate", 20))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.total", is(25.0)))
+                .andExpect(jsonPath("$.taxTotal", closeTo(4.1667, 0.001)));
+    }
+
+    @Test
+    void shouldAddTaxOnTopWhenPricesExcludeTax() throws Exception {
+        mockMvc.perform(put("/api/settings")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "settings", Map.of("tax.prices_include_tax", "false")))))
+                .andExpect(status().isOk());
+
+        openSession();
+        MvcResult saleResult = mockMvc.perform(auth(post("/api/pos/sales")))
+                .andExpect(status().isCreated())
+                .andReturn();
+        Long saleId = objectMapper.readTree(saleResult.getResponse().getContentAsString()).get("id").asLong();
+
+        // prix produit = 25 (HT), TVA 20% : total doit devenir 30 (25 + 5 de TVA ajoutee)
+        mockMvc.perform(auth(post("/api/pos/sales/" + saleId + "/lines"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "productId", productId,
+                                "quantityInput", 1,
+                                "taxRate", 20))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.total", is(30.0)))
+                .andExpect(jsonPath("$.taxTotal", is(5.0)));
+    }
+
     private Long originalSaleIdForExchange;
 
     /** Cree et paye une vente d'origine (produit a 25), retourne l'id de sa ligne pour un echange. */
