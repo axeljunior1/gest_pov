@@ -747,17 +747,18 @@
     -fx-padding: 4 0 0 0;
 }
 
-/* --- POS caisse (V3) --- */
+/* --- POS caisse (V3) — meme famille bleu/marine que le reste de l'appli ;
+   le vert est reserve au seul bouton Payer (voir plus bas), pas a tout l'ecran. --- */
 .pos-page {
-    -fx-background-color: #e8f5e9;
+    -fx-background-color: #eef3ff;
 }
 
 .pos-title {
-    -fx-text-fill: #14532d;
+    -fx-text-fill: #0f172a;
 }
 
 .pos-title .text {
-    -fx-fill: #14532d;
+    -fx-fill: #0f172a;
 }
 
 .pos-workspace {
@@ -765,30 +766,31 @@
 }
 
 .pos-panel {
-    -fx-border-color: #86efac;
+    -fx-border-color: #bfdbfe;
     -fx-background-color: #ffffff;
 }
 
 .pos-cart-panel {
-    -fx-border-color: #22c55e;
+    -fx-border-color: #2563eb;
     -fx-border-width: 2;
 }
 
 .pos-section-label {
     -fx-font-size: 13px;
     -fx-font-weight: 800;
-    -fx-text-fill: #166534;
+    -fx-text-fill: #2563eb;
 }
 
-.pos-section-label .text {
-    -fx-fill: #166534;
+/* Specificite superieure a ".content .label .text" — sinon force en marine au lieu du bleu accent. */
+.content .pos-page .pos-section-label .text {
+    -fx-fill: #2563eb;
 }
 
 .pos-search {
     -fx-font-size: 18px;
     -fx-font-weight: 700;
     -fx-padding: 12 14 12 14;
-    -fx-border-color: #16a34a;
+    -fx-border-color: #2563eb;
     -fx-border-width: 2;
 }
 
@@ -847,7 +849,7 @@
 }
 
 .pos-cart .column-header-background {
-    -fx-background-color: #bbf7d0;
+    -fx-background-color: #dbeafe;
 }
 
 .pos-cart .column-header, .pos-cart .filler {
@@ -855,7 +857,7 @@
 }
 
 .pos-total-bar {
-    -fx-background-color: #14532d;
+    -fx-background-color: #0f172a;
     -fx-background-radius: 12;
     -fx-padding: 14 18 14 18;
 }
@@ -863,11 +865,13 @@
 .pos-total-caption {
     -fx-font-size: 14px;
     -fx-font-weight: 800;
-    -fx-text-fill: #bbf7d0;
+    -fx-text-fill: #bfdbfe;
 }
 
-.pos-total-caption .text {
-    -fx-fill: #bbf7d0;
+/* Specificite superieure a ".content .label .text" (regle globale plus haut dans ce fichier) —
+   sinon le texte de la barre de total est force en marine fonce, invisible sur fond marine. */
+.content .pos-total-bar .pos-total-caption .text {
+    -fx-fill: #bfdbfe;
 }
 
 .pos-total-amount {
@@ -876,18 +880,18 @@
     -fx-text-fill: #ffffff;
 }
 
-.pos-total-amount .text {
+.content .pos-total-bar .pos-total-amount .text {
     -fx-fill: #ffffff;
 }
 
 .pos-change {
     -fx-font-size: 15px;
     -fx-font-weight: 800;
-    -fx-text-fill: #166534;
+    -fx-text-fill: #1d4ed8;
 }
 
-.pos-change .text {
-    -fx-fill: #166534;
+.content .pos-page .pos-change .text {
+    -fx-fill: #1d4ed8;
 }
 
 .pos-session-card {
