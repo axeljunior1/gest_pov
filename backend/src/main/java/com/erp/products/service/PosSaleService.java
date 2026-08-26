@@ -547,10 +547,10 @@ public class PosSaleService {
                 .map(SaleValidateRequest.PaymentInput::getAmount)
                 .filter(Objects::nonNull)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
+        // Le paiement partiel n'a pas de cycle de creance (solde restant, encaissements
+        // complementaires) : un montant insuffisant est toujours refuse, quel que soit le parametre.
         if (paid.add(exchangeOffset).compareTo(total) < 0) {
-            if (!config.isAllowPartialPayment()) {
-                throw new BusinessException("Montant paye insuffisant");
-            }
+            throw new BusinessException("Montant paye insuffisant");
         }
 
         if (!settingsService.getStockConfig().isAllowNegativeStock()) {

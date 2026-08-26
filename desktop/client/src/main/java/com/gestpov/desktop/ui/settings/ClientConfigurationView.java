@@ -100,6 +100,12 @@ public final class ClientConfigurationView extends VBox {
         valuation.setDisable(!canUpdate);
         setCheckEditable(ticketShowLogo, autoPrint, allowPartial, allowSplit, changeGiving,
                 allowNegative, lowStockAlerts, multiWarehouse, taxEnabled, pricesIncludeTax, autoApplyTax);
+        // Le cycle de creance (solde restant, encaissements complementaires) n'existe pas encore :
+        // le serveur refuse toujours un paiement insuffisant, ce reglage est donc desactive.
+        allowPartial.setDisable(true);
+        allowPartial.setSelected(false);
+        allowPartial.setTooltip(new javafx.scene.control.Tooltip(
+                "Non disponible : le cycle de creance (solde restant) n'est pas encore implemente."));
 
         GridPane posGrid = new GridPane();
         posGrid.setHgap(12);
@@ -111,7 +117,7 @@ public final class ClientConfigurationView extends VBox {
                 checkRow(ticketShowLogo, "Afficher le logo sur le ticket"),
                 checkRow(autoPrint, "Impression automatique après vente"),
                 checkRow(changeGiving, "Rendu de monnaie activé"),
-                checkRow(allowPartial, "Paiement partiel"),
+                checkRow(allowPartial, "Paiement partiel (non disponible)"),
                 checkRow(allowSplit, "Paiement fractionné"));
         posGrid.add(posFlags, 0, 2, 2, 1);
         ColumnGrow(posGrid);
@@ -279,7 +285,7 @@ public final class ClientConfigurationView extends VBox {
         ticketFooter.setText(nullToEmpty(pos.ticketFooter()));
         ticketShowLogo.setSelected(pos.ticketShowLogo());
         autoPrint.setSelected(pos.autoPrintAfterSale());
-        allowPartial.setSelected(pos.allowPartialPayment());
+        allowPartial.setSelected(false); // desactive tant que le cycle de creance n'existe pas (voir plus haut)
         allowSplit.setSelected(pos.allowSplitPayment());
         changeGiving.setSelected(pos.changeGivingEnabled());
 

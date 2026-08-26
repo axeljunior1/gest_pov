@@ -424,6 +424,36 @@ class PosControllerTest extends com.erp.products.AbstractIntegrationTest {
                 .andExpect(jsonPath("$.taxTotal", is(5.0)));
     }
 
+    @Test
+    void shouldRejectInsufficientPaymentEvenWhenPartialPaymentAllowed() throws Exception {
+        mockMvc.perform(put("/api/settings")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "settings", Map.of("pos.allow_partial_payment", "true")))))
+                .andExpect(status().isOk());
+
+        openSession();
+        MvcResult saleResult = mockMvc.perform(auth(post("/api/pos/sales")))
+                .andExpect(status().isCreated())
+                .andReturn();
+        Long saleId = objectMapper.readTree(saleResult.getResponse().getContentAsString()).get("id").asLong();
+
+        mockMvc.perform(auth(post("/api/pos/sales/" + saleId + "/lines"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "productId", productId,
+                                "quantityInput", 1))))
+                .andExpect(status().isOk());
+
+        // vente a 25, paiement de 10 seulement : doit etre refuse meme avec allow_partial_payment=true
+        mockMvc.perform(auth(post("/api/pos/sales/" + saleId + "/validate"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "payments", List.of(Map.of("method", "CASH", "amount", 10))))))
+                .andExpect(status().isBadRequest());
+    }
+
     private Long originalSaleIdForExchange;
 
     /** Cree et paye une vente d'origine (produit a 25), retourne l'id de sa ligne pour un echange. */
