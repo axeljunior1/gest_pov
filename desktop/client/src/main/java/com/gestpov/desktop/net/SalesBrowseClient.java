@@ -2,6 +2,8 @@ package com.gestpov.desktop.net;
 
 import com.gestpov.desktop.model.SaleBrowsePage;
 import com.gestpov.desktop.model.SaleDetail;
+import com.gestpov.desktop.model.SaleRefundBrowsePage;
+import com.gestpov.desktop.model.SaleRefundDetail;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -40,5 +42,33 @@ public class SalesBrowseClient {
             query.put("status", status);
         }
         return api.getBytes("/api/sales/browse/export", query);
+    }
+
+    public SaleRefundBrowsePage browseReturns(String q, String status, int page, int limit) throws ApiException {
+        Map<String, String> query = new LinkedHashMap<>();
+        if (q != null && !q.isBlank()) {
+            query.put("q", q);
+        }
+        if (status != null && !status.isBlank()) {
+            query.put("status", status);
+        }
+        query.put("page", String.valueOf(Math.max(page, 0)));
+        query.put("limit", String.valueOf(limit <= 0 ? 50 : limit));
+        return SaleRefundBrowsePage.fromJson(api.get("/api/sales/returns/browse", query));
+    }
+
+    public SaleRefundDetail returnDetail(long id) throws ApiException {
+        return SaleRefundDetail.fromJson(api.get("/api/sales/returns/" + id));
+    }
+
+    public byte[] exportReturnsCsv(String q, String status) throws ApiException {
+        Map<String, String> query = new LinkedHashMap<>();
+        if (q != null && !q.isBlank()) {
+            query.put("q", q);
+        }
+        if (status != null && !status.isBlank()) {
+            query.put("status", status);
+        }
+        return api.getBytes("/api/sales/returns/browse/export", query);
     }
 }

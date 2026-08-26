@@ -5,6 +5,7 @@ import com.gestpov.desktop.model.PosProduct;
 import com.gestpov.desktop.net.ApiException;
 import com.gestpov.desktop.net.PosClient;
 import com.gestpov.desktop.session.SessionContext;
+import com.gestpov.desktop.ui.Reloadable;
 import com.gestpov.desktop.ui.component.EmptyState;
 import com.gestpov.desktop.ui.component.ErrorBanner;
 import com.gestpov.desktop.ui.component.ListPager;
@@ -37,7 +38,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-public final class PosReturnsView extends StackPane {
+public final class PosReturnsView extends StackPane implements Reloadable {
 
     private final PosClient pos;
     private final ErrorBanner error = new ErrorBanner();
@@ -65,6 +66,12 @@ public final class PosReturnsView extends StackPane {
         searchSales();
     }
 
+    @Override
+    public void reload() {
+        error.hide();
+        searchSales();
+    }
+
     private VBox build() {
         Label title = new Label("Retours POS");
         title.getStyleClass().add("page-title");
@@ -76,6 +83,9 @@ public final class PosReturnsView extends StackPane {
         Button find = new Button("Chercher");
         find.getStyleClass().add("button-secondary");
         find.setOnAction(e -> searchSales());
+        Button refresh = new Button("Actualiser");
+        refresh.getStyleClass().add("button-secondary");
+        refresh.setOnAction(e -> reload());
 
         sales.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         sales.getColumns().addAll(
@@ -85,7 +95,7 @@ public final class PosReturnsView extends StackPane {
                 col("Remboursable", n -> money(n, "amountRefundable"))
         );
         sales.setPlaceholder(new EmptyState("Aucune vente remboursable"));
-        sales.setPrefHeight(180);
+        sales.setPrefHeight(240);
         sales.getSelectionModel().selectedItemProperty().addListener((o, a, b) -> loadReturnable(b));
 
         detail.getStyleClass().add("page-sub");
@@ -129,7 +139,7 @@ public final class PosReturnsView extends StackPane {
 
         lines.getColumns().addAll(selCol, labelCol, soldCol, returnableCol, qtyCol, restockCol, maxCol);
         lines.setPlaceholder(new EmptyState("Sélectionnez une vente remboursable ci-dessus"));
-        lines.setPrefHeight(220);
+        lines.setPrefHeight(260);
 
         selectAll.setOnAction(e -> {
             boolean checked = selectAll.isSelected();
@@ -148,15 +158,21 @@ public final class PosReturnsView extends StackPane {
         create.getStyleClass().add("button-primary");
         create.setOnAction(e -> createAndValidate());
 
-        HBox bar = new HBox(10, search, find);
+        HBox bar = new HBox(10, search, find, refresh);
         HBox.setHgrow(search, Priority.ALWAYS);
         HBox actions = new HBox(10, reason, payMethod, create);
         HBox.setHgrow(reason, Priority.ALWAYS);
 
         VBox exchangeSection = buildExchangeSection();
 
-        VBox page = new VBox(12, title, sub, error, bar, sales, salesPager.bar(), detail, selectAll, lines, actions,
-                exchangeSection);
+        VBox scrollable = new VBox(12, sales, salesPager.bar(), detail, selectAll, lines, actions, exchangeSection);
+
+        javafx.scene.control.ScrollPane scroll = new javafx.scene.control.ScrollPane(scrollable);
+        scroll.setFitToWidth(true);
+        scroll.getStyleClass().add("settings-scroll");
+        VBox.setVgrow(scroll, Priority.ALWAYS);
+
+        VBox page = new VBox(12, title, sub, error, bar, scroll);
         page.getStyleClass().add("content");
         page.setPadding(new Insets(0));
         return page;
@@ -180,6 +196,23 @@ public final class PosReturnsView extends StackPane {
         exchangeSearch.setOnAction(e -> searchExchangeProducts());
         exchangeResults.setPromptText("Résultats…");
         exchangeResults.setMaxWidth(260);
+        javafx.util.Callback<javafx.scene.control.ListView<PosProduct>, javafx.scene.control.ListCell<PosProduct>> exchangeCellFactory = lv -> new javafx.scene.control.ListCell<>() {
+            @Override
+            protected void updateItem(PosProduct item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) {
+                    setText(null);
+                    return;
+                }
+                String price = ProductLabels.price(item.unitPrice());
+                String sku = item.sku() == null || item.sku().isBlank() ? "" : " · " + item.sku();
+                String stock = item.stockAvailable() == null ? ""
+                        : " · stock " + item.stockAvailable().stripTrailingZeros().toPlainString();
+                setText(item.nom() + sku + stock + "  —  " + price);
+            }
+        };
+        exchangeResults.setCellFactory(exchangeCellFactory);
+        exchangeResults.setButtonCell(exchangeCellFactory.call(null));
         Button addItem = new Button("+ Ajouter");
         addItem.getStyleClass().addAll("button-secondary", "pos-action-sm");
         addItem.setOnAction(e -> addExchangeItem());
@@ -215,7 +248,7 @@ public final class PosReturnsView extends StackPane {
         exchangeItems.getColumns().addAll(nameCol, qtyCol2, priceCol, totalCol, removeCol);
         exchangeItems.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         exchangeItems.setPlaceholder(new EmptyState("Aucun article de remplacement ajouté"));
-        exchangeItems.setPrefHeight(140);
+        exchangeItems.setPrefHeight(200);
 
         exchangeSummary.getStyleClass().add("page-sub");
         exchangeSummary.setWrapText(true);

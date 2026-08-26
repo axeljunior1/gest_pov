@@ -20,6 +20,7 @@ import com.gestpov.desktop.ui.pos.PosReturnsView;
 import com.gestpov.desktop.ui.pos.PosView;
 import com.gestpov.desktop.ui.products.ProductBarcodePrintView;
 import com.gestpov.desktop.ui.products.ProductWorkspace;
+import com.gestpov.desktop.ui.sales.ReturnsListView;
 import com.gestpov.desktop.ui.sales.SalesListView;
 import com.gestpov.desktop.ui.settings.SettingsView;
 import com.gestpov.desktop.ui.stock.InventoriesView;
@@ -105,6 +106,7 @@ public final class MainWindow extends BorderPane {
     private final Button posHistoryNav = nav("Historique caisse");
     private final Button posReportsNav = nav("Rapports caisse");
     private final Button posReturnsNav = nav("Retours POS");
+    private final Button returnsHistoryNav = nav("Historique retours");
     private final Button customersNav = nav("Clients");
     private final Button salesNav = nav("Ventes BO");
     private final Button analyticsNav = nav("Analytics");
@@ -134,6 +136,7 @@ public final class MainWindow extends BorderPane {
     private PosHistoryView posHistoryView;
     private PosReportsView posReportsView;
     private PosReturnsView posReturnsView;
+    private ReturnsListView returnsListView;
     private CustomersView customersView;
     private SalesListView salesListView;
     private AnalyticsView analyticsView;
@@ -173,6 +176,7 @@ public final class MainWindow extends BorderPane {
         posHistoryNav.setOnAction(e -> showPosHistory());
         posReportsNav.setOnAction(e -> showPosReports());
         posReturnsNav.setOnAction(e -> showPosReturns());
+        returnsHistoryNav.setOnAction(e -> showReturnsHistory());
         customersNav.setOnAction(e -> showCustomers());
         salesNav.setOnAction(e -> showSales());
         analyticsNav.setOnAction(e -> showAnalytics());
@@ -246,6 +250,10 @@ public final class MainWindow extends BorderPane {
             if (session.hasPermission("pos.return.create") || session.hasPermission("pos.sale.refund")
                     || session.hasPermission("pos.return.read")) {
                 navItems.getChildren().add(row("pos-returns", posReturnsNav));
+            }
+            if (session.hasPermission("pos.return.read") || session.hasPermission("analytics.sales.read")
+                    || session.hasPermission("pos.report.read")) {
+                navItems.getChildren().add(row("returns-history", returnsHistoryNav));
             }
             if (session.hasPermission("customer.read")) {
                 navItems.getChildren().add(row("customers", customersNav));
@@ -701,6 +709,14 @@ public final class MainWindow extends BorderPane {
             posReturnsView = new PosReturnsView(session);
         }
         present(posReturnsView, posReturnsNav, created);
+    }
+
+    private void showReturnsHistory() {
+        boolean created = returnsListView == null;
+        if (created) {
+            returnsListView = new ReturnsListView(session);
+        }
+        present(returnsListView, returnsHistoryNav, created);
     }
 
     private void showCustomers() {
