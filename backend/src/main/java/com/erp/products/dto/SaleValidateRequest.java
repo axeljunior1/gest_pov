@@ -12,6 +12,8 @@ public class SaleValidateRequest {
     private List<PaymentInput> payments;
     /** Montant reçu en espèces (pour calcul monnaie). */
     private BigDecimal cashReceived;
+    /** Part du montant compensee par un echange (jamais un vrai paiement — pas de ligne Payment). */
+    private BigDecimal exchangeOffsetAmount;
 
     @Data
     public static class PaymentInput {

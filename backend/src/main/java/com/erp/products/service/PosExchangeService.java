@@ -66,15 +66,15 @@ public class PosExchangeService {
         BigDecimal netAmount = newItemsTotal.subtract(returnTotal);
         BigDecimal offset = returnTotal.min(newItemsTotal);
 
+        // L'offset compense la reprise contre le nouvel article — jamais un vrai paiement, donc
+        // jamais une ligne Payment/RefundPayment : juste un montant reconnu par les deux validations.
         RefundValidateRequest refundValidate = new RefundValidateRequest();
         List<SaleRefundRequest.RefundPaymentRequest> refundPayments = new ArrayList<>();
-        if (offset.compareTo(BigDecimal.ZERO) > 0) {
-            refundPayments.add(refundPayment(PaymentMethod.EXCHANGE_OFFSET, offset));
-        }
         if (netAmount.compareTo(BigDecimal.ZERO) < 0) {
             refundPayments.add(refundPayment(realMethod, netAmount.abs()));
         }
         refundValidate.setPayments(refundPayments);
+        refundValidate.setExchangeOffsetAmount(offset);
         refundValidate.setManagerEmail(request.getManagerEmail());
         refundValidate.setManagerPassword(request.getManagerPassword());
         refundValidate.setManagerBadgeCode(request.getManagerBadgeCode());
@@ -83,13 +83,11 @@ public class PosExchangeService {
 
         SaleValidateRequest saleValidate = new SaleValidateRequest();
         List<SaleValidateRequest.PaymentInput> salePayments = new ArrayList<>();
-        if (offset.compareTo(BigDecimal.ZERO) > 0) {
-            salePayments.add(salePayment(PaymentMethod.EXCHANGE_OFFSET, offset));
-        }
         if (netAmount.compareTo(BigDecimal.ZERO) > 0) {
             salePayments.add(salePayment(realMethod, netAmount));
         }
         saleValidate.setPayments(salePayments);
+        saleValidate.setExchangeOffsetAmount(offset);
         SaleResponse completedSale = saleService.validateSale(newSale.getId(), saleValidate);
 
         Sale original = saleRepository.findById(originalSaleId)
@@ -106,6 +104,7 @@ public class PosExchangeService {
                 .refund(refundEntity)
                 .newSale(newSaleEntity)
                 .netAmount(netAmount)
+                .offsetAmount(offset)
                 .createdBy(actor)
                 .build();
         SaleExchange saved = exchangeRepository.save(exchange);
@@ -126,6 +125,7 @@ public class PosExchangeService {
                 .newSaleNumber(completedSale.getSaleNumber())
                 .newItemsTotal(newItemsTotal)
                 .netAmount(netAmount)
+                .offsetAmount(offset)
                 .createdBy(saved.getCreatedBy())
                 .createdAt(saved.getCreatedAt())
                 .build();

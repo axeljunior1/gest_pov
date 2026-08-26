@@ -194,16 +194,21 @@ public class PosRefundService {
         refund.setCashier(cashier);
         refund.setPosSession(session);
 
+        BigDecimal exchangeOffset = request.getExchangeOffsetAmount() != null
+                ? request.getExchangeOffsetAmount() : BigDecimal.ZERO;
         List<SaleRefundRequest.RefundPaymentRequest> paymentReqs = request.getPayments();
-        if (paymentReqs == null || paymentReqs.isEmpty()) {
+        if ((paymentReqs == null || paymentReqs.isEmpty()) && exchangeOffset.compareTo(BigDecimal.ZERO) <= 0) {
             paymentReqs = inferRefundPayments(sale, refund.getTotalAmount());
+        }
+        if (paymentReqs == null) {
+            paymentReqs = List.of();
         }
         BigDecimal paymentsTotal = paymentReqs.stream()
                 .map(SaleRefundRequest.RefundPaymentRequest::getAmount)
                 .filter(Objects::nonNull)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-        if (paymentsTotal.compareTo(refund.getTotalAmount()) != 0) {
-            throw new BusinessException("Le total des remboursements doit egaler le montant du retour");
+        if (paymentsTotal.add(exchangeOffset).compareTo(refund.getTotalAmount()) != 0) {
+            throw new BusinessException("Le total des remboursements (+ échange éventuel) doit egaler le montant du retour");
         }
 
         Instant now = Instant.now();

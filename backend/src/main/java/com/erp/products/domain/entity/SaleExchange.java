@@ -42,6 +42,10 @@ public class SaleExchange {
     @Column(name = "net_amount", nullable = false, precision = 19, scale = 4)
     private BigDecimal netAmount;
 
+    /** Part de la reprise compensee par le nouvel article — jamais un vrai paiement, juste trace ici. */
+    @Column(name = "offset_amount", nullable = false, precision = 19, scale = 4)
+    private BigDecimal offsetAmount;
+
     @Column(name = "created_by", nullable = false, length = 100)
     private String createdBy;
 

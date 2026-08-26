@@ -530,8 +530,11 @@ public class PosSaleService {
 
         recalculateTotals(sale);
         BigDecimal total = sale.getTotal();
-        List<SaleValidateRequest.PaymentInput> inputs = request.getPayments();
-        if (inputs == null || inputs.isEmpty()) {
+        List<SaleValidateRequest.PaymentInput> inputs = request.getPayments() != null
+                ? request.getPayments() : List.of();
+        BigDecimal exchangeOffset = request.getExchangeOffsetAmount() != null
+                ? request.getExchangeOffsetAmount() : BigDecimal.ZERO;
+        if (inputs.isEmpty() && exchangeOffset.compareTo(BigDecimal.ZERO) <= 0) {
             throw new BusinessException("Paiement requis");
         }
 
@@ -544,7 +547,7 @@ public class PosSaleService {
                 .map(SaleValidateRequest.PaymentInput::getAmount)
                 .filter(Objects::nonNull)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-        if (paid.compareTo(total) < 0) {
+        if (paid.add(exchangeOffset).compareTo(total) < 0) {
             if (!config.isAllowPartialPayment()) {
                 throw new BusinessException("Montant paye insuffisant");
             }

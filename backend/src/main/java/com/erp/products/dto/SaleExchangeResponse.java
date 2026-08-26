@@ -21,6 +21,8 @@ public class SaleExchangeResponse {
     private BigDecimal newItemsTotal;
     /** Positif = paye par le client, negatif = rembourse au client, zero = echange pur. */
     private BigDecimal netAmount;
+    /** Part de la reprise compensee par le nouvel article (jamais un vrai paiement). */
+    private BigDecimal offsetAmount;
     private String createdBy;
     private Instant createdAt;
 }

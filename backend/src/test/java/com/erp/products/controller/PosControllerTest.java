@@ -317,6 +317,88 @@ class PosControllerTest extends com.erp.products.AbstractIntegrationTest {
                 .andExpect(jsonPath("$.status", is("PAID")));
     }
 
+    /** F01 — l'echange ne doit jamais tenter de persister un "paiement" fictif (contraintes SQL reelles ici). */
+    @Test
+    void shouldProcessPureExchangeWithNoMoneyChangingHands() throws Exception {
+        Long lineId = paySaleAndGetLineId(1);
+
+        mockMvc.perform(auth(post("/api/pos/sales/" + originalSaleIdForExchange + "/exchange"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "returnLines", List.of(Map.of("saleLineId", lineId, "quantity", 1)),
+                                "newLines", List.of(Map.of("productId", productId, "quantityInput", 1)),
+                                "paymentMethod", "CASH"))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.returnTotal", is(25.0)))
+                .andExpect(jsonPath("$.newItemsTotal", is(25.0)))
+                .andExpect(jsonPath("$.netAmount", is(0.0)))
+                .andExpect(jsonPath("$.offsetAmount", is(25.0)))
+                .andExpect(jsonPath("$.exchangeNumber", notNullValue()));
+    }
+
+    @Test
+    void shouldProcessExchangeWithBalanceDueFromCustomer() throws Exception {
+        Long lineId = paySaleAndGetLineId(1);
+
+        mockMvc.perform(auth(post("/api/pos/sales/" + originalSaleIdForExchange + "/exchange"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "returnLines", List.of(Map.of("saleLineId", lineId, "quantity", 1)),
+                                "newLines", List.of(Map.of("productId", productId, "quantityInput", 2)),
+                                "paymentMethod", "CASH"))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.returnTotal", is(25.0)))
+                .andExpect(jsonPath("$.newItemsTotal", is(50.0)))
+                .andExpect(jsonPath("$.netAmount", is(25.0)))
+                .andExpect(jsonPath("$.offsetAmount", is(25.0)));
+    }
+
+    @Test
+    void shouldProcessExchangeWithRefundDueToCustomer() throws Exception {
+        Long lineId = paySaleAndGetLineId(2);
+
+        mockMvc.perform(auth(post("/api/pos/sales/" + originalSaleIdForExchange + "/exchange"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "returnLines", List.of(Map.of("saleLineId", lineId, "quantity", 2)),
+                                "newLines", List.of(Map.of("productId", productId, "quantityInput", 1)),
+                                "paymentMethod", "CASH"))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.returnTotal", is(50.0)))
+                .andExpect(jsonPath("$.newItemsTotal", is(25.0)))
+                .andExpect(jsonPath("$.netAmount", is(-25.0)))
+                .andExpect(jsonPath("$.offsetAmount", is(25.0)));
+    }
+
+    private Long originalSaleIdForExchange;
+
+    /** Cree et paye une vente d'origine (produit a 25), retourne l'id de sa ligne pour un echange. */
+    private Long paySaleAndGetLineId(int quantity) throws Exception {
+        openSession();
+        MvcResult saleResult = mockMvc.perform(auth(post("/api/pos/sales"))).andReturn();
+        Long saleId = objectMapper.readTree(saleResult.getResponse().getContentAsString()).get("id").asLong();
+
+        MvcResult lineResult = mockMvc.perform(auth(post("/api/pos/sales/" + saleId + "/lines"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "productId", productId, "quantityInput", quantity))))
+                .andExpect(status().isOk())
+                .andReturn();
+        Long lineId = objectMapper.readTree(lineResult.getResponse().getContentAsString())
+                .get("lignes").get(0).get("id").asLong();
+
+        double total = quantity * 25.0;
+        mockMvc.perform(auth(post("/api/pos/sales/" + saleId + "/validate"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "payments", List.of(Map.of("method", "CASH", "amount", total))))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status", is("PAID")));
+
+        originalSaleIdForExchange = saleId;
+        return lineId;
+    }
+
     private void openSession() throws Exception {
         mockMvc.perform(post("/api/pos/sessions/open")
                         .header("Authorization", "Bearer " + adminToken)
